@@ -86,8 +86,9 @@ button { color: inherit; }
 
 .sheet-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0;
-  overflow-x: auto;
+  overflow: hidden;
   max-width: 100%;
   width: 100%;
   border-bottom: 1px solid var(--ink);
@@ -156,7 +157,7 @@ button { color: inherit; }
 
 .cloud-status { margin-left: auto; color: var(--muted); font-size: calc(11px * var(--font-scale, 1)); }
 .control-note { color: var(--muted); font-size: calc(11px * var(--font-scale, 1)); }
-.sheet-tab { flex: 0 0 auto; border: 0; border-right: 1px solid var(--line-soft); padding: 11px 13px; background: transparent; cursor: pointer; font-size: calc(12px * var(--font-scale, 1)); white-space: nowrap; }
+.sheet-tab { flex: 0 1 auto; border: 0; border-right: 1px solid var(--line-soft); padding: 11px 13px; background: transparent; cursor: pointer; font-size: calc(12px * var(--font-scale, 1)); white-space: normal; overflow-wrap: anywhere; text-align: center; }
 .sheet-tab:hover { background: #f8f6ee; }
 .sheet-tab.active { background: var(--paper); box-shadow: inset 0 -3px 0 var(--accent); font-weight: 600; }
 .sheet-body {
@@ -466,7 +467,16 @@ body.page-resizing {
 .sheet-table td[contenteditable='true'] { outline: none; background: rgba(255,255,255,.16); }
 .sheet-table .cell-input { width: 100%; min-width: 100px; min-height: 28px; border: 0; border-radius: 0; outline: none; background: transparent; resize: vertical; font-size: calc(12px * var(--font-scale, 1)); }
 .sheet-table .cell-readonly { display: block; min-height: 28px; padding: 5px 4px; }
+.sheet-table .action-type-cell { white-space: pre-line; }
+.sheet-table-action-types th:nth-child(5), .sheet-table-action-types td:nth-child(5) { background: #fffdf4; }
+.sheet-table-action-types th:nth-child(6), .sheet-table-action-types td:nth-child(6) { background: #d9ead3; }
+.sheet-table-action-types th:nth-child(7), .sheet-table-action-types td:nth-child(7) { background: #fff2cc; }
+.sheet-table-action-types th:nth-child(8), .sheet-table-action-types td:nth-child(8) { background: #f4cccc; }
+.sheet-table-action-types th:nth-child(9), .sheet-table-action-types td:nth-child(9) { background: #ea9999; }
+.sheet-table-action-types th:nth-child(10), .sheet-table-action-types td:nth-child(10) { background: #cc4125; color: #fff; }
 .sheet-table select.cell-input, .sheet-table .cell-select { height: 28px; cursor: pointer; padding: 2px 4px; font-family: inherit; }
+.sheet-table .checkbox-cell { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; white-space: nowrap; }
+.sheet-table .checkbox-cell input { width: 16px; height: 16px; cursor: pointer; }
 .sheet-table-specialisations { table-layout: fixed; }
 .sheet-table-specialisations th:nth-child(1), .sheet-table-specialisations td:nth-child(1) { width: 180px; }
 .sheet-table-specialisations th:nth-child(2), .sheet-table-specialisations td:nth-child(2),
@@ -475,6 +485,22 @@ body.page-resizing {
 .sheet-table-specialisations th:nth-child(5), .sheet-table-specialisations td:nth-child(5) { width: 82px; }
 .sheet-table-specialisations th:nth-child(6), .sheet-table-specialisations td:nth-child(6) { width: 300px; }
 .sheet-table-specialisations .cell-input { min-width: 0; }
+.sheet-table-weapons { table-layout: fixed; }
+.sheet-table-weapons th:nth-child(1), .sheet-table-weapons td:nth-child(1),
+.sheet-table-weapons th:nth-child(2), .sheet-table-weapons td:nth-child(2) { width: 180px; }
+.sheet-table-weapons th:nth-child(3), .sheet-table-weapons td:nth-child(3),
+.sheet-table-weapons th:nth-child(4), .sheet-table-weapons td:nth-child(4),
+.sheet-table-weapons th:nth-child(5), .sheet-table-weapons td:nth-child(5),
+.sheet-table-weapons th:nth-child(6), .sheet-table-weapons td:nth-child(6),
+.sheet-table-weapons th:nth-child(7), .sheet-table-weapons td:nth-child(7),
+.sheet-table-weapons th:nth-child(8), .sheet-table-weapons td:nth-child(8),
+.sheet-table-weapons th:nth-child(9), .sheet-table-weapons td:nth-child(9),
+.sheet-table-weapons th:nth-child(10), .sheet-table-weapons td:nth-child(10),
+.sheet-table-weapons th:nth-child(11), .sheet-table-weapons td:nth-child(11),
+.sheet-table-weapons th:nth-child(12), .sheet-table-weapons td:nth-child(12) { width: 82px; }
+.sheet-table-weapons .cell-input { min-width: 0; }
+.sheet-table-specialisations .row-actions, .sheet-table-weapons .row-actions { width: 64px; min-width: 64px; }
+.sheet-table-specialisations .delete-row, .sheet-table-weapons .delete-row { padding: 3px 4px; font-size: calc(9px * var(--font-scale, 1)); }
 .sheet-table .cell-input:focus { background: #fffdf4; box-shadow: inset 0 0 0 2px var(--accent-soft); }
 .sheet-table .special-effect-input { display: block; margin: 2px 0; }
 .sheet-table .special-effect-yellow { background: var(--yellow); }
@@ -483,6 +509,9 @@ body.page-resizing {
 .sheet-table .special-effect-darkest-red { background: var(--red-darkest); color: #fff; }
 .add-row { margin-top: 10px; border: 1px solid var(--line); border-radius: 0; padding: 8px 10px; background: var(--paper-deep); cursor: pointer; font: 500 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace; }
 .add-row:hover { background: #fffdf4; }
+.row-actions { width: 64px; min-width: 64px; padding-left: 4px !important; padding-right: 4px !important; text-align: center !important; white-space: nowrap; }
+.delete-row { border: 1px solid #92372f; border-radius: 0; padding: 4px 6px; background: #b84c42; color: #fff; cursor: pointer; font: 500 calc(10px * var(--font-scale, 1)) 'DM Mono', monospace; }
+.delete-row:hover { background: #9d3830; }
 .sheet-table td[contenteditable='true']:focus { background: #fffdf4; box-shadow: inset 0 0 0 2px var(--accent-soft); }
 .sheet-table .tone-yellow { background: var(--yellow); }
 .sheet-table .tone-red { background: var(--red); }

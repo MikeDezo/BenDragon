@@ -14,8 +14,18 @@ const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 const tables = {
-  'Action Types': ['Action Type', 'Description', 'Critical 1', 'Critical 100', 'Critical Red'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Specialisations Initiative Bonuses', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Touch Stat', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Damage', 'Quality'], Armor: ['Name', 'Base Armor', 'Emplacements runiques', 'Runes', 'Quality'], Inventory: ['Object', 'Qte', 'Description', 'Localisation'], Relations: ['Name', 'Link', 'Relation type', 'Unlocked', 'Unlockable'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
+  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Specialisations Initiative Bonuses', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'], Armor: ['Name', 'Base Armor', 'Emplacements runiques', 'Runes', 'Quality'], Inventory: ['Object', 'Qte', 'Description', 'Localisation'], Relations: ['Name', 'Link', 'Relation type', 'Unlocked', 'Unlockable'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
 };
+
+const ACTION_TYPES_ROWS = [
+  ['Attaque Normal', 'Full', 'Une attaque normale représente une attaque effectuée sans compétence particulière, sans spécialisation ou sans technique spéciale.', "Déclenche une attaque d'opportunité de la part de l'adversaire à l'aide d'une Action de Réaction.", 'Échec', 'Réussite', 'Réussite', 'Réussite', 'Coup Critique\n+50% de dégats', 'Coup Critique\n+5 Karma\n+50% de dégats\n+1 Action instantannément'],
+  ['Désengagement', 'Full', 'Se désengager d\'un combat en cour.\nRisque d\'attaque d\'opportunité.', '', '-', '-', '-', '-', '-', '-'],
+  ["Attaque d'oportunité", 'Free', "Une attaque d'opportunité consomme une Action libre.", "Déclenche une attaque d'opportunité de la part de l'adversaire à l'aide d'une Action de Réaction.", 'Échec', 'Réussite', 'Réussite', 'Réussite', 'Coup Critique\n+50% de dégats', 'Coup Critique\n+5 Karma\n+50% de dégats\n+1 Action instantannément'],
+  ['Action libre', 'Free', 'Un personnage peut utiliser un nombre maximal d\'Actions libres par round égal à son nombre d\'Actions normales.\nLes Actions libres ne sont jamais automatiques.\nElles doivent toujours être accordées par une règle, une compétence, une capacité ou une circonstance particulière.\nUne attaque normale ne donne jamais d\'Action libre.\nCertaines règles, comme un Rouge naturel ou un 100 naturel, peuvent accorder des Actions libres supplémentaires qui ne comptent pas dans cette limite.', '', '', '', '', '', '', ''],
+  ['Blocage', 'Full, Fighting', "Le Blocage permet d'encaisser une attaque grâce à un bouclier ou à une arme.", '', 'Échec', 'Augmente +10 la valeur de blocage', 'Augmente +20 la valeur de blocage', '- Augmente +30 la valeur de blocage\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre', '- Augmente +40 la valeur de blocage\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre.', '+5 Karma\n\n- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque gratuite avec une arme secondaire maîtrisée, sans utiliser d\'Action libre.'],
+  ['Parade', 'Full, Fighting', 'La Parade permet de dévier une attaque de mêlée ou une attaque à distance.', '', 'Échec', 'Réduit 50 % des dégâts.\n\n+ 1 Focus', 'Réduit 75 % des dégâts.\n\n+ 1 Focus', '- Évite complètement les dégâts.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre.\n\n+ 1 Focus', '- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre.\n\n+ 1 Focus', '+5 Karma\n\n- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque gratuite avec une arme secondaire maîtrisée, sans utiliser d\'Action libre.\n\n+ 1 Focus'],
+  ['Esquive', 'Full, Agilité', "L'Esquive permet d'éviter une attaque de mêlée ou une attaque à distance.", '', 'Échec', 'Évite 50 % des dégâts.', 'Évite complètement les dégâts', '- Évite complètement les dégâts.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre', '- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre.', '+5 Karma\n\n- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque gratuite avec une arme secondaire maîtrisée, sans utiliser d\'Action libre.']
+];
 
 const app = document.querySelector('#root');
 let activeTab = 'Infos';
@@ -94,6 +104,10 @@ function editable(path, value, className = 'field-input', placeholder = '') {
   return `<textarea class="${className}" data-path="${path}" rows="1"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea>`;
 }
 
+function editableInteger(path, value, className = 'cell-input') {
+  return `<input type="number" class="${className}" data-path="${path}" data-integer="true" step="1" inputmode="numeric" value="${esc(value)}">`;
+}
+
 function readOnlyCell(value) {
   return `<span class="cell-readonly">${esc(value)}</span>`;
 }
@@ -108,12 +122,18 @@ function editableSelect(path, value, options, className = 'cell-select', attribu
   return `<select class="${className}" data-path="${path}" ${attributes}>${optsHtml}</select>`;
 }
 
+function editableCheckbox(path, value) {
+  const checked = value === true || value === 'true' || value === 'on';
+  return `<label class="checkbox-cell"><input type="checkbox" data-path="${path}" data-checkbox="true" aria-label="Two handed" ${checked ? 'checked' : ''}></label>`;
+}
+
 const specialisationLevels = {
-  Novice: { touch: '+5', potential: '+5', ini: '+1', colors: [null], defaults: ['quick draw'] },
-  Apprentice: { touch: '+10', potential: '+10', ini: '+2', colors: ['red'] },
-  Adept: { touch: '+15', potential: '+15', ini: '+3', colors: ['yellow', 'red'] },
-  Expert: { touch: '+20', potential: '+20', ini: '+4', colors: ['yellow', 'red', 'dark-red'] },
-  Master: { touch: '+25', potential: '+25', ini: '+5', colors: ['yellow', 'red', 'dark-red', 'darkest-red'] }
+  Unspecialised: { touch: '0', potential: '0', ini: '0', colors: [], defaults: [] },
+  Novice: { touch: '+5', potential: '+5', ini: '+1', colors: [null], defaults: ['Quick Draw'] },
+  Apprentice: { touch: '+10', potential: '+10', ini: '+2', colors: [null, 'red'] },
+  Adept: { touch: '+15', potential: '+15', ini: '+3', colors: [null, 'yellow'] },
+  Expert: { touch: '+20', potential: '+20', ini: '+4', colors: [null, 'yellow', 'red'], defaults: [null, null, 'Combo on naturel red'] },
+  Master: { touch: '+25', potential: '+25', ini: '+5', colors: [null, 'yellow', 'red', 'dark-red'] }
 };
 
 function applySpecialisationLevel(row, level) {
@@ -123,12 +143,14 @@ function applySpecialisationLevel(row, level) {
   row[2] = config.touch;
   row[3] = config.potential;
   row[5] = config.ini;
-  row[4] = config.defaults || config.colors.map(() => '');
+  const previousEffects = Array.isArray(row[4]) ? row[4] : [row[4] || ''];
+  row[4] = config.colors.map((_, index) => config.defaults?.[index] ?? previousEffects[index] ?? '');
 }
 
 function specialisationEffectInputs(path, value, level) {
   const config = specialisationLevels[level];
   const values = Array.isArray(value) ? value : [value || ''];
+  if (config?.colors.length === 0) return '';
   if (!config) {
     return `<textarea class="cell-input special-effect-input" data-special-effect-path="${path}" data-special-effect-index="0" rows="1">${esc(values[0])}</textarea>`;
   }
@@ -366,6 +388,7 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
     charName: charName || 'Character',
     characterId,
     playerName: playerName || 'Player',
+    playerId: user.id,
     timestamp: Date.now()
   };
 
@@ -418,6 +441,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     outcomeLabel: resolution.outcomeLabel,
     charName: charName || 'Character',
     playerName: playerName || 'Player',
+    playerId: user.id,
     timestamp: Date.now()
   };
 
@@ -1230,26 +1254,61 @@ function rollsAndIniPage() {
 function tablePage(name, character) {
   const headers = tables[name];
   const storedRows = character.data.tables[name];
-  const rows = Array.isArray(storedRows)
+  let rows = Array.isArray(storedRows)
     ? storedRows
     : storedRows && typeof storedRows === 'object'
       ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
       : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
+  const isActionTypes = name === 'Action Types';
+  if (isActionTypes) rows = ACTION_TYPES_ROWS;
   if (storedRows && !Array.isArray(storedRows)) {
     character.data.tables[name] = rows;
   }
+  if (name === 'Specialisations') {
+    rows.forEach((row) => {
+      row[1] ||= 'Unspecialised';
+      row[2] ||= '0';
+      row[3] ||= '0';
+      row[5] ||= '0';
+      if (row[1] === 'Unspecialised') row[4] = [];
+    });
+    if (!character.data.tables[name]) character.data.tables[name] = rows;
+  }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
-  const specialisationLevelOptions = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  const storedSpecialisationRows = character.data.tables.Specialisations;
+  const specialisationRows = Array.isArray(storedSpecialisationRows)
+    ? storedSpecialisationRows
+    : storedSpecialisationRows && typeof storedSpecialisationRows === 'object'
+      ? Object.keys(storedSpecialisationRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedSpecialisationRows[key])
+      : [];
+  const specialisationNames = specialisationRows
+    .map((row) => Array.isArray(row) ? row[0] : row?.[0] || row?.name || '')
+    .map((name) => String(name).trim())
+    .filter(Boolean)
+    .filter((name, index, names) => names.indexOf(name) === index);
   const displayColumns = name === 'Specialisations' ? [0, 1, 5, 2, 3, 4] : headers.map((_, index) => index);
+  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+  const canDeleteRows = ['Skills', 'Spell', 'Specialisations', 'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur', 'Unique Power'].includes(name);
 
-  const tableClass = name === 'Specialisations' ? ' sheet-table-specialisations' : '';
-  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${displayColumns.map((columnIndex) => `<th>${esc(headers[columnIndex])}</th>`).join('')}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
+  const tableClass = name === 'Action Types' ? ' sheet-table-action-types' : name === 'Specialisations' ? ' sheet-table-specialisations' : name === 'Weapons' ? ' sheet-table-weapons' : '';
+  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${displayColumns.map((columnIndex) => `<th>${esc(headers[columnIndex])}</th>`).join('')}${canDeleteRows ? '<th class="row-actions">Actions</th>' : ''}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
-    const sourceColumnIndex = name === 'Weapons' && columnIndex >= 7 ? columnIndex + 1 : columnIndex;
-    const val = row[sourceColumnIndex] || '';
+    const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
+    const specialisationDefault = name === 'Specialisations' && sourceColumnIndex === 1 ? 'Unspecialised' : (name === 'Specialisations' && [2, 3, 5].includes(sourceColumnIndex) ? '0' : '');
+    const val = row[sourceColumnIndex] || specialisationDefault;
     const path = `tables.${name}.${rowIndex}.${sourceColumnIndex}`;
     if (name === 'Weapons' && (header === 'Touch Stat' || header === 'Damage Bonus Stat')) {
       return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Weapons' && header === 'Specialisation') {
+      return `<td>${editableSelect(path, val, specialisationNames, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Weapons' && header === 'Touch Bonus') {
+      return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Weapons' && header === 'Two handed?') {
+      return `<td>${editableCheckbox(path, val)}</td>`;
     }
     if (name === 'Specialisations' && header === 'Actual LVL') {
       return `<td>${editableSelect(path, val, specialisationLevelOptions, 'cell-input cell-select', `data-specialisation-level="${esc(path)}"`)}</td>`;
@@ -1260,8 +1319,9 @@ function tablePage(name, character) {
     if (name === 'Specialisations' && ['Ini Bonus', 'Touch Bonus', 'Potential Bonus'].includes(header)) {
       return `<td>${readOnlyCell(val)}</td>`;
     }
+    if (isActionTypes) return `<td><span class="cell-readonly action-type-cell">${esc(val)}</span></td>`;
     return `<td>${editable(path, val, 'cell-input')}</td>`;
-  }).join('')}</tr>`).join('')}</tbody></table></div><button class="add-row" data-add-row="${esc(name)}">+ Add row</button></section>`;
+  }).join('')}${canDeleteRows ? `<td class="row-actions"><button type="button" class="delete-row" data-delete-row="${esc(name)}" data-row-index="${rowIndex}" title="Delete this row">Delete</button></td>` : ''}</tr>`).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
 }
 
 function pageFor(character) {
@@ -1852,7 +1912,6 @@ async function initialise() {
     OBR.broadcast.onMessage('terranova/stat-roll-result', (event) => {
       const data = event.data;
       if (data && (typeof data.roll === 'number' || typeof data.total === 'number')) {
-        activeRollResult = data;
         const outcome = data.outcomeType || (data.roll === 1 ? 'crit-fail' : (data.roll === 100 ? 'crit-success' : null));
         if (outcome) {
           playCritSound(outcome, data.rollId || data.timestamp);
@@ -1942,7 +2001,10 @@ function bindEvents() {
   });
   app.querySelectorAll('[data-path]').forEach((input) => {
     const handleUpdate = () => {
-      setPath(input.dataset.path, input.value);
+      if (input.dataset.integer) {
+        input.value = input.value.match(/^-?\d*/)?.[0] || '';
+      }
+      setPath(input.dataset.path, input.dataset.checkbox ? input.checked : input.value);
       if (activeTab === 'Stats') {
         updateStatsCalculations();
       }
@@ -2105,6 +2167,18 @@ function bindEvents() {
     await save();
     const targetPath = `tables.${name}.${newRowIndex}.0`;
     render(targetPath, true);
+  }));
+  app.querySelectorAll('[data-delete-row]').forEach((button) => button.addEventListener('click', async (event) => {
+    event.preventDefault();
+    const character = currentCharacter();
+    if (!character || !canEditCurrent()) return;
+    const name = button.dataset.deleteRow;
+    const rowIndex = Number(button.dataset.rowIndex);
+    const rows = character.data.tables[name];
+    if (!Array.isArray(rows) || !Number.isInteger(rowIndex)) return;
+    rows.splice(rowIndex, 1);
+    await save();
+    render();
   }));
 
   app.querySelector('#clear-initiative-btn')?.addEventListener('click', () => {
