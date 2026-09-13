@@ -11,9 +11,10 @@ const tabs = [
 ];
 const STORAGE_KEY = 'terranova.characterSheets';
 const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 'gender'], ['Origins', 'origins'], ['Age', 'age'], ['Heigth', 'height'], ['Weigth', 'weight'], ['Eyes Color', 'eyesColor'], ['Hairs Color', 'hairColor'], ['Skin Color', 'skinColor'], ['Languages', 'languages'], ['Alphabet', 'alphabet'], ['Gods', 'gods'], ['Xp to spend/Total', 'xp'], ['BackGround', 'background']];
+const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 const tables = {
-  'Action Types': ['Action Type', 'Description', 'Critical 1', 'Critical 100', 'Critical Red'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Specialisations Initiative Bonuses', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Touch Stat', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Damage', 'Ammo', 'Quality'], Armor: ['Name', 'Base Armor', 'Emplacements runiques', 'Runes', 'Quality'], Inventory: ['Object', 'Qte', 'Description', 'Localisation'], Relations: ['Name', 'Link', 'Relation type', 'Unlocked', 'Unlockable'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
+  'Action Types': ['Action Type', 'Description', 'Critical 1', 'Critical 100', 'Critical Red'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Specialisations Initiative Bonuses', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Touch Stat', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Damage', 'Quality'], Armor: ['Name', 'Base Armor', 'Emplacements runiques', 'Runes', 'Quality'], Inventory: ['Object', 'Qte', 'Description', 'Localisation'], Relations: ['Name', 'Link', 'Relation type', 'Unlocked', 'Unlockable'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
 };
 
 const app = document.querySelector('#root');
@@ -91,6 +92,47 @@ function canEditCurrent() {
 
 function editable(path, value, className = 'field-input', placeholder = '') {
   return `<textarea class="${className}" data-path="${path}" rows="1"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea>`;
+}
+
+function readOnlyCell(value) {
+  return `<span class="cell-readonly">${esc(value)}</span>`;
+}
+
+function editableSelect(path, value, options, className = 'cell-select', attributes = '') {
+  const isCustom = value && !options.includes(value);
+  const optsHtml = [
+    '<option value="">-- Select --</option>',
+    ...options.map((opt) => `<option value="${esc(opt)}" ${opt === value ? 'selected' : ''}>${esc(opt)}</option>`),
+    ...(isCustom ? [`<option value="${esc(value)}" selected>${esc(value)}</option>`] : [])
+  ].join('');
+  return `<select class="${className}" data-path="${path}" ${attributes}>${optsHtml}</select>`;
+}
+
+const specialisationLevels = {
+  Novice: { touch: '+5', potential: '+5', ini: '+1', colors: [null], defaults: ['quick draw'] },
+  Apprentice: { touch: '+10', potential: '+10', ini: '+2', colors: ['red'] },
+  Adept: { touch: '+15', potential: '+15', ini: '+3', colors: ['yellow', 'red'] },
+  Expert: { touch: '+20', potential: '+20', ini: '+4', colors: ['yellow', 'red', 'dark-red'] },
+  Master: { touch: '+25', potential: '+25', ini: '+5', colors: ['yellow', 'red', 'dark-red', 'darkest-red'] }
+};
+
+function applySpecialisationLevel(row, level) {
+  const config = specialisationLevels[level];
+  if (!config) return;
+  row[1] = level;
+  row[2] = config.touch;
+  row[3] = config.potential;
+  row[5] = config.ini;
+  row[4] = config.defaults || config.colors.map(() => '');
+}
+
+function specialisationEffectInputs(path, value, level) {
+  const config = specialisationLevels[level];
+  const values = Array.isArray(value) ? value : [value || ''];
+  if (!config) {
+    return `<textarea class="cell-input special-effect-input" data-special-effect-path="${path}" data-special-effect-index="0" rows="1">${esc(values[0])}</textarea>`;
+  }
+  return config.colors.map((color, index) => `<textarea class="cell-input special-effect-input${color ? ` special-effect-${color}` : ''}" data-special-effect-path="${path}" data-special-effect-index="${index}" rows="1">${esc(values[index] || '')}</textarea>`).join('');
 }
 
 async function chooseOwlbearAsset() {
@@ -745,8 +787,6 @@ function statsPage(character) {
   const firstRoundBonus = Math.floor(numIntuition / 10);
   const nextRoundsBonus = Math.floor(numSpeed / 10);
 
-  const specRows = character.data.tables?.Specialisations || [];
-
   return `<div class="stats-page-layout">
     <div class="stats-left-panel">
       ${rollResultBannerHtml()}
@@ -888,37 +928,6 @@ function statsPage(character) {
           </div>
         </div>
 
-        <!-- Row 15: Specialisations Initiative Bonuses Header -->
-        <div class="excel-row spec-header-row">
-          <div class="excel-cell bg-light text-bold header-banner">Specialisations Initiative Bonuses</div>
-        </div>
-
-        <!-- Rows 16-21: 9 Specialisations slots in 3 columns x 3 rows -->
-        <div class="excel-specs-grid">
-          ${[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => {
-            const row = specRows[i] || [];
-            const specName = row[0] || st[`specName_${i}`] || '';
-            const specIni = Number(row[5] || st[`specIni_${i}`] || 0) || 0;
-            const firstRoundVal = specName ? (specIni + firstRoundBonus) : '';
-            const nextRoundsVal = specName ? (specIni + nextRoundsBonus) : '';
-
-            return `<div class="spec-card-slot">
-              <div class="spec-name-box bg-yellow">
-                ${specRows[i] && specRows[i][0] !== undefined 
-                  ? `<span class="spec-name-text">${esc(specName || `Spec ${i + 1}`)}</span>` 
-                  : editable(`stats.specName_${i}`, specName, 'stat-input-cell spec-name-input', `Spec ${i + 1}`)}
-              </div>
-              <div class="spec-values-box">
-                <div class="spec-ini-cell bg-blue rollable-stat" data-roll-initiative="${esc(specName || `Spec ${i + 1}`)} (First round)" data-bonus="${firstRoundVal !== '' ? firstRoundVal : 0}" title="Click to roll Initiative for ${esc(specName || `Spec ${i + 1}`)} (First round): 1D12 + ${firstRoundVal !== '' ? firstRoundVal : 0}">
-                  <span class="spec-ini-val" id="calc-spec-fr-${i}">${firstRoundVal !== '' ? firstRoundVal : '-'}</span>
-                </div>
-                <div class="spec-ini-cell bg-coral rollable-stat" data-roll-initiative="${esc(specName || `Spec ${i + 1}`)} (Next rounds)" data-bonus="${nextRoundsVal !== '' ? nextRoundsVal : 0}" title="Click to roll Initiative for ${esc(specName || `Spec ${i + 1}`)} (Next rounds): 1D12 + ${nextRoundsVal !== '' ? nextRoundsVal : 0}">
-                  <span class="spec-ini-val" id="calc-spec-nr-${i}">${nextRoundsVal !== '' ? nextRoundsVal : '-'}</span>
-                </div>
-              </div>
-            </div>`;
-          }).join('')}
-        </div>
       </div>
     </div>
 
@@ -955,8 +964,6 @@ function updateStatsCalculations() {
   const firstRoundBonus = Math.floor(intuition / 10);
   const nextRoundsBonus = Math.floor(speed / 10);
 
-  const specRows = character.data.tables?.Specialisations || [];
-
   const moveEl = app.querySelector('#calc-movement');
   if (moveEl) moveEl.textContent = movement;
 
@@ -990,33 +997,6 @@ function updateStatsCalculations() {
     });
   }
 
-  for (let i = 0; i < 9; i++) {
-    const row = specRows[i] || [];
-    const specName = row[0] || st[`specName_${i}`] || '';
-    const specIni = Number(row[5] || st[`specIni_${i}`] || 0) || 0;
-    const frVal = specName ? (specIni + firstRoundBonus) : '-';
-    const nrVal = specName ? (specIni + nextRoundsBonus) : '-';
-
-    const frSlot = app.querySelector(`#calc-spec-fr-${i}`);
-    if (frSlot) {
-      frSlot.textContent = frVal;
-      const frCell = frSlot.closest('.spec-ini-cell');
-      if (frCell) {
-        frCell.dataset.bonus = frVal !== '-' ? frVal : 0;
-        frCell.title = `Click to roll Initiative for ${specName || `Spec ${i + 1}`} (First round): 1D12 + ${frVal !== '-' ? frVal : 0}`;
-      }
-    }
-
-    const nrSlot = app.querySelector(`#calc-spec-nr-${i}`);
-    if (nrSlot) {
-      nrSlot.textContent = nrVal;
-      const nrCell = nrSlot.closest('.spec-ini-cell');
-      if (nrCell) {
-        nrCell.dataset.bonus = nrVal !== '-' ? nrVal : 0;
-        nrCell.title = `Click to roll Initiative for ${specName || `Spec ${i + 1}`} (Next rounds): 1D12 + ${nrVal !== '-' ? nrVal : 0}`;
-      }
-    }
-  }
 }
 
 function universalChartPage() {
@@ -1249,8 +1229,39 @@ function rollsAndIniPage() {
 
 function tablePage(name, character) {
   const headers = tables[name];
-  const rows = character.data.tables[name] || Array.from({ length: name === 'Note du joueur' ? 1 : 8 }, () => ({}));
-  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table"><thead><tr>${headers.map((header) => `<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${headers.map((header, columnIndex) => `<td>${editable(`tables.${name}.${rowIndex}.${columnIndex}`, row[columnIndex] || '', 'cell-input')}</td>`).join('')}</tr>`).join('')}</tbody></table></div><button class="add-row" data-add-row="${esc(name)}">+ Add row</button></section>`;
+  const storedRows = character.data.tables[name];
+  const rows = Array.isArray(storedRows)
+    ? storedRows
+    : storedRows && typeof storedRows === 'object'
+      ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
+      : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
+  if (storedRows && !Array.isArray(storedRows)) {
+    character.data.tables[name] = rows;
+  }
+  const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
+  const specialisationLevelOptions = ['Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  const displayColumns = name === 'Specialisations' ? [0, 1, 5, 2, 3, 4] : headers.map((_, index) => index);
+
+  const tableClass = name === 'Specialisations' ? ' sheet-table-specialisations' : '';
+  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${displayColumns.map((columnIndex) => `<th>${esc(headers[columnIndex])}</th>`).join('')}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
+    const header = headers[columnIndex];
+    const sourceColumnIndex = name === 'Weapons' && columnIndex >= 7 ? columnIndex + 1 : columnIndex;
+    const val = row[sourceColumnIndex] || '';
+    const path = `tables.${name}.${rowIndex}.${sourceColumnIndex}`;
+    if (name === 'Weapons' && (header === 'Touch Stat' || header === 'Damage Bonus Stat')) {
+      return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Specialisations' && header === 'Actual LVL') {
+      return `<td>${editableSelect(path, val, specialisationLevelOptions, 'cell-input cell-select', `data-specialisation-level="${esc(path)}"`)}</td>`;
+    }
+    if (name === 'Specialisations' && header === 'Special Effect') {
+      return `<td>${specialisationEffectInputs(path, val, row[1])}</td>`;
+    }
+    if (name === 'Specialisations' && ['Ini Bonus', 'Touch Bonus', 'Potential Bonus'].includes(header)) {
+      return `<td>${readOnlyCell(val)}</td>`;
+    }
+    return `<td>${editable(path, val, 'cell-input')}</td>`;
+  }).join('')}</tr>`).join('')}</tbody></table></div><button class="add-row" data-add-row="${esc(name)}">+ Add row</button></section>`;
 }
 
 function pageFor(character) {
@@ -1421,7 +1432,12 @@ function setPath(path, value) {
   if (!character || !canEditCurrent()) return;
   const parts = path.split('.');
   let target = character.data;
-  parts.slice(0, -1).forEach((part) => { target[part] ??= {}; target = target[part]; });
+  parts.slice(0, -1).forEach((part, index) => {
+    if (target[part] == null || typeof target[part] !== 'object') {
+      target[part] = /^\d+$/.test(parts[index + 1]) ? [] : {};
+    }
+    target = target[part];
+  });
   target[parts.at(-1)] = value;
 }
 
@@ -1925,11 +1941,26 @@ function bindEvents() {
     }
   });
   app.querySelectorAll('[data-path]').forEach((input) => {
-    input.addEventListener('input', () => {
+    const handleUpdate = () => {
       setPath(input.dataset.path, input.value);
       if (activeTab === 'Stats') {
         updateStatsCalculations();
       }
+    };
+    input.addEventListener('input', handleUpdate);
+    input.addEventListener('change', async () => {
+      handleUpdate();
+      if (input.dataset.specialisationLevel) {
+        const pathParts = input.dataset.specialisationLevel.split('.');
+        const row = getPath(pathParts.slice(0, -1).join('.'));
+        if (row) {
+          applySpecialisationLevel(row, input.value);
+          await save();
+          render();
+        }
+        return;
+      }
+      queueSave(200);
     });
     input.addEventListener('blur', () => queueSave());
     input.addEventListener('keydown', async (event) => {
@@ -1964,6 +1995,18 @@ function bindEvents() {
         }
       }
     });
+  });
+  app.querySelectorAll('[data-special-effect-path]').forEach((input) => {
+    const updateEffect = () => {
+      const rowPath = input.dataset.specialEffectPath.split('.').slice(0, -1).join('.');
+      const row = getPath(rowPath);
+      if (!row) return;
+      if (!Array.isArray(row[4])) row[4] = [row[4] || ''];
+      row[4][Number(input.dataset.specialEffectIndex)] = input.value;
+      queueSave();
+    };
+    input.addEventListener('input', updateEffect);
+    input.addEventListener('blur', updateEffect);
   });
   const nameInput = app.querySelector('#sheet-name-input');
   if (nameInput) {
@@ -2048,12 +2091,14 @@ function bindEvents() {
       render();
     }
   });
-  app.querySelectorAll('[data-add-row]').forEach((button) => button.addEventListener('click', async () => {
+  app.querySelectorAll('[data-add-row]').forEach((button) => button.addEventListener('click', async (event) => {
+    event.preventDefault();
     const character = currentCharacter();
     if (!character || !canEditCurrent()) return;
     const name = button.dataset.addRow;
+    activeTab = name;
     if (!character.data.tables[name]) {
-      character.data.tables[name] = Array.from({ length: name === 'Note du joueur' ? 1 : 8 }, () => ({}));
+      character.data.tables[name] = Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
     }
     const newRowIndex = character.data.tables[name].length;
     character.data.tables[name].push({});
