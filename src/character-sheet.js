@@ -607,7 +607,7 @@ async function rollInitiativeForCharacter(charId, label, bonusVal) {
   }
 }
 
-async function rollAllUnassignedInitiative() {
+async function rollAllUnassignedInitiative(roundType = 'First round') {
   const unassigned = Object.entries(state.characters).filter(([id, c]) => !c.ownerId && (!state.assignments || !state.assignments[c.ownerId]));
   if (unassigned.length === 0) {
     if (OBR.isAvailable && OBR.notification?.show) {
@@ -615,20 +615,20 @@ async function rollAllUnassignedInitiative() {
     }
     return;
   }
-  for (const [id, c] of unassigned) {
-    const numIntuition = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
-    const firstRoundBonus = Math.floor(numIntuition / 10);
-    await rollInitiativeForCharacter(id, 'First round', firstRoundBonus);
-  }
-}
-
-async function rollAllInitiative() {
-  const all = Object.entries(state.characters);
-  if (all.length === 0) return;
-  for (const [id, c] of all) {
-    const numIntuition = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
-    const firstRoundBonus = Math.floor(numIntuition / 10);
-    await rollInitiativeForCharacter(id, 'First round', firstRoundBonus);
+  for (let i = 0; i < unassigned.length; i++) {
+    const [id, c] = unassigned[i];
+    if (i > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+    }
+    if (roundType === 'Next Rounds') {
+      const speedVal = parseFloat(c.data?.stats?.Speed ?? c.data?.stats?.Movement ?? '6') || 0;
+      const nextRoundsBonus = Math.floor(speedVal / 10);
+      await rollInitiativeForCharacter(id, 'Next Rounds', nextRoundsBonus);
+    } else {
+      const numIntuition = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
+      const firstRoundBonus = Math.floor(numIntuition / 10);
+      await rollInitiativeForCharacter(id, 'First round', firstRoundBonus);
+    }
   }
 }
 
@@ -1110,8 +1110,8 @@ function rollsAndIniPage() {
           <span class="tracker-count-badge">${rolledList.length}/${allEntries.length} Rolled</span>
         </div>
         <div class="tracker-btn-group">
-          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (NPCs)</button>
-          <button type="button" class="tracker-btn" id="roll-all-ini-btn" title="Roll Initiative for all characters">🎲 Roll All (1st Round)</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll 1st Round Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (1st Round)</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-next-ini-btn" title="Roll Next Rounds Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (Next Rounds)</button>
           <button type="button" class="tracker-btn tracker-btn-danger" id="clear-initiative-btn" title="Clear all initiative scores">🗑️ Clear Initiative</button>
         </div>
       </div>
@@ -2077,10 +2077,10 @@ function bindEvents() {
     }
   });
   app.querySelector('#roll-unassigned-ini-btn')?.addEventListener('click', () => {
-    rollAllUnassignedInitiative();
+    rollAllUnassignedInitiative('First round');
   });
-  app.querySelector('#roll-all-ini-btn')?.addEventListener('click', () => {
-    rollAllInitiative();
+  app.querySelector('#roll-unassigned-next-ini-btn')?.addEventListener('click', () => {
+    rollAllUnassignedInitiative('Next Rounds');
   });
   app.querySelectorAll('[data-ini-roll-char]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
