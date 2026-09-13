@@ -18,10 +18,17 @@ const tables = {
 
 const app = document.querySelector('#root');
 let activeTab = 'Infos';
-let state = { characters: {}, assignments: {} };
+let state = { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {} };
 let user = { id: 'local-player', name: 'Local Player', role: 'GM' };
 let players = [];
 let activeCharacterId = null;
+
+function getAvailableTabs() {
+  if (user.role === 'GM') {
+    return ['Rolls & Ini', ...tabs];
+  }
+  return tabs;
+}
 
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const blankCharacter = (name = 'New Character') => ({
@@ -263,18 +270,78 @@ function rollResultBannerHtml() {
   </div>`;
 }
 
-function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charName, playerName, broadcast = true) {
+let rollFilter = 'all';
+
+function addRollToHistory(roll) {
+  state.rollHistory ??= [];
+  const existingIdx = state.rollHistory.findIndex((r) => r.id && r.id === roll.id);
+  if (existingIdx !== -1) {
+    state.rollHistory[existingIdx] = roll;
+  } else {
+    state.rollHistory.unshift(roll);
+    if (state.rollHistory.length > 250) {
+      state.rollHistory = state.rollHistory.slice(0, 250);
+    }
+  }
+  queueSave(300);
+}
+
+function recordInitiative(characterId, charName, playerName, isAssigned, label, bonus, d12, total) {
+  state.initiativeTracker ??= {};
+  const charEntry = Object.entries(state.characters).find(([id, c]) => id === characterId || c.name === charName);
+  const effectiveId = characterId || (charEntry ? charEntry[0] : (charName || 'unknown'));
+  const effectiveAssigned = charEntry ? Boolean(charEntry[1].ownerId) : Boolean(isAssigned);
+
+  state.initiativeTracker[effectiveId] = {
+    characterId: effectiveId,
+    charName: charName || 'Character',
+    playerName: playerName || (effectiveAssigned ? 'Assigned' : 'Unassigned (NPC)'),
+    isAssigned: effectiveAssigned,
+    label: label || 'Initiative',
+    bonus: parseInt(bonus) || 0,
+    d12: parseInt(d12) || 0,
+    total: parseInt(total) || 0,
+    timestamp: Date.now()
+  };
+  queueSave(300);
+}
+
+function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charName, playerName, broadcast = true, characterId = null) {
+  const currentRollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const bonusNum = parseInt(bonus) || 0;
+  const d12Num = parseInt(d12Val) || 0;
+  const totalNum = parseInt(total) || (d12Num + bonusNum);
+  const bonusStr = bonusNum > 0 ? `+ ${bonusNum}` : (bonusNum < 0 ? `- ${Math.abs(bonusNum)}` : '');
+
   activeRollResult = {
+    rollId: currentRollId,
     type: 'initiative',
     label,
-    bonus,
-    d12: d12Val,
-    total,
+    bonus: bonusNum,
+    d12: d12Num,
+    total: totalNum,
     colorTone: 'green',
     charName: charName || 'Character',
+    characterId,
     playerName: playerName || 'Player',
     timestamp: Date.now()
   };
+
+  addRollToHistory({
+    id: currentRollId,
+    timestamp: Date.now(),
+    type: 'initiative',
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    statName: `Initiative (${label})`,
+    detail: `1D12 (${d12Num}) ${bonusNum >= 0 ? `+ ${bonusNum}` : `- ${Math.abs(bonusNum)}`} = ${totalNum}`,
+    roll: totalNum,
+    outcomeType: 'initiative',
+    outcomeLabel: `Initiative: ${totalNum}`,
+    colorTone: 'green'
+  });
+
+  recordInitiative(characterId, charName, playerName, null, label, bonusNum, d12Num, totalNum);
 
   if (broadcast && OBR.isAvailable && OBR.broadcast) {
     try {
@@ -283,9 +350,8 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   }
 
   if (OBR.isAvailable && OBR.notification?.show) {
-    const bonusStr = bonus > 0 ? `+ ${bonus}` : (bonus < 0 ? `- ${Math.abs(bonus)}` : '');
     OBR.notification.show(
-      `⚔️ ${activeRollResult.charName} (${playerName || 'Player'}) rolled Initiative (${label}): 1D12 (${d12Val}) ${bonusStr} = ${total}`,
+      `⚔️ ${activeRollResult.charName} (${playerName || 'Player'}) rolled Initiative (${label}): 1D12 (${d12Num}) ${bonusStr} = ${totalNum}`,
       'DEFAULT'
     );
   }
@@ -314,6 +380,22 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   };
 
   playCritSound(resolution.outcomeType, currentRollId);
+
+  addRollToHistory({
+    id: currentRollId,
+    timestamp: Date.now(),
+    type: 'stat',
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    statName,
+    statValue: resolution.statValue,
+    rankName: resolution.rankName,
+    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})`,
+    roll: resolution.roll,
+    outcomeType: resolution.outcomeType,
+    outcomeLabel: resolution.outcomeLabel,
+    colorTone: resolution.colorTone
+  });
 
   if (broadcast && OBR.isAvailable && OBR.broadcast) {
     try {
@@ -384,6 +466,7 @@ function universalChartTableHtml() {
 
 async function rollInitiative(label, bonusVal) {
   const character = currentCharacter();
+  const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const bonus = parseInt(bonusVal) || 0;
   const charName = character?.name || 'Character';
 
@@ -409,6 +492,7 @@ async function rollInitiative(label, bonusVal) {
     label,
     bonus,
     charName,
+    characterId: charId,
     playerName,
     playerId,
     timestamp
@@ -450,12 +534,107 @@ async function rollInitiative(label, bonusVal) {
   } else {
     const d12 = Math.floor(Math.random() * 12) + 1;
     const total = d12 + bonus;
-    displayAndAnnounceInitiativeResult(label, bonus, d12, total, charName, playerName, false);
+    displayAndAnnounceInitiativeResult(label, bonus, d12, total, charName, playerName, false, charId);
+  }
+}
+
+async function rollInitiativeForCharacter(charId, label, bonusVal) {
+  const character = state.characters[charId];
+  const charName = character?.name || 'Character';
+  const bonus = parseInt(bonusVal) || 0;
+
+  const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const timestamp = Date.now();
+  let playerId = user?.id || 'local-player';
+  let playerName = user?.name || 'DM';
+
+  if (OBR.isAvailable) {
+    try {
+      playerId = await OBR.player.getId();
+      playerName = await OBR.player.getName();
+    } catch (e) {}
+  }
+
+  const notation = bonus > 0 ? `1d12 + ${bonus}` : (bonus < 0 ? `1d12 - ${Math.abs(bonus)}` : '1d12');
+
+  const rollInfo = {
+    rollId,
+    type: 'initiative',
+    label,
+    bonus,
+    charName,
+    characterId: charId,
+    playerName,
+    playerId,
+    timestamp
+  };
+
+  pendingStatRolls.set(rollId, rollInfo);
+
+  const payload = {
+    rollId,
+    playerId,
+    playerName,
+    rollTarget: 'everyone',
+    diceNotation: notation,
+    diceCounts: { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 1, d20: 0, d100: 0, dF: 0 },
+    diceIndices: { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 },
+    showResults: true,
+    timestamp,
+    source: 'dice-plus'
+  };
+
+  if (OBR.isAvailable && OBR.broadcast) {
+    try {
+      await OBR.broadcast.sendMessage('terranova/stat-roll-start', rollInfo, { destination: 'ALL' });
+    } catch (e) {}
+
+    try {
+      await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'LOCAL' });
+      if (OBR.notification?.show) {
+        OBR.notification.show(`Rolling Initiative for ${charName} (${label}): ${notation}...`);
+      }
+    } catch (err) {
+      console.error('Failed to send LOCAL dice-plus roll request:', err);
+      try {
+        await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'ALL' });
+      } catch (e) {}
+    }
+  } else {
+    const d12 = Math.floor(Math.random() * 12) + 1;
+    const total = d12 + bonus;
+    displayAndAnnounceInitiativeResult(label, bonus, d12, total, charName, playerName, false, charId);
+  }
+}
+
+async function rollAllUnassignedInitiative() {
+  const unassigned = Object.entries(state.characters).filter(([id, c]) => !c.ownerId && (!state.assignments || !state.assignments[c.ownerId]));
+  if (unassigned.length === 0) {
+    if (OBR.isAvailable && OBR.notification?.show) {
+      OBR.notification.show('No unassigned characters found.');
+    }
+    return;
+  }
+  for (const [id, c] of unassigned) {
+    const numIntuition = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
+    const firstRoundBonus = Math.floor(numIntuition / 10);
+    await rollInitiativeForCharacter(id, 'First round', firstRoundBonus);
+  }
+}
+
+async function rollAllInitiative() {
+  const all = Object.entries(state.characters);
+  if (all.length === 0) return;
+  for (const [id, c] of all) {
+    const numIntuition = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
+    const firstRoundBonus = Math.floor(numIntuition / 10);
+    await rollInitiativeForCharacter(id, 'First round', firstRoundBonus);
   }
 }
 
 async function rollDicePlus(statName) {
   const character = currentCharacter();
+  const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const st = character?.data?.stats || {};
   const rawVal = st[statName] ?? (statName === 'Luck' ? '0' : '6');
   const statValue = parseFloat(rawVal) || 0;
@@ -481,6 +660,7 @@ async function rollDicePlus(statName) {
     statName,
     statValue,
     charName,
+    characterId: charId,
     playerName,
     playerId,
     timestamp
@@ -843,6 +1023,230 @@ function universalChartPage() {
   return `<section><h2 class="section-title">Universale Chart</h2>${rollResultBannerHtml()}${universalChartTableHtml()}</section>`;
 }
 
+function rollsAndIniPage() {
+  const characters = Object.entries(state.characters || {});
+  const trackerMap = state.initiativeTracker || {};
+
+  const allEntriesMap = new Map();
+
+  characters.forEach(([id, c]) => {
+    const isAssigned = Boolean(c.ownerId);
+    let ownerName = 'Unassigned (NPC)';
+    if (isAssigned) {
+      const p = players.find((pl) => pl.id === c.ownerId);
+      ownerName = p ? p.name : 'Player';
+    }
+    const intuitionVal = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
+    const speedVal = parseFloat(c.data?.stats?.Speed ?? c.data?.stats?.Movement ?? '6') || 0;
+    const firstRoundBonus = Math.floor(intuitionVal / 10);
+    const nextRoundsBonus = Math.floor(speedVal / 10);
+
+    const tracked = trackerMap[id] || Object.values(trackerMap).find((t) => t.charName === c.name);
+
+    allEntriesMap.set(id, {
+      characterId: id,
+      charName: c.name || 'Unnamed',
+      isAssigned,
+      ownerName,
+      firstRoundBonus,
+      nextRoundsBonus,
+      hasRolled: tracked && typeof tracked.total === 'number',
+      total: tracked?.total,
+      d12: tracked?.d12,
+      bonus: tracked?.bonus,
+      label: tracked?.label,
+      timestamp: tracked?.timestamp || 0
+    });
+  });
+
+  Object.entries(trackerMap).forEach(([tId, tVal]) => {
+    const existingKey = Array.from(allEntriesMap.keys()).find((k) => k === tId || allEntriesMap.get(k).charName === tVal.charName);
+    if (!existingKey && tVal) {
+      allEntriesMap.set(tId, {
+        characterId: tId,
+        charName: tVal.charName || 'Character',
+        isAssigned: Boolean(tVal.isAssigned),
+        ownerName: tVal.playerName || (tVal.isAssigned ? 'Assigned' : 'Unassigned (NPC)'),
+        firstRoundBonus: tVal.bonus ?? 0,
+        nextRoundsBonus: 0,
+        hasRolled: typeof tVal.total === 'number',
+        total: tVal.total,
+        d12: tVal.d12,
+        bonus: tVal.bonus,
+        label: tVal.label,
+        timestamp: tVal.timestamp || 0
+      });
+    }
+  });
+
+  const allEntries = Array.from(allEntriesMap.values());
+
+  const rolledList = allEntries
+    .filter((e) => e.hasRolled)
+    .sort((a, b) => (b.total - a.total) || (b.bonus - a.bonus) || a.charName.localeCompare(b.charName));
+
+  const unrolledList = allEntries
+    .filter((e) => !e.hasRolled)
+    .sort((a, b) => a.charName.localeCompare(b.charName));
+
+  const sortedIniList = [...rolledList, ...unrolledList];
+
+  const allRolls = state.rollHistory || [];
+  const filteredRolls = allRolls.filter((r) => {
+    if (rollFilter === 'stats') return r.type === 'stat';
+    if (rollFilter === 'initiative') return r.type === 'initiative';
+    if (rollFilter === 'crits') return r.outcomeType === 'crit-fail' || r.outcomeType === 'crit-success' || r.roll === 1 || r.roll === 100;
+    return true;
+  });
+
+  return `<div class="roll-tracker-layout">
+    ${rollResultBannerHtml()}
+
+    <!-- Section 1: Initiative Tracker -->
+    <div class="tracker-card">
+      <div class="tracker-card-header">
+        <div class="tracker-title-wrap">
+          <h2 class="tracker-card-title">⚔️ Initiative Tracker (All Players &amp; Non-Assigned Characters)</h2>
+          <span class="tracker-count-badge">${rolledList.length}/${allEntries.length} Rolled</span>
+        </div>
+        <div class="tracker-btn-group">
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (NPCs)</button>
+          <button type="button" class="tracker-btn" id="roll-all-ini-btn" title="Roll Initiative for all characters">🎲 Roll All (1st Round)</button>
+          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-initiative-btn" title="Clear all initiative scores">🗑️ Clear Initiative</button>
+        </div>
+      </div>
+      <div class="tracker-table-wrap">
+        ${sortedIniList.length === 0 ? `
+          <div class="tracker-empty-state">No characters created yet. Create characters in the top toolbar to track their initiative.</div>
+        ` : `
+          <table class="tracker-table">
+            <thead>
+              <tr>
+                <th style="width: 60px; text-align: center;">Order</th>
+                <th>Character</th>
+                <th>Assignment</th>
+                <th>Initiative Mods</th>
+                <th>Rolled Result</th>
+                <th style="text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedIniList.map((item, idx) => {
+                const isLeader = item.hasRolled && idx === 0;
+                const rankText = item.hasRolled ? `${idx + 1}` : '-';
+                return `<tr class="${isLeader ? 'row-leader' : ''}">
+                  <td style="text-align: center;">
+                    <span class="ini-rank-badge ${item.hasRolled ? (isLeader ? 'leader' : 'active') : 'unrolled'}">${rankText}</span>
+                  </td>
+                  <td>
+                    <span class="tracker-char-name">${esc(item.charName)}</span>
+                  </td>
+                  <td>
+                    <span class="tracker-tag ${item.isAssigned ? 'tag-player' : 'tag-npc'}">
+                      ${item.isAssigned ? `👤 ${esc(item.ownerName)}` : '🤖 Unassigned (NPC)'}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="tracker-mod-tag" title="First round bonus (Intuition / 10)">1st: <strong>+${item.firstRoundBonus}</strong></span>
+                    <span class="tracker-mod-tag" title="Next rounds bonus (Speed / 10)">Next: <strong>+${item.nextRoundsBonus}</strong></span>
+                  </td>
+                  <td>
+                    ${item.hasRolled ? `
+                      <div class="ini-score-box">
+                        <span class="ini-score-number">${item.total}</span>
+                        <span class="ini-score-detail">(1D12: ${item.d12} ${item.bonus >= 0 ? `+ ${item.bonus}` : `- ${Math.abs(item.bonus)}`}) &bull; <em>${esc(item.label || '1st round')}</em></span>
+                      </div>
+                    ` : `
+                      <span class="ini-unrolled-note">Waiting for roll...</span>
+                    `}
+                  </td>
+                  <td style="text-align: right;">
+                    <div class="tracker-btn-group" style="justify-content: flex-end;">
+                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="First round" data-ini-bonus="${item.firstRoundBonus}" title="Roll 1st Round: 1D12 + ${item.firstRoundBonus}">Roll 1st</button>
+                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="Next Rounds" data-ini-bonus="${item.nextRoundsBonus}" title="Roll Next Rounds: 1D12 + ${item.nextRoundsBonus}">Roll Next</button>
+                      <button type="button" class="tracker-btn-mini" data-ini-set-score="${esc(item.characterId)}" data-char-name="${esc(item.charName)}" title="Manually set initiative score">Set</button>
+                      ${item.hasRolled ? `<button type="button" class="tracker-btn-mini remove-btn" data-ini-clear-char="${esc(item.characterId)}" title="Clear this character's initiative">&times;</button>` : ''}
+                    </div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+
+    <!-- Section 2: All Rolls History Tracker -->
+    <div class="tracker-card">
+      <div class="tracker-card-header">
+        <div class="tracker-title-wrap">
+          <h2 class="tracker-card-title">📜 All Rolls History</h2>
+          <span class="tracker-count-badge">${allRolls.length} Recorded</span>
+          <div class="tracker-filter-pills">
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'all' ? 'active' : ''}" data-roll-filter="all">All (${allRolls.length})</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'stats' ? 'active' : ''}" data-roll-filter="stats">D100 Stats</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'initiative' ? 'active' : ''}" data-roll-filter="initiative">Initiative</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'crits' ? 'active' : ''}" data-roll-filter="crits">Crits (1/100)</button>
+          </div>
+        </div>
+        <div class="tracker-btn-group">
+          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-rolls-btn" title="Clear all rolls from history">🗑️ Clear Rolls</button>
+        </div>
+      </div>
+      <div class="tracker-table-wrap roll-history-scroll-wrap">
+        ${filteredRolls.length === 0 ? `
+          <div class="tracker-empty-state">${allRolls.length === 0 ? 'No rolls have been recorded yet. Rolls from character stats, initiative, and dice tray will appear here in real-time.' : 'No rolls match the current filter.'}</div>
+        ` : `
+          <table class="tracker-table">
+            <thead>
+              <tr>
+                <th style="width: 85px;">Time</th>
+                <th>Character / Player</th>
+                <th>Roll / Stat</th>
+                <th>Formula &amp; Details</th>
+                <th style="text-align: right;">Outcome</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredRolls.map((roll) => {
+                const timeStr = roll.timestamp ? new Date(roll.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+                let outcomeClass = 'outcome-white';
+                if (roll.outcomeType === 'crit-fail' || roll.outcomeType === 'crit-success') outcomeClass = 'outcome-crit';
+                else if (roll.outcomeType === 'red') outcomeClass = 'outcome-red';
+                else if (roll.outcomeType === 'yellow') outcomeClass = 'outcome-yellow';
+                else if (roll.outcomeType === 'green' || roll.outcomeType === 'initiative') outcomeClass = 'outcome-green';
+
+                let badgeText = roll.outcomeLabel || 'Roll';
+                if (roll.outcomeType === 'crit-fail') badgeText = '💥 CRITICAL FAIL (1)';
+                if (roll.outcomeType === 'crit-success') badgeText = '🌟 CRITICAL SUCCESS (100)';
+
+                return `<tr>
+                  <td class="log-cell-time">${timeStr}</td>
+                  <td>
+                    <div class="log-cell-char">
+                      <strong class="tracker-char-name">${esc(roll.charName || 'Character')}</strong>
+                      <span class="log-player-sub">${esc(roll.playerName || 'Player')}</span>
+                    </div>
+                  </td>
+                  <td class="log-cell-stat">
+                    ${esc(roll.statName || 'Roll')}
+                  </td>
+                  <td class="log-cell-detail">
+                    <code>${esc(roll.detail || `Roll: ${roll.roll}`)}</code>
+                  </td>
+                  <td style="text-align: right;">
+                    <span class="roll-log-badge ${outcomeClass}">${esc(badgeText)}</span>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
+  </div>`;
+}
+
 function tablePage(name, character) {
   const headers = tables[name];
   const rows = character.data.tables[name] || Array.from({ length: name === 'Note du joueur' ? 1 : 8 }, () => ({}));
@@ -850,6 +1254,7 @@ function tablePage(name, character) {
 }
 
 function pageFor(character) {
+  if (activeTab === 'Rolls & Ini') return rollsAndIniPage();
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
   if (activeTab === 'Universale Chart') return universalChartPage();
@@ -974,14 +1379,14 @@ function render(focusPath = null, selectAll = false) {
       </header>
       ${controls(character)}
       <nav class="sheet-tabs" aria-label="Character sheet tabs">
-        ${tabs.map((tab) => `<button class="sheet-tab${tab === activeTab ? ' active' : ''}" data-tab="${esc(tab)}">${esc(tab)}</button>`).join('')}
+        ${getAvailableTabs().map((tab) => `<button class="sheet-tab${tab === activeTab ? ' active' : ''}" data-tab="${esc(tab)}">${esc(tab)}</button>`).join('')}
       </nav>
       <div class="sheet-body">
         <div class="sheet-status">
           <span>WORKSHEET <strong>${esc(activeTab)}</strong></span>
-          <span>${character ? 'INSTANT SAVE ENABLED' : 'WAITING FOR DM ASSIGNMENT'}</span>
+          <span>${character || activeTab === 'Rolls & Ini' ? 'INSTANT SAVE ENABLED' : 'WAITING FOR DM ASSIGNMENT'}</span>
         </div>
-        ${character ? pageFor(character) : '<div class="empty-note">The DM has not assigned a character sheet to this player yet.</div>'}
+        ${(character || activeTab === 'Rolls & Ini') ? pageFor(character) : '<div class="empty-note">The DM has not assigned a character sheet to this player yet.</div>'}
       </div>
     </main>
   </div>`;
@@ -1027,7 +1432,12 @@ let lastSavedHash = null;
 
 function getSaveHash(data) {
   try {
-    return JSON.stringify({ characters: data?.characters || {}, assignments: data?.assignments || {} });
+    return JSON.stringify({
+      characters: data?.characters || {},
+      assignments: data?.assignments || {},
+      rollHistoryCount: (data?.rollHistory || []).length,
+      initiativeTracker: data?.initiativeTracker || {}
+    });
   } catch (e) {
     return '';
   }
@@ -1126,9 +1536,11 @@ async function load() {
     } catch (e) {}
   }
 
-  state ??= { characters: {}, assignments: {} };
+  state ??= { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {} };
   state.characters ??= {};
   state.assignments ??= {};
+  state.rollHistory ??= [];
+  state.initiativeTracker ??= {};
 
   try {
     const savedUser = JSON.parse(localStorage.getItem('terranova.currentUser') || 'null');
@@ -1146,7 +1558,7 @@ async function load() {
       activeCharacterId = savedCharId;
     }
     const savedTab = localStorage.getItem('terranova.activeTab');
-    if (savedTab && tabs.includes(savedTab)) {
+    if (savedTab && getAvailableTabs().includes(savedTab)) {
       activeTab = savedTab;
     }
   } catch (e) {}
@@ -1288,6 +1700,9 @@ async function initialise() {
         if (!myChars.some(([id]) => id === activeCharacterId)) {
           activeCharacterId = myChars[0]?.[0] || null;
         }
+        if (activeTab === 'Rolls & Ini') {
+          activeTab = 'Infos';
+        }
       }
       render();
     });
@@ -1303,6 +1718,8 @@ async function initialise() {
         state = nextState;
         state.characters ??= {};
         state.assignments ??= {};
+        state.rollHistory ??= [];
+        state.initiativeTracker ??= {};
         if (user.role === 'GM') {
           if (!activeCharacterId || !state.characters[activeCharacterId]) {
             activeCharacterId = Object.keys(state.characters)[0] || null;
@@ -1370,7 +1787,8 @@ async function initialise() {
             finalTotal,
             rollInfo.charName,
             data.playerName || rollInfo.playerName,
-            isMyRoll
+            isMyRoll,
+            rollInfo.characterId
           );
         } else {
           const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : 1);
@@ -1386,24 +1804,77 @@ async function initialise() {
         }
       } else {
         const isD100 = data.diceNotation?.toLowerCase().includes('d100') || data.diceCounts?.d100 > 0;
+        const isD12 = data.diceNotation?.toLowerCase().includes('d12') || data.diceCounts?.d12 > 0;
+        const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : null);
         if (isD100) {
-          const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : null);
           if (finalRoll === 1) {
             playCritSound('crit-fail', data.rollId || Date.now());
           } else if (finalRoll === 100) {
             playCritSound('crit-success', data.rollId || Date.now());
           }
         }
+
+        if (finalRoll !== null) {
+          addRollToHistory({
+            id: data.rollId || `tray_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            timestamp: data.timestamp || Date.now(),
+            type: isD100 ? 'd100' : (isD12 ? 'd12' : 'dice-tray'),
+            charName: data.playerName || 'Player',
+            playerName: data.playerName || 'Player',
+            statName: `Dice Roll (${data.diceNotation || 'Dice Tray'})`,
+            detail: `Result: ${finalRoll} (Notation: ${data.diceNotation || 'Tray'})`,
+            roll: finalRoll,
+            outcomeType: finalRoll === 1 && isD100 ? 'crit-fail' : (finalRoll === 100 && isD100 ? 'crit-success' : 'tray'),
+            outcomeLabel: finalRoll === 1 && isD100 ? 'Critical Failure' : (finalRoll === 100 && isD100 ? 'Critical Success' : `Total: ${finalRoll}`),
+            colorTone: finalRoll === 1 && isD100 ? 'crit' : (finalRoll === 100 && isD100 ? 'crit' : 'white')
+          });
+          render();
+        }
       }
     });
 
     OBR.broadcast.onMessage('terranova/stat-roll-result', (event) => {
-      if (event.data && (typeof event.data.roll === 'number' || typeof event.data.total === 'number')) {
-        activeRollResult = event.data;
-        const outcome = event.data.outcomeType || (event.data.roll === 1 ? 'crit-fail' : (event.data.roll === 100 ? 'crit-success' : null));
+      const data = event.data;
+      if (data && (typeof data.roll === 'number' || typeof data.total === 'number')) {
+        activeRollResult = data;
+        const outcome = data.outcomeType || (data.roll === 1 ? 'crit-fail' : (data.roll === 100 ? 'crit-success' : null));
         if (outcome) {
-          playCritSound(outcome, event.data.rollId || event.data.timestamp);
+          playCritSound(outcome, data.rollId || data.timestamp);
         }
+
+        if (data.type === 'initiative') {
+          addRollToHistory({
+            id: data.rollId || `ini_${data.timestamp}_${data.charName}`,
+            timestamp: data.timestamp || Date.now(),
+            type: 'initiative',
+            charName: data.charName || 'Character',
+            playerName: data.playerName || 'Player',
+            statName: `Initiative (${data.label || 'Standard'})`,
+            detail: `1D12 (${data.d12}) ${data.bonus >= 0 ? `+ ${data.bonus}` : `- ${Math.abs(data.bonus)}`} = ${data.total}`,
+            roll: data.total,
+            outcomeType: 'initiative',
+            outcomeLabel: `Initiative: ${data.total}`,
+            colorTone: 'green'
+          });
+          recordInitiative(data.characterId, data.charName, data.playerName, null, data.label, data.bonus, data.d12, data.total);
+        } else if (data.statName) {
+          addRollToHistory({
+            id: data.rollId || `stat_${data.timestamp}_${data.charName}`,
+            timestamp: data.timestamp || Date.now(),
+            type: 'stat',
+            charName: data.charName || 'Character',
+            playerName: data.playerName || 'Player',
+            statName: data.statName,
+            statValue: data.statValue,
+            rankName: data.rankName,
+            detail: `D100 = ${data.roll} (${data.statValue} ➔ ${data.rankName})`,
+            roll: data.roll,
+            outcomeType: data.outcomeType,
+            outcomeLabel: data.outcomeLabel,
+            colorTone: data.colorTone
+          });
+        }
+
         render();
       }
     });
@@ -1590,6 +2061,76 @@ function bindEvents() {
     const targetPath = `tables.${name}.${newRowIndex}.0`;
     render(targetPath, true);
   }));
+
+  app.querySelector('#clear-initiative-btn')?.addEventListener('click', () => {
+    if (window.confirm('Are you sure you want to clear all initiative scores?')) {
+      state.initiativeTracker = {};
+      queueSave(200);
+      render();
+    }
+  });
+  app.querySelector('#clear-rolls-btn')?.addEventListener('click', () => {
+    if (window.confirm('Are you sure you want to clear the roll history?')) {
+      state.rollHistory = [];
+      queueSave(200);
+      render();
+    }
+  });
+  app.querySelector('#roll-unassigned-ini-btn')?.addEventListener('click', () => {
+    rollAllUnassignedInitiative();
+  });
+  app.querySelector('#roll-all-ini-btn')?.addEventListener('click', () => {
+    rollAllInitiative();
+  });
+  app.querySelectorAll('[data-ini-roll-char]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const charId = btn.dataset.iniRollChar;
+      const label = btn.dataset.iniLabel || 'Initiative';
+      const bonus = parseInt(btn.dataset.iniBonus) || 0;
+      if (charId) {
+        rollInitiativeForCharacter(charId, label, bonus);
+      }
+    });
+  });
+  app.querySelectorAll('[data-ini-clear-char]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const charId = btn.dataset.iniClearChar;
+      if (charId && state.initiativeTracker) {
+        delete state.initiativeTracker[charId];
+        queueSave(200);
+        render();
+      }
+    });
+  });
+  app.querySelectorAll('[data-ini-set-score]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const charId = btn.dataset.iniSetScore;
+      const charName = btn.dataset.charName || 'Character';
+      const current = state.initiativeTracker?.[charId]?.total ?? '';
+      const inputVal = window.prompt(`Set initiative score for ${charName}:`, current);
+      if (inputVal !== null) {
+        const num = parseInt(inputVal);
+        if (!isNaN(num)) {
+          recordInitiative(charId, charName, 'Manual', null, 'Manual', 0, num, num);
+          render();
+        }
+      }
+    });
+  });
+  app.querySelectorAll('[data-roll-filter]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      rollFilter = btn.dataset.rollFilter || 'all';
+      render();
+    });
+  });
 
   const imgContainer = app.querySelector('#character-image-container');
   const cornerHandle = app.querySelector('#image-corner-handle');
