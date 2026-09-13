@@ -298,6 +298,28 @@ function playCritSound(outcomeType, rollId = null) {
 function rollResultBannerHtml() {
   if (!activeRollResult) return '';
 
+  if (activeRollResult.type === 'damage') {
+    const bonusStr = activeRollResult.flatBonus >= 0 ? `+ ${activeRollResult.flatBonus}` : `- ${Math.abs(activeRollResult.flatBonus)}`;
+    const diceDetail = activeRollResult.individualRolls?.length
+      ? `${activeRollResult.diceStr} (${activeRollResult.individualRolls.join(' + ')}) ${bonusStr}`
+      : `${activeRollResult.diceStr} ${bonusStr}`;
+    return `<div class="roll-result-banner banner-red">
+      <div class="roll-result-info">
+        <div class="roll-result-title">
+          <span class="roll-char-name">${esc(activeRollResult.charName)}</span>
+          <span class="roll-stat-tag">Damage &bull; <strong>${esc(activeRollResult.label)}</strong></span>
+        </div>
+        <div class="roll-result-detail">
+          ${diceDetail} = <strong class="roll-score-num">${activeRollResult.total}</strong>
+        </div>
+      </div>
+      <div class="roll-result-outcome outcome-red">
+        Damage: ${activeRollResult.total}
+      </div>
+      <button type="button" class="roll-result-close" id="dismiss-roll-result" title="Dismiss result">&times;</button>
+    </div>`;
+  }
+
   if (activeRollResult.type === 'initiative') {
     const bonusStr = activeRollResult.bonus > 0 ? `+ ${activeRollResult.bonus}` : (activeRollResult.bonus < 0 ? `- ${Math.abs(activeRollResult.bonus)}` : '');
     return `<div class="roll-result-banner banner-green">
@@ -317,11 +339,16 @@ function rollResultBannerHtml() {
     </div>`;
   }
 
+  const targetTag = activeRollResult.targetTier && activeRollResult.targetTier !== 'standard'
+    ? `<span class="roll-target-tag">Target: <strong>${activeRollResult.targetTier.toUpperCase()}</strong> ${typeof activeRollResult.karmaCost === 'number' ? `&bull; Karma Cost: <strong>${activeRollResult.karmaCost}</strong>` : ''}</span>`
+    : '';
+
   return `<div class="roll-result-banner banner-${activeRollResult.colorTone}">
     <div class="roll-result-info">
       <div class="roll-result-title">
         <span class="roll-char-name">${esc(activeRollResult.charName)}</span>
         <span class="roll-stat-tag">${esc(activeRollResult.statName)} (Value: <strong>${activeRollResult.statValue}</strong> &rarr; Rank: <strong>${esc(activeRollResult.rankName)}</strong>)</span>
+        ${targetTag}
       </div>
       <div class="roll-result-detail">
         D100 Roll: <strong class="roll-score-num">${activeRollResult.roll}</strong>
@@ -424,9 +451,31 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   render();
 }
 
-function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null) {
+function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard') {
   const resolution = resolveUniversalRoll(statValue, rolledTotal);
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+  let karmaCost = 0;
+  if (targetTier === 'green') {
+    if (resolution.outcomeType === 'fail' || resolution.outcomeType === 'crit-fail') karmaCost = 1;
+  } else if (targetTier === 'yellow') {
+    if (resolution.outcomeType === 'fail' || resolution.outcomeType === 'crit-fail') karmaCost = 2;
+    else if (resolution.outcomeType === 'green') karmaCost = 1;
+  } else if (targetTier === 'red') {
+    if (resolution.outcomeType === 'fail' || resolution.outcomeType === 'crit-fail') karmaCost = 3;
+    else if (resolution.outcomeType === 'green') karmaCost = 2;
+    else if (resolution.outcomeType === 'yellow') karmaCost = 1;
+  }
+
+  let finalOutcomeLabel = resolution.outcomeLabel;
+  if (targetTier && targetTier !== 'standard') {
+    if (karmaCost > 0) {
+      finalOutcomeLabel = `${resolution.outcomeLabel} (Karma: ${karmaCost})`;
+    } else {
+      finalOutcomeLabel = `${resolution.outcomeLabel} (${targetTier.toUpperCase()} Met)`;
+    }
+  }
+
   activeRollResult = {
     rollId: currentRollId,
     statName,
@@ -438,7 +487,9 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     rowIndex: resolution.rowIndex,
     colorTone: resolution.colorTone,
     outcomeType: resolution.outcomeType,
-    outcomeLabel: resolution.outcomeLabel,
+    outcomeLabel: finalOutcomeLabel,
+    targetTier,
+    karmaCost,
     charName: charName || 'Character',
     playerName: playerName || 'Player',
     playerId: user.id,
@@ -447,19 +498,20 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
 
   playCritSound(resolution.outcomeType, currentRollId);
 
+  const targetSuffix = targetTier && targetTier !== 'standard' ? ` [Target: ${targetTier.toUpperCase()}, Karma: ${karmaCost}]` : '';
   addRollToHistory({
     id: currentRollId,
     timestamp: Date.now(),
     type: 'stat',
     charName: charName || 'Character',
     playerName: playerName || 'Player',
-    statName,
+    statName: targetTier && targetTier !== 'standard' ? `${statName} (${targetTier.toUpperCase()})` : statName,
     statValue: resolution.statValue,
     rankName: resolution.rankName,
-    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})`,
+    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})${targetSuffix}`,
     roll: resolution.roll,
     outcomeType: resolution.outcomeType,
-    outcomeLabel: resolution.outcomeLabel,
+    outcomeLabel: finalOutcomeLabel,
     colorTone: resolution.colorTone
   });
 
@@ -471,13 +523,231 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
 
   if (OBR.isAvailable && OBR.notification?.show) {
     const isSuccess = resolution.outcomeType === 'green' || resolution.outcomeType === 'yellow' || resolution.outcomeType === 'red' || resolution.outcomeType === 'crit-success';
+    const karmaNote = targetTier && targetTier !== 'standard' ? ` [Target: ${targetTier.toUpperCase()}${karmaCost > 0 ? `, Karma: ${karmaCost}` : ''}]` : '';
     OBR.notification.show(
-      `🎲 ${activeRollResult.charName} (${playerName || 'Player'}) rolled ${statName} [${activeRollResult.statValue} ➔ ${resolution.rankName}]: D100 = ${resolution.roll} ➔ ${resolution.outcomeLabel.toUpperCase()}`,
+      `🎲 ${activeRollResult.charName} (${playerName || 'Player'}) rolled ${statName} [${activeRollResult.statValue} ➔ ${resolution.rankName}]: D100 = ${resolution.roll} ➔ ${resolution.outcomeLabel.toUpperCase()}${karmaNote}`,
       isSuccess ? 'DEFAULT' : 'WARNING'
     );
   }
 
   render();
+}
+
+function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null) {
+  const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const label = `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`;
+  const diceStr = `${count}D${sides}`;
+  const bonusStr = flatBonus >= 0 ? `+ ${flatBonus}` : `- ${Math.abs(flatBonus)}`;
+
+  activeRollResult = {
+    rollId: currentRollId,
+    type: 'damage',
+    label,
+    weaponName,
+    modLabel,
+    diceStr,
+    flatBonus,
+    individualRolls: individualRolls || [],
+    total: totalDamage,
+    colorTone: 'red',
+    outcomeType: 'red',
+    outcomeLabel: `Damage: ${totalDamage}`,
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    playerId: user.id,
+    timestamp: Date.now()
+  };
+
+  addRollToHistory({
+    id: currentRollId,
+    timestamp: Date.now(),
+    type: 'damage',
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    statName: `Damage - ${label}`,
+    detail: `${diceStr} (${(individualRolls || []).join(', ') || (totalDamage - flatBonus)}) ${bonusStr} = ${totalDamage}`,
+    roll: totalDamage,
+    outcomeType: 'red',
+    outcomeLabel: `Damage: ${totalDamage}`,
+    colorTone: 'red'
+  });
+
+  if (broadcast && OBR.isAvailable && OBR.broadcast) {
+    try {
+      OBR.broadcast.sendMessage('terranova/stat-roll-result', activeRollResult, { destination: 'ALL' });
+    } catch (e) {}
+  }
+
+  if (OBR.isAvailable && OBR.notification?.show) {
+    OBR.notification.show(
+      `💥 ${charName || 'Character'} (${playerName || 'Player'}) rolled Damage (${label}): ${diceStr} ${bonusStr} = ${totalDamage}`,
+      'DEFAULT'
+    );
+  }
+
+  render();
+}
+
+async function rollUniversalCheck(name, statValue, targetTier = 'standard') {
+  const character = currentCharacter();
+  const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
+  const numVal = parseFloat(statValue) || 0;
+  const charName = character?.name || 'Character';
+
+  const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const timestamp = Date.now();
+  let playerId = user?.id || 'local-player';
+  let playerName = user?.name || 'Player';
+
+  if (OBR.isAvailable) {
+    try {
+      playerId = await OBR.player.getId();
+      playerName = await OBR.player.getName();
+    } catch (e) {}
+  }
+
+  const rollInfo = {
+    rollId,
+    type: 'stat',
+    statName: name,
+    statValue: numVal,
+    targetTier,
+    charName,
+    characterId: charId,
+    playerName,
+    playerId,
+    timestamp
+  };
+
+  pendingStatRolls.set(rollId, rollInfo);
+
+  const payload = {
+    rollId,
+    playerId,
+    playerName,
+    rollTarget: 'everyone',
+    diceNotation: '1d100',
+    diceCounts: { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 1, dF: 0 },
+    diceIndices: { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 },
+    showResults: true,
+    timestamp,
+    source: 'dice-plus'
+  };
+
+  if (OBR.isAvailable && OBR.broadcast) {
+    try {
+      await OBR.broadcast.sendMessage('terranova/stat-roll-start', rollInfo, { destination: 'ALL' });
+    } catch (e) {}
+
+    try {
+      await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'LOCAL' });
+      if (OBR.notification?.show) {
+        const preview = resolveUniversalRoll(numVal, 50);
+        OBR.notification.show(`Rolling 1D100 for ${name} (${numVal} ➔ ${preview.rankName})...`);
+      }
+    } catch (err) {
+      try {
+        await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'ALL' });
+      } catch (e) {}
+    }
+  } else {
+    const roll = Math.floor(Math.random() * 100) + 1;
+    displayAndAnnounceRollResult(name, numVal, roll, charName, playerName, false, rollId, targetTier);
+  }
+}
+
+async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = '', modBonus = 0) {
+  const character = currentCharacter();
+  const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
+  const charName = character?.name || 'Character';
+
+  const bBonus = parseInt(baseBonus) || 0;
+  const mBonus = parseInt(modBonus) || 0;
+  const totalFlat = bBonus + mBonus;
+
+  const match = (diceString || '1D10').match(/^(\d*)\s*[dD]\s*(\d+)/);
+  const count = match ? (parseInt(match[1]) || 1) : 1;
+  const sides = match ? parseInt(match[2]) : 10;
+
+  const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const timestamp = Date.now();
+  let playerId = user?.id || 'local-player';
+  let playerName = user?.name || 'Player';
+
+  if (OBR.isAvailable) {
+    try {
+      playerId = await OBR.player.getId();
+      playerName = await OBR.player.getName();
+    } catch (e) {}
+  }
+
+  const notation = totalFlat > 0 ? `${count}d${sides} + ${totalFlat}` : (totalFlat < 0 ? `${count}d${sides} - ${Math.abs(totalFlat)}` : `${count}d${sides}`);
+
+  const rollInfo = {
+    rollId,
+    type: 'damage',
+    label: `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`,
+    weaponName,
+    modLabel,
+    count,
+    sides,
+    flatBonus: totalFlat,
+    notation,
+    charName,
+    characterId: charId,
+    playerName,
+    playerId,
+    timestamp
+  };
+
+  pendingStatRolls.set(rollId, rollInfo);
+
+  const countsKey = `d${sides}`;
+  const diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
+  const diceIndices = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
+  if (diceCounts[countsKey] !== undefined) {
+    diceCounts[countsKey] = count;
+  }
+
+  const payload = {
+    rollId,
+    playerId,
+    playerName,
+    rollTarget: 'everyone',
+    diceNotation: notation,
+    diceCounts,
+    diceIndices,
+    showResults: true,
+    timestamp,
+    source: 'dice-plus'
+  };
+
+  if (OBR.isAvailable && OBR.broadcast) {
+    try {
+      await OBR.broadcast.sendMessage('terranova/stat-roll-start', rollInfo, { destination: 'ALL' });
+    } catch (e) {}
+
+    try {
+      await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'LOCAL' });
+      if (OBR.notification?.show) {
+        OBR.notification.show(`Rolling Damage for ${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}: ${notation}...`);
+      }
+    } catch (err) {
+      try {
+        await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'ALL' });
+      } catch (e) {}
+    }
+  } else {
+    let diceTotal = 0;
+    const individualRolls = [];
+    for (let i = 0; i < count; i++) {
+      const die = Math.floor(Math.random() * sides) + 1;
+      individualRolls.push(die);
+      diceTotal += die;
+    }
+    const totalDamage = diceTotal + totalFlat;
+    displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
+  }
 }
 
 function universalChartTableHtml() {
@@ -772,6 +1042,126 @@ async function rollDicePlus(statName) {
   }
 }
 
+function quickAccessSectionHtml(character, numFighting, numStrength, numAgility, numIntuition, numSpeed) {
+  const st = character.data.stats || {};
+  character.data.quickAccessWeaponSlot ??= 0;
+
+  const rawWeapons = Array.isArray(character.data.tables?.Weapons) ? character.data.tables.Weapons : [];
+  const rawSpecs = Array.isArray(character.data.tables?.Specialisations) ? character.data.tables.Specialisations : [];
+
+  const defenseTableHtml = `
+    <div class="qa-table-card">
+      <div class="qa-table-header text-bold">Defense menu</div>
+      <div class="qa-grid-4">
+        <!-- Row 1: Dodge (Agility) -->
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="Dodge" data-stat-name="Agility" data-stat-val="${numAgility}" data-target-tier="standard" title="Roll Standard Dodge (Agility: ${numAgility})">Dodge</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="Dodge" data-stat-name="Agility" data-stat-val="${numAgility}" data-target-tier="green" title="Roll Dodge [Target: Green] (Agility: ${numAgility})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="Dodge" data-stat-name="Agility" data-stat-val="${numAgility}" data-target-tier="yellow" title="Roll Dodge [Target: Yellow] (Agility: ${numAgility})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="Dodge" data-stat-name="Agility" data-stat-val="${numAgility}" data-target-tier="red" title="Roll Dodge [Target: Red] (Agility: ${numAgility})">Red</div>
+
+        <!-- Row 2: Pary (Fighting) -->
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="Pary" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="standard" title="Roll Standard Pary (Fighting: ${numFighting})">Pary</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="Pary" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="green" title="Roll Pary [Target: Green] (Fighting: ${numFighting})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="Pary" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="yellow" title="Roll Pary [Target: Yellow] (Fighting: ${numFighting})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="Pary" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="red" title="Roll Pary [Target: Red] (Fighting: ${numFighting})">Red</div>
+
+        <!-- Row 3: Block (Fighting) -->
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="Block" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="standard" title="Roll Standard Block (Fighting: ${numFighting})">Block</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="Block" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="green" title="Roll Block [Target: Green] (Fighting: ${numFighting})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="Block" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="yellow" title="Roll Block [Target: Yellow] (Fighting: ${numFighting})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="Block" data-stat-name="Fighting" data-stat-val="${numFighting}" data-target-tier="red" title="Roll Block [Target: Red] (Fighting: ${numFighting})">Red</div>
+      </div>
+    </div>
+  `;
+
+  let selectedWIdx = character.data.quickAccessWeaponSlot ?? (Array.isArray(character.data.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0);
+  if (selectedWIdx === undefined || selectedWIdx < 0 || (rawWeapons.length > 0 && selectedWIdx >= rawWeapons.length)) {
+    selectedWIdx = 0;
+  }
+
+  const optionsHtml = rawWeapons.length === 0
+    ? '<option value="0">-- No weapons in Weapons tab --</option>'
+    : rawWeapons.map((w, wIdx) => `<option value="${wIdx}" ${wIdx === selectedWIdx ? 'selected' : ''}>${esc(w[0] || `Weapon ${wIdx + 1}`)}</option>`).join('');
+
+  const weapon = (rawWeapons.length > 0 && rawWeapons[selectedWIdx]) ? rawWeapons[selectedWIdx] : [];
+  const weaponName = weapon[0] || (rawWeapons.length > 0 ? `Weapon ${selectedWIdx + 1}` : 'Weapon');
+  const specName = weapon[9] || '';
+  const touchStatName = weapon[1] || 'Fighting';
+  const weaponTouchBonus = parseInt(weapon[11]) || 0;
+  const damageBonusStatName = weapon[2] || 'Strength';
+  const diceStr = weapon[6] || '1D10';
+  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on';
+
+  const specRow = rawSpecs.find((s) => (s[0] || '').trim() === (specName || '').trim() && (specName || '').trim() !== '');
+  const specIniBonus = specRow ? (parseInt(specRow[5]) || 0) : 0;
+  const specTouchBonus = specRow ? (parseInt(specRow[2]) || 0) : 0;
+  const specPotentialBonus = specRow ? (parseInt(specRow[3]) || 0) : 0;
+
+  const total1stBonus = Math.floor(numIntuition / 10) + specIniBonus;
+  const totalNextBonus = Math.floor(numSpeed / 10) + specIniBonus;
+
+  const touchStatVal = parseFloat(st[touchStatName] ?? (touchStatName === 'Fighting' ? numFighting : (touchStatName === 'Agility' ? numAgility : '6'))) || 0;
+  const totalTouchVal = touchStatVal + weaponTouchBonus + specTouchBonus;
+
+  const fightMult = Math.max(1, Math.floor(numFighting / 10));
+  const dMatch = diceStr.match(/^(\d*)\s*[dD]\s*(\d+)/);
+  const baseCount = dMatch ? (parseInt(dMatch[1]) || 1) : 1;
+  const dieSides = dMatch ? parseInt(dMatch[2]) : 10;
+  const totalDiceCount = fightMult * baseCount;
+  const finalDiceStr = `${totalDiceCount}D${dieSides}`;
+
+  const dmgStatVal = parseFloat(st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6'))) || 0;
+  const statDmgBonus = twoHanded ? Math.floor(dmgStatVal * 1.5) : dmgStatVal;
+  const totalFlatBonus = statDmgBonus + specPotentialBonus;
+
+  const weaponTableHtml = `
+    <div class="qa-table-card">
+      <div class="qa-table-header text-bold">Weapons</div>
+      <div class="qa-sub-header">
+        <label class="qa-weapon-label">Weapon:
+          <select class="qa-weapon-select" data-qa-slot="0">
+            ${optionsHtml}
+          </select>
+        </label>
+      </div>
+      <!-- Row 1: Initiative Rolls (2 columns) -->
+      <div class="qa-grid-2">
+        <div class="qa-cell bg-blue rollable-qa-ini" data-roll-initiative="${esc(weaponName)} (1st round)" data-bonus="${total1stBonus}" title="Roll Initiative (1st round): 1D12 + ${total1stBonus}">Ini Roll 1st</div>
+        <div class="qa-cell bg-coral rollable-qa-ini" data-roll-initiative="${esc(weaponName)} (Next rounds)" data-bonus="${totalNextBonus}" title="Roll Initiative (Next rounds): 1D12 + ${totalNextBonus}">Ini Roll Next</div>
+      </div>
+      <!-- Row 2: Attack Rolls (4 columns) -->
+      <div class="qa-grid-4">
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="standard" title="Roll Standard Attack (${touchStatName}: ${totalTouchVal})">Attack</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="green" title="Roll Attack [Target: Green] (Total: ${totalTouchVal})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="yellow" title="Roll Attack [Target: Yellow] (Total: ${totalTouchVal})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="red" title="Roll Attack [Target: Red] (Total: ${totalTouchVal})">Red</div>
+      </div>
+      <!-- Row 3: Merged Damage Cell -->
+      <div class="qa-grid-1">
+        <div class="qa-cell bg-light text-bold rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="" data-mod-bonus="0" title="Click to roll Damage: ${finalDiceStr} + ${totalFlatBonus}">
+          Damage: ${finalDiceStr}+${statDmgBonus}+${specPotentialBonus}
+        </div>
+      </div>
+      <!-- Row 4: Attack Success Damage Modifiers (4 columns) -->
+      <div class="qa-grid-4">
+        <div class="qa-cell bg-green rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Block" data-mod-bonus="10" title="Click to roll Damage (+10 Block): ${finalDiceStr} + ${totalFlatBonus + 10}">Block</div>
+        <div class="qa-cell bg-yellow rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Yellow" data-mod-bonus="20" title="Click to roll Damage (+20 Yellow): ${finalDiceStr} + ${totalFlatBonus + 20}">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Red" data-mod-bonus="30" title="Click to roll Damage (+30 Red): ${finalDiceStr} + ${totalFlatBonus + 30}">Red</div>
+        <div class="qa-cell bg-dark-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Natural Red" data-mod-bonus="40" title="Click to roll Damage (+40 Natural Red): ${finalDiceStr} + ${totalFlatBonus + 40}">NaturalRed</div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="quick-access-section">
+      <h3 class="quick-access-main-title">⚡ Quick Access</h3>
+      ${defenseTableHtml}
+      <div class="qa-separator"></div>
+      ${weaponTableHtml}
+    </div>
+  `;
+}
+
 function statsPage(character) {
   const st = character.data.stats || {};
   const fighting = st.Fighting ?? st['Combat Capacity'] ?? '6';
@@ -953,6 +1343,8 @@ function statsPage(character) {
         </div>
 
       </div>
+
+      ${quickAccessSectionHtml(character, numFighting, numStrength, numAgility, numIntuition, numSpeed)}
     </div>
 
     <div class="stats-right-panel">
@@ -1846,7 +2238,23 @@ async function initialise() {
 
       if (rollInfo) {
         const isMyRoll = rollInfo.playerId === user.id;
-        if (rollInfo.type === 'initiative') {
+        if (rollInfo.type === 'damage') {
+          const finalRoll = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
+          const diceList = resultObj.groups?.flatMap((g) => g.dice?.map((d) => d.value) || []) || [];
+          displayAndAnnounceDamageResult(
+            rollInfo.weaponName || rollInfo.label,
+            rollInfo.modLabel || '',
+            rollInfo.count || 1,
+            rollInfo.sides || 10,
+            diceList,
+            rollInfo.flatBonus || 0,
+            finalRoll,
+            rollInfo.charName,
+            data.playerName || rollInfo.playerName,
+            isMyRoll,
+            rollInfo.rollId
+          );
+        } else if (rollInfo.type === 'initiative') {
           const bonus = parseInt(rollInfo.bonus) || 0;
           let d12 = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal - bonus : 0);
           let finalTotal = typeof totalVal === 'number' ? totalVal : (d12 + bonus);
@@ -1875,7 +2283,8 @@ async function initialise() {
             rollInfo.charName,
             data.playerName || rollInfo.playerName,
             isMyRoll,
-            rollInfo.rollId
+            rollInfo.rollId,
+            rollInfo.targetTier || 'standard'
           );
         }
       } else {
@@ -1984,6 +2393,45 @@ function bindEvents() {
       const stat = cell.dataset.rollStat;
       if (stat) {
         rollDicePlus(stat);
+      }
+    });
+  });
+  app.querySelectorAll('[data-qa-universal-roll]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const name = btn.dataset.qaUniversalRoll;
+      const statVal = parseFloat(btn.dataset.statVal) || 0;
+      const targetTier = btn.dataset.targetTier || 'standard';
+      if (name) {
+        rollUniversalCheck(name, statVal, targetTier);
+      }
+    });
+  });
+  app.querySelectorAll('.rollable-qa-dmg').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const weaponName = btn.dataset.weaponName || 'Weapon';
+      const dice = btn.dataset.dice || '1D10';
+      const baseBonus = parseInt(btn.dataset.baseBonus) || 0;
+      const modLabel = btn.dataset.modLabel || '';
+      const modBonus = parseInt(btn.dataset.modBonus) || 0;
+      rollWeaponDamage(weaponName, dice, baseBonus, modLabel, modBonus);
+    });
+  });
+  app.querySelectorAll('.qa-weapon-select').forEach((select) => {
+    select.addEventListener('change', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const slot = parseInt(select.dataset.qaSlot) || 0;
+      const val = parseInt(select.value);
+      const character = currentCharacter();
+      if (character) {
+        character.data.quickAccessWeaponSlot = val;
+        character.data.quickAccessWeaponSlots = [val];
+        await save();
+        render();
       }
     });
   });
