@@ -1,6 +1,8 @@
 import './character-sheet.css';
 import OBR from '@owlbear-rodeo/sdk';
 import { chartRankCodes, chartRankNames, chartRankValues, chartStatRanges, chartRows, resolveUniversalRoll } from './universal-chart-data.js';
+import sadhornUrl from '../sounds/sadhorn.mp3';
+import wowUrl from '../sounds/wow.mp3';
 
 const tabs = [
   'Infos', 'Stats', 'Action Types', 'Skills', 'Spell', 'Specialisations',
@@ -189,6 +191,38 @@ function infoPage(character) {
 
 const pendingStatRolls = new Map();
 let activeRollResult = null;
+let lastPlayedSoundRollId = null;
+
+function playCritSound(outcomeType, rollId = null) {
+  if (rollId && lastPlayedSoundRollId === rollId) {
+    return;
+  }
+  if (rollId) {
+    lastPlayedSoundRollId = rollId;
+  }
+
+  let soundUrl = null;
+  if (outcomeType === 'crit-fail' || outcomeType === 'crit_fail') {
+    soundUrl = sadhornUrl;
+  } else if (outcomeType === 'crit-success' || outcomeType === 'crit_success') {
+    soundUrl = wowUrl;
+  }
+
+  if (!soundUrl) return;
+
+  try {
+    const audio = new Audio(soundUrl);
+    audio.volume = 0.85;
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('Audio playback was prevented by browser policy or error:', err);
+      });
+    }
+  } catch (err) {
+    console.warn('Audio playback initialization failed:', err);
+  }
+}
 
 function rollResultBannerHtml() {
   if (!activeRollResult) return '';
@@ -259,9 +293,11 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   render();
 }
 
-function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true) {
+function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null) {
   const resolution = resolveUniversalRoll(statValue, rolledTotal);
+  const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   activeRollResult = {
+    rollId: currentRollId,
     statName,
     statValue: resolution.statValue,
     roll: resolution.roll,
@@ -276,6 +312,8 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     playerName: playerName || 'Player',
     timestamp: Date.now()
   };
+
+  playCritSound(resolution.outcomeType, currentRollId);
 
   if (broadcast && OBR.isAvailable && OBR.broadcast) {
     try {
@@ -1342,8 +1380,19 @@ async function initialise() {
             finalRoll,
             rollInfo.charName,
             data.playerName || rollInfo.playerName,
-            isMyRoll
+            isMyRoll,
+            rollInfo.rollId
           );
+        }
+      } else {
+        const isD100 = data.diceNotation?.toLowerCase().includes('d100') || data.diceCounts?.d100 > 0;
+        if (isD100) {
+          const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : null);
+          if (finalRoll === 1) {
+            playCritSound('crit-fail', data.rollId || Date.now());
+          } else if (finalRoll === 100) {
+            playCritSound('crit-success', data.rollId || Date.now());
+          }
         }
       }
     });
@@ -1351,6 +1400,10 @@ async function initialise() {
     OBR.broadcast.onMessage('terranova/stat-roll-result', (event) => {
       if (event.data && (typeof event.data.roll === 'number' || typeof event.data.total === 'number')) {
         activeRollResult = event.data;
+        const outcome = event.data.outcomeType || (event.data.roll === 1 ? 'crit-fail' : (event.data.roll === 100 ? 'crit-success' : null));
+        if (outcome) {
+          playCritSound(outcome, event.data.rollId || event.data.timestamp);
+        }
         render();
       }
     });
