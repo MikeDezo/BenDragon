@@ -1,0 +1,16 @@
+{
+  "name": "Ben & Dragon!",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "author": "MikeDezo as The dev & Ben as The creator",
+  "description": "Costum extension for our Homebrew System",
+  "icon": "/icon-alt.svg",
+  "background_url": "/index.html",
+  "action": {
+    "title": "Ben & Dragon!",
+    "icon": "/icon.svg",
+    "popover": "/character-sheet.html",
+    "height": 1800,
+    "width": 900
+  }
+}

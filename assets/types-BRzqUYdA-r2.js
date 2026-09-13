@@ -1,0 +1,1 @@
+import{i as e}from"./staleChunkReload-C84c5zVp-r2.js";import{n as t,r as n}from"./diceNotation-H2yj8lJZ-r2.js";function r(){return`roll_${Date.now()}_${Math.random().toString(36).substring(2,9)}`}var i=e({isDiceRoll:()=>t,isExpressionNode:()=>n});export{r as n,i as t};

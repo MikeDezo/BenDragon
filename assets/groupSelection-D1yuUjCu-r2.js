@@ -1,0 +1,1 @@
+function e(e,t){let n=e.map((e,t)=>t);if(!t)return n;let r=[...n].sort((t,n)=>e[n]-e[t]||t-n),i=[...n].sort((t,n)=>e[t]-e[n]||t-n),a;switch(t.type){case`kh`:a=r.slice(0,t.count);break;case`kl`:a=i.slice(0,t.count);break;case`dh`:a=r.slice(t.count);break;case`dl`:a=i.slice(t.count);break}return a.sort((e,t)=>e-t)}export{e as t};

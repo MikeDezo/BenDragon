@@ -1,0 +1,1 @@
+import{o as e}from"./staleChunkReload-C84c5zVp-r2.js";import{i as t}from"./jsx-runtime-BN53J8xN-r2.js";var n=e(t(),1);function r(e){let t=n.useRef({});return n.useEffect(()=>{t.current=e}),t.current}export{r as t};

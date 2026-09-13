@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/assets/PluginThemeProvider-CWF-0gea-r2.css" />
+    <link rel="stylesheet" href="/assets/simplebar-VHzaaeFw-r2.css" />
+    <title>Ben &amp; Dragon!</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const removeDiceBag = () => {
+        document.querySelectorAll('[aria-label="Dice Bag"], [title="Dice Bag"]').forEach((element) => {
+          const button = element.closest('button') || element;
+          const divider = button.previousElementSibling;
+          if (divider?.tagName === 'HR') divider.remove();
+          button.remove();
+        });
+      };
+
+      new MutationObserver(removeDiceBag).observe(document.body, { childList: true, subtree: true });
+      removeDiceBag();
+    </script>
+    <script type="module" src="/assets/main-C_IuZtWQ-r2.js"></script>
+  </body>
+</html>

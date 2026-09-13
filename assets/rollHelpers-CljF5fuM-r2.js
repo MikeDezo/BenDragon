@@ -1,0 +1,1 @@
+function e(e,t=`short`){if(t===`long`)switch(e){case`everyone`:return`Everyone`;case`self`:return`Self Only`;case`dm`:return`GM & Self`;case`gm_only`:return`GM Screen Only`;default:return`Everyone`}switch(e){case`everyone`:return`Everyone`;case`self`:return`Self`;case`dm`:return`GM & Self`;case`gm_only`:return`GM Only`;default:return`Everyone`}}export{e as t};

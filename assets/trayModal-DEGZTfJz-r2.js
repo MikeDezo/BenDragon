@@ -1,0 +1,1 @@
+import{s as e}from"./messageSize-D9GZ4xxD-r2.js";var t={id:e.DICE_TRAY,url:`/dice-tray.html`,hideBackdrop:!0,hidePaper:!0,disablePointerEvents:!0},n={...t,fullScreen:!1,width:0,height:0},r={...t,fullScreen:!0};export{r as n,n as t};

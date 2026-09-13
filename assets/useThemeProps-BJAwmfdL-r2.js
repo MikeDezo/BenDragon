@@ -1,0 +1,1 @@
+import{it as e,lt as t,rt as n}from"./PluginThemeProvider-Ca1rp6oL-r2.js";var r=e();function i(e){let{theme:t,name:r,props:i}=e;return!t||!t.components||!t.components[r]||!t.components[r].defaultProps?i:n(t.components[r].defaultProps,i)}function a({props:e,name:n,defaultTheme:r,themeId:a}){let o=t(r);return a&&(o=o[a]||o),i({theme:o,name:n,props:e})}export{i as n,r,a as t};
