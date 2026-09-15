@@ -76,6 +76,18 @@ const blankCharacter = (name = 'New Character') => ({
       FreeRestante: '0'
     },
     tables: {},
+    powerThemes: [
+      {
+        title: 'Power Theme 1',
+        description: '',
+        image: '',
+        imageSettings: { width: 320, height: 420 },
+        powers: [
+          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
+          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+        ]
+      }
+    ],
     imageSettings: { width: 320, height: 480 }
   }
 });
@@ -648,6 +660,268 @@ function monturePage(character) {
               <label class="field-row"><span class="field-label">Speed</span>${editable(`tables.Monture.${mountIndex}.2`, row[2] || '', 'field-input', 'Speed')}</label>
               <label class="field-row"><span class="field-label">Armor</span>${editable(`tables.Monture.${mountIndex}.3`, row[3] || '', 'field-input', 'Armor')}</label>
               <label class="field-row tall"><span class="field-label">Notes</span>${editable(`tables.Monture.${mountIndex}.4`, row[4] || '', 'field-input', 'Notes')}</label>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </section>`;
+}
+
+const universalChartRollOptions = [
+  { value: 'No Roll', label: 'No Roll', rankVal: null, code: '' },
+  { value: 'Shift 0', label: 'Shift 0 (0)', rankVal: 0, code: '0' },
+  { value: 'Feeble', label: 'Feeble (Fe - 2)', rankVal: 2, code: 'Fe' },
+  { value: 'Poor', label: 'Poor (Pr - 4)', rankVal: 4, code: 'Pr' },
+  { value: 'Typical', label: 'Typical (Ty - 6)', rankVal: 6, code: 'Ty' },
+  { value: 'Good', label: 'Good (Gd - 10)', rankVal: 10, code: 'Gd' },
+  { value: 'Excelent', label: 'Excelent (Ex - 20)', rankVal: 20, code: 'Ex' },
+  { value: 'Remarkable', label: 'Remarkable (Rm - 30)', rankVal: 30, code: 'Rm' },
+  { value: 'Incredible', label: 'Incredible (In - 40)', rankVal: 40, code: 'In' },
+  { value: 'Amazing', label: 'Amazing (Am - 50)', rankVal: 50, code: 'Am' },
+  { value: 'Monstrous', label: 'Monstrous (Mn - 75)', rankVal: 75, code: 'Mn' },
+  { value: 'Unearthly', label: 'Unearthly (Un - 100)', rankVal: 100, code: 'Un' },
+  { value: 'Shift X', label: 'Shift X (X - 150)', rankVal: 150, code: 'X' },
+  { value: 'Shift Y', label: 'Shift Y (Y - 250)', rankVal: 250, code: 'Y' },
+  { value: 'Shift Z', label: 'Shift Z (Z - 500)', rankVal: 500, code: 'Z' },
+  { value: 'Class 1000', label: 'Class 1000 (1000)', rankVal: 1000, code: '1000' },
+  { value: 'Class 3000', label: 'Class 3000 (3000)', rankVal: 3000, code: '3000' },
+  { value: 'Class 5000', label: 'Class 5000 (5000)', rankVal: 5000, code: '5000' },
+  { value: 'Beyond', label: 'Beyond (∞)', rankVal: 10000, code: 'B' }
+];
+
+function getUniversalRankVal(rollStr) {
+  if (!rollStr || rollStr === 'No Roll' || rollStr === '—' || rollStr === '-') return null;
+  const match = universalChartRollOptions.find(
+    (opt) => opt.value.toLowerCase() === rollStr.toLowerCase() ||
+             opt.label.toLowerCase() === rollStr.toLowerCase() ||
+             opt.label.toLowerCase().startsWith(rollStr.toLowerCase()) ||
+             (opt.code && opt.code.toLowerCase() === rollStr.toLowerCase())
+  );
+  if (match && match.rankVal !== null) return match.rankVal;
+  const statRank = statRankRanges.find(
+    (r) => r.name.toLowerCase() === rollStr.toLowerCase() ||
+           r.code.toLowerCase() === rollStr.toLowerCase()
+  );
+  if (statRank) {
+    const valIdx = statRank.colIndex;
+    const num = parseFloat(chartRankValues[valIdx]);
+    return !isNaN(num) ? num : statRank.min;
+  }
+  return null;
+}
+
+function getPowerThemes(character) {
+  if (!character || !character.data) return [];
+  if (Array.isArray(character.data.powerThemes)) {
+    return character.data.powerThemes;
+  }
+
+  // Check legacy tables['Unique Power']
+  const legacyRows = character.data.tables?.['Unique Power'];
+  if (Array.isArray(legacyRows) && legacyRows.length > 0) {
+    const migratedTheme = {
+      title: 'Unique Powers',
+      description: '',
+      image: '',
+      imageSettings: { width: 320, height: 420 },
+      powers: legacyRows.map((r) => ({
+        name: r[0] || '',
+        description: r[1] || '',
+        roll: r[3] || 'No Roll',
+        cost: r[2] || '',
+        charges: r[4] || ''
+      }))
+    };
+    character.data.powerThemes = [migratedTheme];
+    return character.data.powerThemes;
+  }
+
+  const defaultTheme = {
+    title: 'Power Theme 1',
+    description: '',
+    image: '',
+    imageSettings: { width: 320, height: 420 },
+    powers: [
+      { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
+      { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+    ]
+  };
+  character.data.powerThemes = [defaultTheme];
+  return character.data.powerThemes;
+}
+
+function getThemeImage(character, themeIndex) {
+  const themes = getPowerThemes(character);
+  return themes[themeIndex]?.image || '';
+}
+
+function setThemeImage(character, themeIndex, url) {
+  const themes = getPowerThemes(character);
+  if (themes[themeIndex]) {
+    themes[themeIndex].image = url;
+  }
+}
+
+function removeThemeImage(character, themeIndex) {
+  const themes = getPowerThemes(character);
+  if (themes[themeIndex]) {
+    delete themes[themeIndex].image;
+  }
+}
+
+async function chooseOwlbearAssetForTheme(themeIndex) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  if (!OBR.isAvailable || !OBR.assets?.downloadImages) {
+    promptThemeImageUrl(themeIndex);
+    return;
+  }
+  try {
+    const downloads = await OBR.assets.downloadImages(false);
+    if (downloads && downloads.length > 0 && downloads[0].image?.url) {
+      setThemeImage(character, themeIndex, downloads[0].image.url);
+      await save();
+      render();
+    }
+  } catch (err) {
+    console.error('Owlbear power theme image selection error:', err);
+  }
+}
+
+async function promptThemeImageUrl(themeIndex) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  const current = getThemeImage(character, themeIndex);
+  const url = window.prompt('Enter power theme image URL (Owlbear Cloud URL, Discord, Imgur, etc.):', current);
+  if (url !== null) {
+    const trimmed = url.trim();
+    if (trimmed) {
+      setThemeImage(character, themeIndex, trimmed);
+    } else {
+      removeThemeImage(character, themeIndex);
+    }
+    await save();
+    render();
+  }
+}
+
+function uniquePowerPage(character) {
+  const themes = getPowerThemes(character);
+
+  return `<section class="unique-power-page">
+    <div class="unique-power-top-bar">
+      <h2 class="section-title" style="margin: 0;">Unique Powers</h2>
+      <button type="button" class="toolbar-button add-theme-top-btn" data-add-power-theme title="Add a new Power Theme">+ Add Power Theme</button>
+    </div>
+    ${rollResultBannerHtml()}
+    <div class="power-themes-list">
+      ${themes.map((theme, themeIdx) => {
+        const image = theme.image || '';
+        const imgSettings = theme.imageSettings || { width: 320, height: 420 };
+        const widthVal = imgSettings.width || 320;
+        const heightVal = imgSettings.height || 420;
+        const powers = Array.isArray(theme.powers) ? theme.powers : [];
+        const themeTitle = theme.title || (themes.length > 1 ? `Power Theme ${themeIdx + 1}` : 'Power Theme');
+
+        return `<div class="power-theme-card" data-theme-card="${themeIdx}">
+          <div class="grid-sheet info-layout power-theme-layout" style="--portrait-width: ${widthVal}px; --portrait-height: ${heightVal}px;">
+            <div class="portrait-column">
+              <div class="character-image power-theme-image ${image ? 'has-image' : ''}" data-theme-image-container="${themeIdx}" tabindex="0" role="button" aria-label="Power Theme image">
+                ${image ? `
+                  <img src="${esc(image)}" alt="Power theme image" class="character-image-preview" />
+                  <div class="image-overlay">
+                    <div class="image-overlay-actions">
+                      ${OBR.isAvailable ? `<button type="button" class="img-btn" data-theme-owlbear-btn="${themeIdx}">Owlbear Cloud</button>` : ''}
+                      <button type="button" class="img-btn" data-theme-url-btn="${themeIdx}">Set URL</button>
+                    </div>
+                    <button type="button" class="image-remove-btn" data-theme-remove-btn="${themeIdx}" title="Remove image">&times;</button>
+                  </div>
+                ` : `
+                  <div class="empty-image-placeholder">
+                    <span class="image-label">INSERT POWER IMAGE</span>
+                    <div class="image-choice-buttons">
+                      ${OBR.isAvailable ? `<button type="button" class="img-choice-btn" data-theme-owlbear-btn="${themeIdx}">Owlbear Cloud</button>` : ''}
+                      <button type="button" class="img-choice-btn" data-theme-url-btn="${themeIdx}">Image URL</button>
+                    </div>
+                  </div>
+                `}
+                <div class="image-corner-handle" data-theme-corner-handle="${themeIdx}" title="Drag corner to resize power theme box"></div>
+              </div>
+            </div>
+            <div class="power-theme-details">
+              <div class="power-theme-header">
+                <div class="power-theme-title-container">
+                  <span class="power-theme-title-tag">THEME TITLE</span>
+                  <input type="text" class="power-theme-title-input" data-path="powerThemes.${themeIdx}.title" value="${esc(theme.title || '')}" placeholder="Power Theme Title (e.g. Pyromancy, Telekinesis...)" />
+                </div>
+                <button type="button" class="delete-row power-theme-delete-btn" data-delete-power-theme="${themeIdx}" title="Delete this Power Theme">Delete Theme</button>
+              </div>
+
+              <div class="power-theme-desc-wrap">
+                <span class="power-theme-desc-tag">Theme Description / Subtitle</span>
+                <textarea class="field-input power-theme-desc-input" data-path="powerThemes.${themeIdx}.description" rows="2" placeholder="Enter description, lore, or notes for this power theme...">${esc(theme.description || '')}</textarea>
+              </div>
+
+              <div class="table-wrap power-table-wrap">
+                <table class="sheet-table sheet-table-unique-powers">
+                  <thead>
+                    <tr>
+                      <th class="col-p-name">Power Name</th>
+                      <th class="col-p-desc">Description</th>
+                      <th class="col-p-roll">Roll</th>
+                      <th class="col-p-cost">Cost</th>
+                      <th class="col-p-charges">Daily Use / Charge</th>
+                      <th class="col-p-rollbtn" style="text-align: center;">Roll</th>
+                      <th class="row-actions col-p-delete" style="text-align: center;">Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${powers.map((power, pIdx) => {
+                      const rollVal = power.roll || 'No Roll';
+                      const isRollActive = rollVal && rollVal !== 'No Roll' && rollVal !== '—' && rollVal !== '-';
+                      const rollOptionsHtml = universalChartRollOptions.map((opt) => {
+                        const isSelected = (opt.value === rollVal) || (opt.label === rollVal) || (opt.value.toLowerCase() === rollVal.toLowerCase());
+                        return `<option value="${esc(opt.value)}" ${isSelected ? 'selected' : ''}>${esc(opt.label)}</option>`;
+                      }).join('');
+
+                      return `<tr>
+                        <td class="col-p-name">
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.name" rows="1" placeholder="Power Name">${esc(power.name || '')}</textarea>
+                        </td>
+                        <td class="col-p-desc">
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.description" rows="1" placeholder="Power Description">${esc(power.description || '')}</textarea>
+                        </td>
+                        <td class="col-p-roll">
+                          <select class="cell-input cell-select power-roll-select" data-path="powerThemes.${themeIdx}.powers.${pIdx}.roll" data-theme-idx="${themeIdx}" data-power-idx="${pIdx}">
+                            ${rollOptionsHtml}
+                          </select>
+                        </td>
+                        <td class="col-p-cost">
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.cost" rows="1" placeholder="Cost">${esc(power.cost || '')}</textarea>
+                        </td>
+                        <td class="col-p-charges">
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.charges" rows="1" placeholder="Daily / Charges">${esc(power.charges || '')}</textarea>
+                        </td>
+                        <td class="col-p-rollbtn" style="text-align: center;">
+                          ${isRollActive ? `
+                            <button type="button" class="power-roll-btn power-roll-btn-active" data-roll-power-theme="${themeIdx}" data-roll-power-idx="${pIdx}" title="Roll ${esc(power.name || 'Power')} (${esc(rollVal)}) on Universal Chart">🎲 Roll</button>
+                          ` : `
+                            <button type="button" class="power-roll-btn power-roll-btn-disabled" disabled title="Select a Universal Chart rank in the Roll column to enable roll">🎲 Roll</button>
+                          `}
+                        </td>
+                        <td class="row-actions col-p-delete" style="text-align: center;">
+                          <button type="button" class="delete-row" data-delete-power-row="${themeIdx}.${pIdx}" title="Delete this power line">Delete</button>
+                        </td>
+                      </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="power-theme-actions">
+                <button type="button" class="add-row add-power-btn" data-add-power-row="${themeIdx}">+ Add Power</button>
+              </div>
             </div>
           </div>
         </div>`;
@@ -2674,6 +2948,7 @@ function pageFor(character) {
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
   if (activeTab === 'Monture') return monturePage(character);
+  if (activeTab === 'Unique Power') return uniquePowerPage(character);
   return tablePage(activeTab, character);
 }
 
@@ -3645,6 +3920,11 @@ function bindEvents() {
         }
         return;
       }
+      if (input.classList.contains('power-roll-select')) {
+        await save();
+        render();
+        return;
+      }
       queueSave(200);
     });
     input.addEventListener('blur', () => queueSave());
@@ -3665,6 +3945,21 @@ function bindEvents() {
           next.focus();
           next.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
           next.select?.();
+        } else if (activeTab === 'Unique Power') {
+          const character = currentCharacter();
+          if (character && canEditCurrent()) {
+            const themes = getPowerThemes(character);
+            const pathParts = input.dataset.path?.split('.') || [];
+            const themeIdx = parseInt(pathParts[1]) || 0;
+            if (themes[themeIdx]) {
+              themes[themeIdx].powers ??= [];
+              const newPIdx = themes[themeIdx].powers.length;
+              themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', cost: '', charges: '' });
+              await save();
+              const targetPath = `powerThemes.${themeIdx}.powers.${newPIdx}.name`;
+              render(targetPath, true);
+            }
+          }
         } else if (tables[activeTab]) {
           const character = currentCharacter();
           if (character && canEditCurrent()) {
@@ -4194,6 +4489,243 @@ function bindEvents() {
           const row = character.data.tables.Monture[mountIndex];
           if (row) {
             row.imageSettings = {
+              width: currentWidth,
+              height: currentHeight
+            };
+            queueSave(300);
+          }
+        }
+      };
+
+      cornerHandle.addEventListener('pointermove', onPointerMove);
+      cornerHandle.addEventListener('pointerup', onPointerUp);
+      cornerHandle.addEventListener('pointercancel', onPointerUp);
+    });
+  });
+
+  app.querySelectorAll('[data-add-power-theme]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const themes = getPowerThemes(character);
+      const newIdx = themes.length;
+      themes.push({
+        title: `Power Theme ${newIdx + 1}`,
+        description: '',
+        image: '',
+        imageSettings: { width: 320, height: 420 },
+        powers: [
+          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
+          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+        ]
+      });
+      await save();
+      const targetPath = `powerThemes.${newIdx}.title`;
+      render(targetPath, true);
+    });
+  });
+
+  app.querySelectorAll('[data-delete-power-theme]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const themeIdx = Number(btn.dataset.deletePowerTheme);
+      const themes = getPowerThemes(character);
+      if (!Number.isInteger(themeIdx) || !themes[themeIdx]) return;
+      const themeTitle = themes[themeIdx].title || `Power Theme ${themeIdx + 1}`;
+      if (window.confirm(`Are you sure you want to delete "${themeTitle}"?`)) {
+        themes.splice(themeIdx, 1);
+        if (themes.length === 0) {
+          themes.push({
+            title: 'Power Theme 1',
+            description: '',
+            image: '',
+            imageSettings: { width: 320, height: 420 },
+            powers: [{ name: '', description: '', roll: 'No Roll', cost: '', charges: '' }]
+          });
+        }
+        await save();
+        render();
+      }
+    });
+  });
+
+  app.querySelectorAll('[data-add-power-row]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const themeIdx = Number(btn.dataset.addPowerRow);
+      const themes = getPowerThemes(character);
+      if (!themes[themeIdx]) return;
+      themes[themeIdx].powers ??= [];
+      const newPIdx = themes[themeIdx].powers.length;
+      themes[themeIdx].powers.push({
+        name: '',
+        description: '',
+        roll: 'No Roll',
+        cost: '',
+        charges: ''
+      });
+      await save();
+      const targetPath = `powerThemes.${themeIdx}.powers.${newPIdx}.name`;
+      render(targetPath, true);
+    });
+  });
+
+  app.querySelectorAll('[data-delete-power-row]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const [tStr, pStr] = (btn.dataset.deletePowerRow || '').split('.');
+      const themeIdx = Number(tStr);
+      const pIdx = Number(pStr);
+      const themes = getPowerThemes(character);
+      if (!themes[themeIdx]?.powers || !Number.isInteger(pIdx)) return;
+      themes[themeIdx].powers.splice(pIdx, 1);
+      if (themes[themeIdx].powers.length === 0) {
+        themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', cost: '', charges: '' });
+      }
+      await save();
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-roll-power-theme]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const themeIdx = Number(btn.dataset.rollPowerTheme);
+      const pIdx = Number(btn.dataset.rollPowerIdx);
+      const character = currentCharacter();
+      if (!character) return;
+      const themes = getPowerThemes(character);
+      const theme = themes[themeIdx];
+      const power = theme?.powers?.[pIdx];
+      if (!power) return;
+
+      const rollRank = power.roll || 'No Roll';
+      const rankVal = getUniversalRankVal(rollRank);
+      if (rankVal === null) return;
+
+      const powerName = power.name?.trim() || `Power ${pIdx + 1}`;
+      const themeTitle = theme.title?.trim() || `Power Theme ${themeIdx + 1}`;
+      const fullName = `${themeTitle} — ${powerName}`;
+
+      rollUniversalCheck(fullName, rankVal, 'standard', 0);
+    });
+  });
+
+  app.querySelectorAll('[data-theme-owlbear-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.themeOwlbearBtn);
+      chooseOwlbearAssetForTheme(idx);
+    });
+  });
+
+  app.querySelectorAll('[data-theme-url-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.themeUrlBtn);
+      promptThemeImageUrl(idx);
+    });
+  });
+
+  app.querySelectorAll('[data-theme-remove-btn]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const idx = Number(btn.dataset.themeRemoveBtn);
+      removeThemeImage(character, idx);
+      await save();
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-theme-image-container]').forEach((container) => {
+    container.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('.image-corner-handle')) return;
+      const idx = Number(container.dataset.themeImageContainer);
+      const character = currentCharacter();
+      if (!character) return;
+      const currentImg = getThemeImage(character, idx);
+      if (!currentImg) {
+        if (OBR.isAvailable) {
+          chooseOwlbearAssetForTheme(idx);
+        } else {
+          promptThemeImageUrl(idx);
+        }
+      }
+    });
+  });
+
+  app.querySelectorAll('[data-theme-corner-handle]').forEach((cornerHandle) => {
+    const themeIndex = Number(cornerHandle.dataset.themeCornerHandle);
+    const themeCard = cornerHandle.closest('.power-theme-card');
+    const imgContainer = themeCard?.querySelector(`[data-theme-image-container="${themeIndex}"]`);
+    const themeLayout = themeCard?.querySelector('.power-theme-layout');
+
+    if (!imgContainer || !themeLayout) return;
+
+    cornerHandle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        cornerHandle.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      const startScreenX = typeof e.screenX === 'number' && e.screenX !== 0 ? e.screenX : e.clientX;
+      const startScreenY = typeof e.screenY === 'number' && e.screenY !== 0 ? e.screenY : e.clientY;
+      const startWidth = imgContainer.offsetWidth;
+      const startHeight = imgContainer.offsetHeight;
+      let currentWidth = startWidth;
+      let currentHeight = startHeight;
+
+      cornerHandle.classList.add('resizing');
+      const prevCursor = document.body.style.cursor;
+      document.body.style.cursor = 'nwse-resize';
+      document.body.style.userSelect = 'none';
+
+      const onPointerMove = (moveEvent) => {
+        const currScreenX = typeof moveEvent.screenX === 'number' && moveEvent.screenX !== 0 ? moveEvent.screenX : moveEvent.clientX;
+        const currScreenY = typeof moveEvent.screenY === 'number' && moveEvent.screenY !== 0 ? moveEvent.screenY : moveEvent.clientY;
+        const deltaX = currScreenX - startScreenX;
+        const deltaY = currScreenY - startScreenY;
+
+        currentWidth = Math.max(180, Math.min(850, Math.round(startWidth + deltaX)));
+        currentHeight = Math.max(180, Math.min(1200, Math.round(startHeight + deltaY)));
+        themeLayout.style.setProperty('--portrait-width', `${currentWidth}px`);
+        themeLayout.style.setProperty('--portrait-height', `${currentHeight}px`);
+      };
+
+      const onPointerUp = (upEvent) => {
+        try {
+          if (cornerHandle.hasPointerCapture(upEvent.pointerId)) {
+            cornerHandle.releasePointerCapture(upEvent.pointerId);
+          }
+        } catch (err) {}
+
+        cornerHandle.removeEventListener('pointermove', onPointerMove);
+        cornerHandle.removeEventListener('pointerup', onPointerUp);
+        cornerHandle.removeEventListener('pointercancel', onPointerUp);
+
+        cornerHandle.classList.remove('resizing');
+        document.body.style.cursor = prevCursor;
+        document.body.style.userSelect = '';
+
+        const character = currentCharacter();
+        if (character) {
+          const themes = getPowerThemes(character);
+          const theme = themes[themeIndex];
+          if (theme) {
+            theme.imageSettings = {
               width: currentWidth,
               height: currentHeight
             };
