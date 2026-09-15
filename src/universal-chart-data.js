@@ -94,11 +94,15 @@ export const chartRollRanges = [
   { min: 100, max: 100, rowIndex: 23 }
 ];
 
-export function resolveUniversalRoll(statValue, rollNumber) {
+export function resolveUniversalRoll(statValue, rollNumber, columnShift = 0) {
   const numVal = parseFloat(statValue) || 0;
   const roll = Math.max(1, Math.min(100, Math.round(parseFloat(rollNumber) || 1)));
+  const shift = parseInt(columnShift) || 0;
 
-  const rank = statRankRanges.find((r) => numVal >= r.min && numVal <= r.max) || statRankRanges[0];
+  const baseRankIdx = statRankRanges.findIndex((r) => numVal >= r.min && numVal <= r.max);
+  const effectiveBaseIdx = baseRankIdx >= 0 ? baseRankIdx : 0;
+  const targetIdx = Math.max(0, Math.min(statRankRanges.length - 1, effectiveBaseIdx + shift));
+  const rank = statRankRanges[targetIdx];
   const rowInfo = chartRollRanges.find((r) => roll >= r.min && roll <= r.max) || chartRollRanges[0];
 
   const rowData = chartRows[rowInfo.rowIndex];
@@ -144,7 +148,8 @@ export function resolveUniversalRoll(statValue, rollNumber) {
     rowIndex: rowInfo.rowIndex,
     colorTone,
     outcomeType,
-    outcomeLabel
+    outcomeLabel,
+    columnShift: shift
   };
 }
 

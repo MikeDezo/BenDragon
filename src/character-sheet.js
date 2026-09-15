@@ -14,7 +14,17 @@ const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 const tables = {
-  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'], Armor: ['Name', 'Base Armor', 'Quality', 'Runes Slots', 'Runes', 'Description'], Inventory: ['Qte', 'Name', 'Description', 'Localisation'], Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
+  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
+  Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
+  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
+  Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
+  Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'],
+  Armor: ['Name', 'Base Armor', 'Quality', 'Runes Slots', 'Runes', 'Description'],
+  Inventory: ['Qte', 'Name', 'Description', 'Localisation'],
+  Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'],
+  Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'],
+  'Note du joueur': ['Note'],
+  'Unique Power': ['Name', 'Description', 'Cost']
 };
 
 const ACTION_TYPES_ROWS = [
@@ -71,9 +81,10 @@ const blankCharacter = (name = 'New Character') => ({
 });
 
 function getAssignedCharacters(userId) {
+  if (!userId) return [];
   return Object.entries(state.characters).filter(([id, char]) => {
     if (char.ownerId === userId) return true;
-    const direct = state.assignments[userId];
+    const direct = state.assignments?.[userId];
     if (Array.isArray(direct)) return direct.includes(id);
     return direct === id;
   });
@@ -85,7 +96,8 @@ function currentCharacter() {
   }
   const myChars = getAssignedCharacters(user.id);
   if (!myChars.length) {
-    return state.characters[activeCharacterId] || Object.values(state.characters)[0] || null;
+    activeCharacterId = null;
+    return null;
   }
   const found = myChars.find(([id]) => id === activeCharacterId);
   if (found) return found[1];
@@ -98,6 +110,287 @@ function canEditCurrent() {
   if (user.role === 'GM') return true;
   const myChars = getAssignedCharacters(user.id);
   return myChars.some(([id]) => id === activeCharacterId);
+}
+
+function autoResizeTextarea(el) {
+  if (!el || el.tagName !== 'TEXTAREA') return;
+  el.style.height = 'auto';
+  const scrollH = el.scrollHeight;
+  if (scrollH > 0) {
+    el.style.height = `${scrollH}px`;
+  }
+}
+
+function autoResizeAllTextareas(container = app) {
+  if (!container) return;
+  requestAnimationFrame(() => {
+    container.querySelectorAll('textarea').forEach((ta) => {
+      autoResizeTextarea(ta);
+    });
+  });
+}
+
+function getPlayerColumnWidthsKey() {
+  const playerId = user?.id || 'local-player';
+  return `terranova.tableColWidths.${playerId}`;
+}
+
+function getPlayerColumnWidths(tableName) {
+  try {
+    const key = getPlayerColumnWidthsKey();
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    return data[tableName] || {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function savePlayerColumnWidth(tableName, colName, width) {
+  try {
+    const key = getPlayerColumnWidthsKey();
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
+    if (!data[tableName]) data[tableName] = {};
+    if (width === null || width === undefined) {
+      delete data[tableName][colName];
+    } else {
+      data[tableName][colName] = Math.round(width);
+    }
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {}
+}
+
+const specialisationLevels = {
+  Unspecialised: { touch: '0', potential: '0', ini: '0', colors: [], defaults: [] },
+  Novice: { touch: '+5', potential: '+5', ini: '+1', colors: [null], defaults: ['Quick Draw'] },
+  Apprentice: { touch: '+10', potential: '+10', ini: '+2', colors: [null, 'red'] },
+  Adept: { touch: '+15', potential: '+15', ini: '+3', colors: [null, 'yellow'] },
+  Expert: { touch: '+20', potential: '+20', ini: '+4', colors: [null, 'yellow', 'red'], defaults: [null, null, 'Combo on naturel red'] },
+  Master: { touch: '+25', potential: '+25', ini: '+5', colors: [null, 'yellow', 'red', 'dark-red'] }
+};
+
+function evaluateSafeMath(expr) {
+  if (!expr || typeof expr !== 'string') return null;
+  if (!/^[0-9\.\+\-\*\/\%\(\)\s]+$/.test(expr)) return null;
+  try {
+    const val = Function('"use strict"; return (' + expr + ')')();
+    if (typeof val === 'number' && !isNaN(val) && isFinite(val)) {
+      return val;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function getCharacterStatsMap(character) {
+  const st = character?.data?.stats || {};
+  const fgt = parseFloat(st.Fighting ?? st['Combat Capacity'] ?? '6') || 0;
+  const str = parseFloat(st.Strength ?? '6') || 0;
+  const agi = parseFloat(st.Agility ?? '6') || 0;
+  const end = parseFloat(st.Endurance ?? '6') || 0;
+  const spd = parseFloat(st.Speed ?? st.Movement ?? '6') || 0;
+  const intVal = parseFloat(st.Intelligence ?? '6') || 0;
+  const wis = parseFloat(st.Wisdom ?? '6') || 0;
+  const intu = parseFloat(st.Intuition ?? '6') || 0;
+  const psy = parseFloat(st.Psyche ?? '6') || 0;
+  const cc = str + agi + end + spd;
+  const mp = intVal + wis + intu + psy;
+
+  const map = {
+    Fighting: fgt,
+    Fgt: fgt,
+    Strength: str,
+    Stength: str,
+    Str: str,
+    Agility: agi,
+    Agi: agi,
+    Endurance: end,
+    End: end,
+    Speed: spd,
+    Spd: spd,
+    Spe: spd,
+    Intelligence: intVal,
+    Intel: intVal,
+    Int: intVal,
+    Wisdom: wis,
+    Wis: wis,
+    Intuition: intu,
+    Intui: intu,
+    Intu: intu,
+    Psyche: psy,
+    Psy: psy,
+    'Combat Capacity': cc,
+    CC: cc,
+    'Mana Pool': mp,
+    MP: mp
+  };
+
+  const storedSpecs = character?.data?.tables?.Specialisations;
+  const rawSpecs = Array.isArray(storedSpecs)
+    ? storedSpecs
+    : (storedSpecs && typeof storedSpecs === 'object' ? Object.values(storedSpecs) : []);
+
+  rawSpecs.forEach((row) => {
+    if (!row) return;
+    const name = String(Array.isArray(row) ? row[0] : (row[0] || row.name || '')).trim();
+    if (!name) return;
+    const lvl = String(Array.isArray(row) ? row[1] : (row[1] || row.level || '')).trim();
+    const cfg = specialisationLevels[lvl] || specialisationLevels.Unspecialised || { touch: '0', potential: '0', ini: '0' };
+
+    const tb = (row[2] !== undefined && row[2] !== '' && !isNaN(parseInt(row[2]))) ? parseInt(row[2]) : (parseInt(cfg.touch) || 0);
+    const pb = (row[3] !== undefined && row[3] !== '' && !isNaN(parseInt(row[3]))) ? parseInt(row[3]) : (parseInt(cfg.potential) || 0);
+    const ib = (row[5] !== undefined && row[5] !== '' && !isNaN(parseInt(row[5]))) ? parseInt(row[5]) : (parseInt(cfg.ini) || 0);
+
+    const variations = Array.from(new Set([name, name.replace(/\s+/g, ''), name.replace(/\s+/g, '_')])).filter(Boolean);
+    variations.forEach((v) => {
+      map[`${v}TB`] = tb;
+      map[`${v} TB`] = tb;
+      map[`${v}_TB`] = tb;
+
+      map[`${v}PB`] = pb;
+      map[`${v} PB`] = pb;
+      map[`${v}_PB`] = pb;
+
+      map[`${v}IB`] = ib;
+      map[`${v} IB`] = ib;
+      map[`${v}_IB`] = ib;
+    });
+  });
+
+  return map;
+}
+
+function translateFormula(formula, stats) {
+  if (!formula || typeof formula !== 'string') return '';
+
+  const statAliases = {
+    fgt: 'Fighting',
+    fighting: 'Fighting',
+    str: 'Strength',
+    strength: 'Strength',
+    stength: 'Strength',
+    agi: 'Agility',
+    agility: 'Agility',
+    end: 'Endurance',
+    endurance: 'Endurance',
+    spd: 'Speed',
+    speed: 'Speed',
+    spe: 'Speed',
+    int: 'Intelligence',
+    intel: 'Intelligence',
+    intelligence: 'Intelligence',
+    wis: 'Wisdom',
+    wisdom: 'Wisdom',
+    intu: 'Intuition',
+    intui: 'Intuition',
+    intuition: 'Intuition',
+    psy: 'Psyche',
+    psyche: 'Psyche',
+    cc: 'Combat Capacity',
+    'combat capacity': 'Combat Capacity',
+    mp: 'Mana Pool',
+    'mana pool': 'Mana Pool'
+  };
+
+  const allKeys = Object.keys(stats).sort((a, b) => b.length - a.length);
+  const escapedKeys = allKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP';
+  const fullPattern = escapedKeys ? `(?:${escapedKeys}|${baseStatPattern})` : baseStatPattern;
+  const tokenRegex = new RegExp(`\\b(${fullPattern})\\b`, 'gi');
+
+  function replaceStats(str) {
+    let replaced = str.replace(tokenRegex, (match) => {
+      const trimmed = match.trim();
+      if (stats[trimmed] !== undefined) {
+        const val = stats[trimmed];
+        return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+      }
+      const lower = trimmed.toLowerCase();
+      for (const k of Object.keys(stats)) {
+        if (k.toLowerCase() === lower) {
+          const val = stats[k];
+          return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+        }
+      }
+      const canonical = statAliases[lower] || match;
+      const val = stats[canonical] ?? stats[match] ?? stats[lower.toUpperCase()];
+      return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+    });
+
+    // Fallback for any other [SpecName](IB|TB|PB) pattern (case-insensitive)
+    replaced = replaced.replace(/\b([A-Za-z0-9_\s]+?)\s*(IB|TB|PB)\b/gi, (match, specPart, suffixPart) => {
+      const cleanSpec = specPart.trim().toLowerCase().replace(/[\s_\W]+/g, '');
+      const suf = suffixPart.toUpperCase();
+      for (const k of Object.keys(stats)) {
+        const kClean = k.toLowerCase().replace(/[\s_\W]+/g, '');
+        if (kClean.endsWith(suf.toLowerCase())) {
+          const kPrefix = kClean.slice(0, -suf.length);
+          if (kPrefix && (kPrefix === cleanSpec || kPrefix.startsWith(cleanSpec))) {
+            const val = stats[k];
+            return typeof val === 'number' ? String(val) : (val != null ? String(val) : '0');
+          }
+        }
+      }
+      return match;
+    });
+
+    return replaced;
+  }
+
+  let result = formula.trim();
+
+  // Compatibility with direct Excel ROUNDDOWN formulas
+  if (/ROUNDDOWN/i.test(result)) {
+    result = result.replace(/ROUNDDOWN\(([^,]+),\s*\d+\)/gi, '($1)');
+    result = result.replace(/\s*&\s*/g, ' ');
+    result = result.replace(/"([^"]*)"/g, '$1');
+  }
+
+  // Replace all stat abbreviations and specialisation identifiers with numbers
+  result = replaceStats(result);
+
+  // Evaluate parentheses from innermost to outermost
+  // Inner nested parentheses evaluate as exact floats, and outermost/standalone parentheses round down
+  for (let iter = 0; iter < 10; iter++) {
+    const next = result.replace(/\(([^()]+)\)/g, (match, inner, offset, fullStr) => {
+      const val = evaluateSafeMath(inner);
+      if (val === null) return match;
+
+      let openBefore = 0;
+      for (let i = 0; i < offset; i++) {
+        if (fullStr[i] === '(') openBefore++;
+        else if (fullStr[i] === ')') openBefore--;
+      }
+
+      if (openBefore > 0) {
+        return String(val);
+      } else {
+        return String(Math.floor(val));
+      }
+    });
+    if (next === result) break;
+    result = next;
+  }
+
+  // If the entire remaining string is an arithmetic expression, evaluate and floor it
+  const wholeVal = evaluateSafeMath(result);
+  if (wholeVal !== null) {
+    return String(Math.floor(wholeVal));
+  }
+
+  return result;
+}
+
+function formulaCellHtml(path, value, character) {
+  const statsMap = getCharacterStatsMap(character);
+  const translated = translateFormula(value, statsMap);
+  const hasValue = Boolean(value && String(value).trim());
+  return `<div class="formula-cell">
+    <div class="formula-subline formula-input-line">
+      <textarea class="cell-input formula-input" data-path="${path}" rows="1" placeholder="Formula or text">${esc(value || '')}</textarea>
+    </div>
+    <div class="formula-subline formula-result-line" data-formula-result="${path}" title="Translated value">
+      <span class="formula-result-text ${!hasValue ? 'formula-result-empty' : ''}">${esc(hasValue ? (translated || value) : '—')}</span>
+    </div>
+  </div>`;
 }
 
 function editable(path, value, className = 'field-input', placeholder = '') {
@@ -171,15 +464,6 @@ function editableCheckbox(path, value) {
   const checked = value === true || value === 'true' || value === 'on';
   return `<label class="checkbox-cell"><input type="checkbox" data-path="${path}" data-checkbox="true" aria-label="Two handed" ${checked ? 'checked' : ''}></label>`;
 }
-
-const specialisationLevels = {
-  Unspecialised: { touch: '0', potential: '0', ini: '0', colors: [], defaults: [] },
-  Novice: { touch: '+5', potential: '+5', ini: '+1', colors: [null], defaults: ['Quick Draw'] },
-  Apprentice: { touch: '+10', potential: '+10', ini: '+2', colors: [null, 'red'] },
-  Adept: { touch: '+15', potential: '+15', ini: '+3', colors: [null, 'yellow'] },
-  Expert: { touch: '+20', potential: '+20', ini: '+4', colors: [null, 'yellow', 'red'], defaults: [null, null, 'Combo on naturel red'] },
-  Master: { touch: '+25', potential: '+25', ini: '+5', colors: [null, 'yellow', 'red', 'dark-red'] }
-};
 
 function applySpecialisationLevel(row, level) {
   const config = specialisationLevels[level];
@@ -518,15 +802,37 @@ function rollResultBannerHtml() {
     </div>`;
   }
 
+  if (activeRollResult.type === 'effect') {
+    return `<div class="roll-result-banner banner-${activeRollResult.colorTone || 'green'}">
+      <div class="roll-result-info">
+        <div class="roll-result-title">
+          <span class="roll-char-name">${esc(activeRollResult.charName)}</span>
+          <span class="roll-stat-tag">Effect &bull; <strong>${esc(activeRollResult.label)}</strong></span>
+        </div>
+        <div class="roll-result-detail">
+          ${esc(activeRollResult.outcomeLabel)}
+        </div>
+      </div>
+      <div class="roll-result-outcome outcome-${activeRollResult.colorTone || 'green'}">
+        ${esc(activeRollResult.outcomeLabel)}
+      </div>
+      <button type="button" class="roll-result-close" id="dismiss-roll-result" title="Dismiss result">&times;</button>
+    </div>`;
+  }
+
   const targetTag = activeRollResult.targetTier && activeRollResult.targetTier !== 'standard'
     ? `<span class="roll-target-tag">Target: <strong>${activeRollResult.targetTier.toUpperCase()}</strong> ${typeof activeRollResult.karmaCost === 'number' ? `&bull; Karma Cost: <strong>${activeRollResult.karmaCost}</strong>` : ''}</span>`
+    : '';
+
+  const csTag = typeof activeRollResult.columnShift === 'number' && activeRollResult.columnShift !== 0
+    ? ` <span class="roll-cs-tag">[CS: <strong>${activeRollResult.columnShift > 0 ? '+' + activeRollResult.columnShift : activeRollResult.columnShift}</strong>]</span>`
     : '';
 
   return `<div class="roll-result-banner banner-${activeRollResult.colorTone}">
     <div class="roll-result-info">
       <div class="roll-result-title">
         <span class="roll-char-name">${esc(activeRollResult.charName)}</span>
-        <span class="roll-stat-tag">${esc(activeRollResult.statName)} (Value: <strong>${activeRollResult.statValue}</strong> &rarr; Rank: <strong>${esc(activeRollResult.rankName)}</strong>)</span>
+        <span class="roll-stat-tag">${esc(activeRollResult.statName)} (Value: <strong>${activeRollResult.statValue}</strong> &rarr; Rank: <strong>${esc(activeRollResult.rankName)}</strong>)${csTag}</span>
         ${targetTag}
       </div>
       <div class="roll-result-detail">
@@ -561,12 +867,14 @@ function recordInitiative(characterId, charName, playerName, isAssigned, label, 
   const charEntry = Object.entries(state.characters).find(([id, c]) => id === characterId || c.name === charName);
   const effectiveId = characterId || (charEntry ? charEntry[0] : (charName || 'unknown'));
   const effectiveAssigned = charEntry ? Boolean(charEntry[1].ownerId) : Boolean(isAssigned);
+  const inCombat = charEntry ? (charEntry[1].data?.inCombat !== false) : true;
 
   state.initiativeTracker[effectiveId] = {
     characterId: effectiveId,
     charName: charName || 'Character',
     playerName: playerName || (effectiveAssigned ? 'Assigned' : 'Unassigned (NPC)'),
     isAssigned: effectiveAssigned,
+    inCombat,
     label: label || 'Initiative',
     bonus: parseInt(bonus) || 0,
     d12: parseInt(d12) || 0,
@@ -630,8 +938,9 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   render();
 }
 
-function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard') {
-  const resolution = resolveUniversalRoll(statValue, rolledTotal);
+function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard', columnShift = 0) {
+  const cShift = parseInt(columnShift) || 0;
+  const resolution = resolveUniversalRoll(statValue, rolledTotal, cShift);
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   let karmaCost = 0;
@@ -669,6 +978,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     outcomeLabel: finalOutcomeLabel,
     targetTier,
     karmaCost,
+    columnShift: cShift,
     charName: charName || 'Character',
     playerName: playerName || 'Player',
     playerId: user.id,
@@ -678,6 +988,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   playCritSound(resolution.outcomeType, currentRollId);
 
   const targetSuffix = targetTier && targetTier !== 'standard' ? ` [Target: ${targetTier.toUpperCase()}, Karma: ${karmaCost}]` : '';
+  const shiftSuffix = cShift !== 0 ? ` [CS: ${cShift > 0 ? '+' + cShift : cShift}]` : '';
   addRollToHistory({
     id: currentRollId,
     timestamp: Date.now(),
@@ -687,7 +998,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     statName: targetTier && targetTier !== 'standard' ? `${statName} (${targetTier.toUpperCase()})` : statName,
     statValue: resolution.statValue,
     rankName: resolution.rankName,
-    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})${targetSuffix}`,
+    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})${shiftSuffix}${targetSuffix}`,
     roll: resolution.roll,
     outcomeType: resolution.outcomeType,
     outcomeLabel: finalOutcomeLabel,
@@ -703,8 +1014,9 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   if (OBR.isAvailable && OBR.notification?.show) {
     const isSuccess = resolution.outcomeType === 'green' || resolution.outcomeType === 'yellow' || resolution.outcomeType === 'red' || resolution.outcomeType === 'crit-success';
     const karmaNote = targetTier && targetTier !== 'standard' ? ` [Target: ${targetTier.toUpperCase()}${karmaCost > 0 ? `, Karma: ${karmaCost}` : ''}]` : '';
+    const csNote = cShift !== 0 ? ` [CS: ${cShift > 0 ? '+' + cShift : cShift}]` : '';
     OBR.notification.show(
-      `🎲 ${activeRollResult.charName} (${playerName || 'Player'}) rolled ${statName} [${activeRollResult.statValue} ➔ ${resolution.rankName}]: D100 = ${resolution.roll} ➔ ${resolution.outcomeLabel.toUpperCase()}${karmaNote}`,
+      `🎲 ${activeRollResult.charName} (${playerName || 'Player'}) rolled ${statName}${csNote} [${activeRollResult.statValue} ➔ ${resolution.rankName}]: D100 = ${resolution.roll} ➔ ${resolution.outcomeLabel.toUpperCase()}${karmaNote}`,
       isSuccess ? 'DEFAULT' : 'WARNING'
     );
   }
@@ -767,10 +1079,11 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, indi
   render();
 }
 
-async function rollUniversalCheck(name, statValue, targetTier = 'standard') {
+async function rollUniversalCheck(name, statValue, targetTier = 'standard', columnShift = 0) {
   const character = currentCharacter();
   const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const numVal = parseFloat(statValue) || 0;
+  const cShift = parseInt(columnShift) || 0;
   const charName = character?.name || 'Character';
 
   const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -791,6 +1104,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard') {
     statName: name,
     statValue: numVal,
     targetTier,
+    columnShift: cShift,
     charName,
     characterId: charId,
     playerName,
@@ -821,8 +1135,9 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard') {
     try {
       await OBR.broadcast.sendMessage('dice-plus/roll-request', payload, { destination: 'LOCAL' });
       if (OBR.notification?.show) {
-        const preview = resolveUniversalRoll(numVal, 50);
-        OBR.notification.show(`Rolling 1D100 for ${name} (${numVal} ➔ ${preview.rankName})...`);
+        const preview = resolveUniversalRoll(numVal, 50, cShift);
+        const shiftNote = cShift !== 0 ? ` (CS ${cShift > 0 ? '+' + cShift : cShift})` : '';
+        OBR.notification.show(`Rolling 1D100 for ${name}${shiftNote} (${numVal} ➔ ${preview.rankName})...`);
       }
     } catch (err) {
       try {
@@ -831,7 +1146,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard') {
     }
   } else {
     const roll = Math.floor(Math.random() * 100) + 1;
-    displayAndAnnounceRollResult(name, numVal, roll, charName, playerName, false, rollId, targetTier);
+    displayAndAnnounceRollResult(name, numVal, roll, charName, playerName, false, rollId, targetTier, cShift);
   }
 }
 
@@ -927,6 +1242,157 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     const totalDamage = diceTotal + totalFlat;
     displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
   }
+}
+
+function parseDiceAndModifiers(str) {
+  if (!str || typeof str !== 'string') return null;
+  const trimmed = str.trim();
+  if (!trimmed || trimmed === '—') return null;
+
+  const diceMatch = trimmed.match(/(\d+)\s*[dD]\s*(\d*)/);
+  if (diceMatch) {
+    const count = parseInt(diceMatch[1], 10);
+    const sides = parseInt(diceMatch[2], 10) || 10;
+    const withoutDice = trimmed.replace(/(\d+)\s*[dD]\s*(\d*)/, '');
+
+    let flatBonus = 0;
+    const numMatches = withoutDice.matchAll(/([+\-])\s*(\d+)/g);
+    let hasExplicitSign = false;
+    for (const m of numMatches) {
+      hasExplicitSign = true;
+      const sign = m[1] === '-' ? -1 : 1;
+      flatBonus += sign * parseInt(m[2], 10);
+    }
+
+    if (!hasExplicitSign) {
+      const standaloneNum = withoutDice.match(/\b\d+\b/);
+      if (standaloneNum) {
+        flatBonus = parseInt(standaloneNum[0], 10);
+      }
+    }
+
+    const textSuffix = withoutDice.replace(/[+\-\d\s\(\)]+/g, ' ').trim();
+    return {
+      hasDice: true,
+      count,
+      sides,
+      flatBonus,
+      suffix: textSuffix
+    };
+  }
+
+  const mathOnly = trimmed.match(/^[+\-\d\s\*\/\(\)\.]+$/);
+  if (mathOnly) {
+    try {
+      const val = Math.floor(Function('"use strict"; return (' + trimmed + ')')());
+      if (!isNaN(val) && isFinite(val)) {
+        return {
+          hasDice: false,
+          isNumeric: true,
+          total: val,
+          suffix: ''
+        };
+      }
+    } catch (e) {}
+  }
+
+  return {
+    hasDice: false,
+    isNumeric: false,
+    text: trimmed
+  };
+}
+
+async function rollFormulaEffect(actionName, tierLabel, expression) {
+  const character = currentCharacter();
+  const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
+  const charName = character?.name || 'Character';
+
+  const parsed = parseDiceAndModifiers(expression);
+  const label = `${actionName} (${tierLabel})`;
+
+  if (parsed && parsed.hasDice && parsed.count > 0) {
+    const diceString = `${parsed.count}D${parsed.sides}`;
+    const modLabel = `${tierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
+    await rollWeaponDamage(actionName, diceString, parsed.flatBonus, modLabel, 0);
+    return;
+  }
+
+  const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const timestamp = Date.now();
+  let playerId = user?.id || 'local-player';
+  let playerName = user?.name || 'Player';
+
+  if (OBR.isAvailable) {
+    try {
+      playerId = await OBR.player.getId();
+      playerName = await OBR.player.getName();
+    } catch (e) {}
+  }
+
+  let detailStr = expression;
+  let outcomeText = expression;
+  let isNumeric = false;
+  let totalVal = null;
+
+  if (parsed && parsed.hasDice && parsed.count === 0) {
+    totalVal = parsed.flatBonus;
+    detailStr = `${parsed.flatBonus}${parsed.suffix ? ' ' + parsed.suffix : ''}`;
+    outcomeText = `Result: ${parsed.flatBonus}${parsed.suffix ? ' ' + parsed.suffix : ''}`;
+    isNumeric = true;
+  } else if (parsed && parsed.isNumeric) {
+    totalVal = parsed.total;
+    detailStr = `Result: ${parsed.total}`;
+    outcomeText = `Result: ${parsed.total}`;
+    isNumeric = true;
+  }
+
+  const colorTone = tierLabel.toLowerCase().includes('crit') ? 'crit' : (tierLabel.toLowerCase().includes('red') ? 'red' : (tierLabel.toLowerCase().includes('yellow') ? 'yellow' : 'green'));
+
+  activeRollResult = {
+    rollId,
+    type: isNumeric ? 'damage' : 'effect',
+    label,
+    weaponName: actionName,
+    modLabel: tierLabel,
+    diceStr: isNumeric ? detailStr : 'Effect',
+    flatBonus: totalVal ?? 0,
+    individualRolls: [],
+    total: totalVal ?? detailStr,
+    colorTone,
+    outcomeType: colorTone,
+    outcomeLabel: outcomeText,
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    playerId,
+    timestamp
+  };
+
+  addRollToHistory({
+    id: rollId,
+    timestamp,
+    type: isNumeric ? 'damage' : 'effect',
+    charName: charName || 'Character',
+    playerName: playerName || 'Player',
+    statName: `${actionName} - ${tierLabel}`,
+    detail: detailStr,
+    roll: totalVal ?? detailStr,
+    outcomeType: activeRollResult.outcomeType,
+    outcomeLabel: outcomeText,
+    colorTone: activeRollResult.colorTone
+  });
+
+  if (OBR.isAvailable && OBR.broadcast) {
+    try {
+      OBR.broadcast.sendMessage('terranova/stat-roll-result', activeRollResult, { destination: 'ALL' });
+    } catch (e) {}
+  }
+
+  if (OBR.isAvailable && OBR.notification?.show) {
+    OBR.notification.show(`✨ ${charName} (${playerName}) - ${actionName} [${tierLabel}]: ${outcomeText}`, 'DEFAULT');
+  }
+
+  render();
 }
 
 function universalChartTableHtml() {
@@ -1123,10 +1589,15 @@ async function rollInitiativeForCharacter(charId, label, bonusVal) {
 }
 
 async function rollAllUnassignedInitiative(roundType = 'First round') {
-  const unassigned = Object.entries(state.characters).filter(([id, c]) => !c.ownerId && (!state.assignments || !state.assignments[c.ownerId]));
+  const unassigned = Object.entries(state.characters).filter(([id, c]) => {
+    const isUnassigned = !c.ownerId && (!state.assignments || !state.assignments[c.ownerId]);
+    const inCombat = c.data?.inCombat !== false;
+    return isUnassigned && inCombat;
+  });
+
   if (unassigned.length === 0) {
     if (OBR.isAvailable && OBR.notification?.show) {
-      OBR.notification.show('No unassigned characters found.');
+      OBR.notification.show('No in-combat unassigned (NPC) characters found.');
     }
     return;
   }
@@ -1223,10 +1694,15 @@ async function rollDicePlus(statName) {
 
 function quickAccessSectionHtml(character, numFighting, numStrength, numAgility, numIntuition, numSpeed) {
   const st = character.data.stats || {};
+  const statsMap = getCharacterStatsMap(character);
   character.data.quickAccessWeaponSlot ??= 0;
+  character.data.quickAccessSkillSlot ??= 0;
+  character.data.quickAccessSpellSlot ??= 0;
 
   const rawWeapons = Array.isArray(character.data.tables?.Weapons) ? character.data.tables.Weapons : [];
   const rawSpecs = Array.isArray(character.data.tables?.Specialisations) ? character.data.tables.Specialisations : [];
+  const rawSkills = Array.isArray(character.data.tables?.Skills) ? character.data.tables.Skills : [];
+  const rawSpells = Array.isArray(character.data.tables?.Spell) ? character.data.tables.Spell : [];
 
   const defenseTableHtml = `
     <div class="qa-table-card">
@@ -1331,12 +1807,117 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
     </div>
   `;
 
+  let selectedSkillIdx = character.data.quickAccessSkillSlot ?? 0;
+  if (selectedSkillIdx < 0 || (rawSkills.length > 0 && selectedSkillIdx >= rawSkills.length)) {
+    selectedSkillIdx = 0;
+  }
+  const skillOptionsHtml = rawSkills.length === 0
+    ? '<option value="0">-- No skills in Skills tab --</option>'
+    : rawSkills.map((s, sIdx) => `<option value="${sIdx}" ${sIdx === selectedSkillIdx ? 'selected' : ''}>${esc(s[0] || `Skill ${sIdx + 1}`)}</option>`).join('');
+
+  const skill = (rawSkills.length > 0 && rawSkills[selectedSkillIdx]) ? rawSkills[selectedSkillIdx] : [];
+  const skillName = skill[0] || (rawSkills.length > 0 ? `Skill ${selectedSkillIdx + 1}` : 'Skill');
+  const skillStatName = skill[2] || 'Fighting';
+  const skillStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
+  const csLevel = parseInt(skill[3]) || 0;
+  const baseRank = resolveUniversalRoll(skillStatVal, 50, 0);
+  const shiftedRank = resolveUniversalRoll(skillStatVal, 50, csLevel);
+  const rankLabel = csLevel !== 0
+    ? `${skillStatName}: ${skillStatVal} ➔ ${shiftedRank.rankName} (Base: ${baseRank.rankName}, CS: ${csLevel > 0 ? '+' + csLevel : csLevel})`
+    : `${skillStatName}: ${skillStatVal} ➔ ${shiftedRank.rankName}`;
+
+  const skillGreenVal = translateFormula(skill[8] || '', statsMap) || skill[8] || '—';
+  const skillYellowVal = translateFormula(skill[9] || '', statsMap) || skill[9] || '—';
+  const skillRedVal = translateFormula(skill[10] || '', statsMap) || skill[10] || '—';
+  const skillNatRedVal = translateFormula(skill[11] || '', statsMap) || skill[11] || '—';
+  const skillCritVal = translateFormula(skill[12] || '', statsMap) || skill[12] || '—';
+
+  const skillsTableHtml = `
+    <div class="qa-table-card">
+      <div class="qa-table-header text-bold">Skills</div>
+      <div class="qa-sub-header">
+        <label class="qa-weapon-label">Skill:
+          <select class="qa-weapon-select qa-skill-select" data-qa-slot="0">
+            ${skillOptionsHtml}
+          </select>
+        </label>
+      </div>
+      <!-- Row 1: 4 columns for Karma target tiers -->
+      <div class="qa-grid-4">
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
+      </div>
+      <!-- Row 2: 5 columns for translated outcome values -->
+      <div class="qa-grid-5">
+        <div class="qa-cell bg-green rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Green" data-qa-effect-expr="${esc(skillGreenVal)}" title="Click to roll Green: ${esc(skillGreenVal)}">${esc(skillGreenVal)}</div>
+        <div class="qa-cell bg-yellow rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Yellow" data-qa-effect-expr="${esc(skillYellowVal)}" title="Click to roll Yellow: ${esc(skillYellowVal)}">${esc(skillYellowVal)}</div>
+        <div class="qa-cell bg-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Red" data-qa-effect-expr="${esc(skillRedVal)}" title="Click to roll Red: ${esc(skillRedVal)}">${esc(skillRedVal)}</div>
+        <div class="qa-cell bg-nat-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Natural Red" data-qa-effect-expr="${esc(skillNatRedVal)}" title="Click to roll Natural Red: ${esc(skillNatRedVal)}">${esc(skillNatRedVal)}</div>
+        <div class="qa-cell bg-crit-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Critical 100" data-qa-effect-expr="${esc(skillCritVal)}" title="Click to roll Critical 100: ${esc(skillCritVal)}">${esc(skillCritVal)}</div>
+      </div>
+    </div>
+  `;
+
+  let selectedSpellIdx = character.data.quickAccessSpellSlot ?? 0;
+  if (selectedSpellIdx < 0 || (rawSpells.length > 0 && selectedSpellIdx >= rawSpells.length)) {
+    selectedSpellIdx = 0;
+  }
+  const spellOptionsHtml = rawSpells.length === 0
+    ? '<option value="0">-- No spells in Spell tab --</option>'
+    : rawSpells.map((sp, spIdx) => `<option value="${spIdx}" ${spIdx === selectedSpellIdx ? 'selected' : ''}>${esc(sp[0] || `Spell ${spIdx + 1}`)}</option>`).join('');
+
+  const spell = (rawSpells.length > 0 && rawSpells[selectedSpellIdx]) ? rawSpells[selectedSpellIdx] : [];
+  const spellName = spell[0] || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
+  const spellStatVal = parseFloat(st.Intelligence ?? statsMap['Intelligence'] ?? numIntelligence) || 0;
+  const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
+  const spellRankLabel = `Intelligence: ${spellStatVal} ➔ ${spellRank.rankName}`;
+
+  const spellGreenVal = translateFormula(spell[8] || '', statsMap) || spell[8] || '—';
+  const spellYellowVal = translateFormula(spell[9] || '', statsMap) || spell[9] || '—';
+  const spellRedVal = translateFormula(spell[10] || '', statsMap) || spell[10] || '—';
+  const spellNatRedVal = translateFormula(spell[11] || '', statsMap) || spell[11] || '—';
+  const spellCritVal = translateFormula(spell[12] || '', statsMap) || spell[12] || '—';
+
+  const spellsTableHtml = `
+    <div class="qa-table-card">
+      <div class="qa-table-header text-bold">Spells</div>
+      <div class="qa-sub-header">
+        <label class="qa-weapon-label">Spell:
+          <select class="qa-weapon-select qa-spell-select" data-qa-slot="0">
+            ${spellOptionsHtml}
+          </select>
+        </label>
+      </div>
+      <!-- Row 1: 4 columns for Karma target tiers -->
+      <div class="qa-grid-4">
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="standard" title="Roll Standard ${esc(spellName)} (${spellRankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="green" title="Roll ${esc(spellName)} [Target: Green] (${spellRankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="yellow" title="Roll ${esc(spellName)} [Target: Yellow] (${spellRankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="red" title="Roll ${esc(spellName)} [Target: Red] (${spellRankLabel})">Red</div>
+      </div>
+      <!-- Row 2: 5 columns for translated outcome values -->
+      <div class="qa-grid-5">
+        <div class="qa-cell bg-green rollable-qa-effect" data-qa-effect-name="${esc(spellName)}" data-qa-tier-label="Green" data-qa-effect-expr="${esc(spellGreenVal)}" title="Click to roll Green: ${esc(spellGreenVal)}">${esc(spellGreenVal)}</div>
+        <div class="qa-cell bg-yellow rollable-qa-effect" data-qa-effect-name="${esc(spellName)}" data-qa-tier-label="Yellow" data-qa-effect-expr="${esc(spellYellowVal)}" title="Click to roll Yellow: ${esc(spellYellowVal)}">${esc(spellYellowVal)}</div>
+        <div class="qa-cell bg-red rollable-qa-effect" data-qa-effect-name="${esc(spellName)}" data-qa-tier-label="Red" data-qa-effect-expr="${esc(spellRedVal)}" title="Click to roll Red: ${esc(spellRedVal)}">${esc(spellRedVal)}</div>
+        <div class="qa-cell bg-nat-red rollable-qa-effect" data-qa-effect-name="${esc(spellName)}" data-qa-tier-label="Natural Red" data-qa-effect-expr="${esc(spellNatRedVal)}" title="Click to roll Natural Red: ${esc(spellNatRedVal)}">${esc(spellNatRedVal)}</div>
+        <div class="qa-cell bg-crit-red rollable-qa-effect" data-qa-effect-name="${esc(spellName)}" data-qa-tier-label="Critical 100" data-qa-effect-expr="${esc(spellCritVal)}" title="Click to roll Critical 100: ${esc(spellCritVal)}">${esc(spellCritVal)}</div>
+      </div>
+    </div>
+  `;
+
   return `
     <div class="quick-access-section">
       <h3 class="quick-access-main-title">⚡ Quick Access</h3>
       ${defenseTableHtml}
       <div class="qa-separator"></div>
       ${weaponTableHtml}
+      <div class="qa-separator"></div>
+      ${skillsTableHtml}
+      <div class="qa-separator"></div>
+      ${spellsTableHtml}
     </div>
   `;
 }
@@ -1592,6 +2173,22 @@ function updateStatsCalculations() {
     });
   }
 
+  const statsMap = getCharacterStatsMap(character);
+  app.querySelectorAll('.formula-cell').forEach((cell) => {
+    const ta = cell.querySelector('.formula-input');
+    const resultTextEl = cell.querySelector('.formula-result-text');
+    if (ta && resultTextEl) {
+      const val = ta.value;
+      const hasVal = Boolean(val && val.trim());
+      const translated = translateFormula(val, statsMap);
+      resultTextEl.textContent = hasVal ? (translated || val) : '—';
+      if (hasVal) {
+        resultTextEl.classList.remove('formula-result-empty');
+      } else {
+        resultTextEl.classList.add('formula-result-empty');
+      }
+    }
+  });
 }
 
 function universalChartPage() {
@@ -1617,12 +2214,14 @@ function rollsAndIniPage() {
     const nextRoundsBonus = Math.floor(speedVal / 10);
 
     const tracked = trackerMap[id] || Object.values(trackerMap).find((t) => t.charName === c.name);
+    const inCombat = isAssigned ? true : (c.data?.inCombat !== false && tracked?.inCombat !== false);
 
     allEntriesMap.set(id, {
       characterId: id,
       charName: c.name || 'Unnamed',
       isAssigned,
       ownerName,
+      inCombat,
       firstRoundBonus,
       nextRoundsBonus,
       hasRolled: tracked && typeof tracked.total === 'number',
@@ -1637,11 +2236,14 @@ function rollsAndIniPage() {
   Object.entries(trackerMap).forEach(([tId, tVal]) => {
     const existingKey = Array.from(allEntriesMap.keys()).find((k) => k === tId || allEntriesMap.get(k).charName === tVal.charName);
     if (!existingKey && tVal) {
+      const isAssigned = Boolean(tVal.isAssigned);
+      const inCombat = isAssigned ? true : (tVal.inCombat !== false);
       allEntriesMap.set(tId, {
         characterId: tId,
         charName: tVal.charName || 'Character',
-        isAssigned: Boolean(tVal.isAssigned),
-        ownerName: tVal.playerName || (tVal.isAssigned ? 'Assigned' : 'Unassigned (NPC)'),
+        isAssigned,
+        ownerName: tVal.playerName || (isAssigned ? 'Assigned' : 'Unassigned (NPC)'),
+        inCombat,
         firstRoundBonus: tVal.bonus ?? 0,
         nextRoundsBonus: 0,
         hasRolled: typeof tVal.total === 'number',
@@ -1656,15 +2258,22 @@ function rollsAndIniPage() {
 
   const allEntries = Array.from(allEntriesMap.values());
 
-  const rolledList = allEntries
-    .filter((e) => e.hasRolled)
+  const inCombatRolled = allEntries
+    .filter((e) => e.inCombat && e.hasRolled)
     .sort((a, b) => (b.total - a.total) || (b.bonus - a.bonus) || a.charName.localeCompare(b.charName));
 
-  const unrolledList = allEntries
-    .filter((e) => !e.hasRolled)
+  const inCombatUnrolled = allEntries
+    .filter((e) => e.inCombat && !e.hasRolled)
     .sort((a, b) => a.charName.localeCompare(b.charName));
 
-  const sortedIniList = [...rolledList, ...unrolledList];
+  const outOfCombatList = allEntries
+    .filter((e) => !e.inCombat)
+    .sort((a, b) => a.charName.localeCompare(b.charName));
+
+  const sortedIniList = [...inCombatRolled, ...inCombatUnrolled, ...outOfCombatList];
+
+  const inCombatEntries = allEntries.filter((e) => e.inCombat);
+  const inCombatNpcs = allEntries.filter((e) => !e.isAssigned && e.inCombat);
 
   const allRolls = state.rollHistory || [];
   const filteredRolls = allRolls.filter((r) => {
@@ -1681,12 +2290,14 @@ function rollsAndIniPage() {
     <div class="tracker-card">
       <div class="tracker-card-header">
         <div class="tracker-title-wrap">
-          <h2 class="tracker-card-title">⚔️ Initiative Tracker (All Players &amp; Non-Assigned Characters)</h2>
-          <span class="tracker-count-badge">${rolledList.length}/${allEntries.length} Rolled</span>
+          <h2 class="tracker-card-title">⚔️ Initiative Tracker</h2>
+          <span class="tracker-count-badge">${inCombatRolled.length}/${inCombatEntries.length} Combatants Rolled &bull; ${inCombatNpcs.length} In-Combat NPCs</span>
         </div>
         <div class="tracker-btn-group">
-          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll 1st Round Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (1st Round)</button>
-          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-next-ini-btn" title="Roll Next Rounds Initiative for all Unassigned / NPC characters">🎲 Roll Unassigned (Next Rounds)</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll 1st Round Initiative for all in-combat NPCs">🎲 Roll NPCs (1st Round)</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-next-ini-btn" title="Roll Next Rounds Initiative for all in-combat NPCs">🎲 Roll NPCs (Next Rounds)</button>
+          <button type="button" class="tracker-btn" id="all-npcs-enter-combat-btn" title="Bring all NPC characters into combat">⚔️ All NPCs Enter</button>
+          <button type="button" class="tracker-btn" id="all-npcs-leave-combat-btn" title="Remove all NPC characters from combat">🚪 All NPCs Leave</button>
           <button type="button" class="tracker-btn tracker-btn-danger" id="clear-initiative-btn" title="Clear all initiative scores">🗑️ Clear Initiative</button>
         </div>
       </div>
@@ -1699,7 +2310,7 @@ function rollsAndIniPage() {
               <tr>
                 <th style="width: 60px; text-align: center;">Order</th>
                 <th>Character</th>
-                <th>Assignment</th>
+                <th>Status / Assignment</th>
                 <th>Initiative Mods</th>
                 <th>Rolled Result</th>
                 <th style="text-align: right;">Actions</th>
@@ -1707,26 +2318,35 @@ function rollsAndIniPage() {
             </thead>
             <tbody>
               ${sortedIniList.map((item, idx) => {
-                const isLeader = item.hasRolled && idx === 0;
-                const rankText = item.hasRolled ? `${idx + 1}` : '-';
-                return `<tr class="${isLeader ? 'row-leader' : ''}">
+                const isLeader = item.inCombat && item.hasRolled && idx === 0;
+                const rankText = (!item.inCombat) ? '—' : (item.hasRolled ? `${idx + 1}` : '-');
+                return `<tr class="${isLeader ? 'row-leader' : ''} ${!item.inCombat ? 'row-out-of-combat' : ''}">
                   <td style="text-align: center;">
-                    <span class="ini-rank-badge ${item.hasRolled ? (isLeader ? 'leader' : 'active') : 'unrolled'}">${rankText}</span>
+                    <span class="ini-rank-badge ${!item.inCombat ? 'unrolled' : (item.hasRolled ? (isLeader ? 'leader' : 'active') : 'unrolled')}">${rankText}</span>
                   </td>
                   <td>
                     <span class="tracker-char-name">${esc(item.charName)}</span>
                   </td>
                   <td>
-                    <span class="tracker-tag ${item.isAssigned ? 'tag-player' : 'tag-npc'}">
-                      ${item.isAssigned ? `👤 ${esc(item.ownerName)}` : '🤖 Unassigned (NPC)'}
-                    </span>
+                    <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
+                      <span class="tracker-tag ${item.isAssigned ? 'tag-player' : 'tag-npc'}">
+                        ${item.isAssigned ? `👤 ${esc(item.ownerName)}` : '🤖 NPC'}
+                      </span>
+                      ${!item.isAssigned ? `
+                        <button type="button" class="tracker-tag ${item.inCombat ? 'tag-in-combat' : 'tag-out-combat'}" data-ini-toggle-combat="${esc(item.characterId)}" style="cursor: pointer;" title="Click to toggle combat status (${item.inCombat ? 'In Combat' : 'Out of Combat'})">
+                          ${item.inCombat ? '⚔️ In Combat' : '💤 Out of Combat'}
+                        </button>
+                      ` : ''}
+                    </div>
                   </td>
                   <td>
                     <span class="tracker-mod-tag" title="First round bonus (Intuition / 10)">1st: <strong>+${item.firstRoundBonus}</strong></span>
                     <span class="tracker-mod-tag" title="Next rounds bonus (Speed / 10)">Next: <strong>+${item.nextRoundsBonus}</strong></span>
                   </td>
                   <td>
-                    ${item.hasRolled ? `
+                    ${!item.inCombat ? `
+                      <span class="ini-unrolled-note out-of-combat-note">Out of combat (skipped in Roll All)</span>
+                    ` : item.hasRolled ? `
                       <div class="ini-score-box">
                         <span class="ini-score-number">${item.total}</span>
                         <span class="ini-score-detail">(1D12: ${item.d12} ${item.bonus >= 0 ? `+ ${item.bonus}` : `- ${Math.abs(item.bonus)}`}) &bull; <em>${esc(item.label || '1st round')}</em></span>
@@ -1737,6 +2357,9 @@ function rollsAndIniPage() {
                   </td>
                   <td style="text-align: right;">
                     <div class="tracker-btn-group" style="justify-content: flex-end;">
+                      ${!item.isAssigned ? `
+                        <button type="button" class="tracker-btn-mini combat-toggle-btn ${item.inCombat ? 'combat-leave-btn' : 'combat-enter-btn'}" data-ini-toggle-combat="${esc(item.characterId)}" title="${item.inCombat ? 'Leave combat (NPC will not be rolled by Roll All buttons)' : 'Enter combat (NPC will be rolled by Roll All buttons)'}">${item.inCombat ? 'Leave' : '⚔️ Enter'}</button>
+                      ` : ''}
                       <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="First round" data-ini-bonus="${item.firstRoundBonus}" title="Roll 1st Round: 1D12 + ${item.firstRoundBonus}">Roll 1st</button>
                       <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="Next Rounds" data-ini-bonus="${item.nextRoundsBonus}" title="Roll Next Rounds: 1D12 + ${item.nextRoundsBonus}">Roll Next</button>
                       <button type="button" class="tracker-btn-mini" data-ini-set-score="${esc(item.characterId)}" data-char-name="${esc(item.charName)}" title="Manually set initiative score">Set</button>
@@ -1904,9 +2527,32 @@ function tablePage(name, character) {
     });
     if (!character.data.tables[name]) character.data.tables[name] = rows;
   }
+  if (name === 'Spell') {
+    if (!character.data.tables.Spell || (Array.isArray(character.data.tables.Spell) && character.data.tables.Spell.length === 0)) {
+      rows = [[
+        'Counter Spell',
+        '2',
+        'Normal',
+        '10',
+        '2 x Spirit',
+        'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
+        'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
+        'Fail',
+        '(Fgt/10)D6 + (MP/4) Vs Energy',
+        '(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy',
+        '(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy',
+        '(Fgt/10)D6 + ((MP/4)*2) Vs Energy',
+        '(Fgt/10)D6 + ((MP/4)*3) Vs Energy'
+      ]];
+      character.data.tables.Spell = rows;
+    }
+  }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
   const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const armorQualityOptions = ['10', '20', '30', '40', '50', '75', '100'];
+  const skillTypeOptions = ['Combat', 'Hors-Combat', 'Passive'];
+  const skillStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Depend'];
+  const actionTypeOptions = ['Normal', 'Free'];
   const storedSpecialisationRows = character.data.tables.Specialisations;
   const specialisationRows = Array.isArray(storedSpecialisationRows)
     ? storedSpecialisationRows
@@ -1922,13 +2568,60 @@ function tablePage(name, character) {
   const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
   const canDeleteRows = ['Skills', 'Spell', 'Specialisations', 'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur', 'Unique Power'].includes(name);
 
-  const tableClass = name === 'Action Types' ? ' sheet-table-action-types' : name === 'Specialisations' ? ' sheet-table-specialisations' : name === 'Weapons' ? ' sheet-table-weapons' : name === 'Armor' ? ' sheet-table-armor' : name === 'Inventory' ? ' sheet-table-inventory' : name === 'Relations' ? ' sheet-table-relations' : '';
-  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${displayColumns.map((columnIndex) => `<th>${esc(headers[columnIndex])}</th>`).join('')}${canDeleteRows ? '<th class="row-actions">Actions</th>' : ''}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
+  const tableClass = name === 'Action Types'
+    ? ' sheet-table-action-types'
+    : name === 'Skills'
+      ? ' sheet-table-skills'
+      : name === 'Spell'
+        ? ' sheet-table-spell'
+        : name === 'Specialisations'
+          ? ' sheet-table-specialisations'
+          : name === 'Weapons'
+            ? ' sheet-table-weapons'
+            : name === 'Armor'
+              ? ' sheet-table-armor'
+              : name === 'Inventory'
+                ? ' sheet-table-inventory'
+                : name === 'Relations'
+                  ? ' sheet-table-relations'
+                  : '';
+  const savedWidths = getPlayerColumnWidths(name);
+  const headersHtml = displayColumns.map((columnIndex) => {
+    const header = headers[columnIndex];
+    const savedW = savedWidths[header];
+    const widthStyle = savedW ? ` style="width: ${savedW}px; min-width: ${savedW}px;"` : '';
+    return `<th${widthStyle} data-col-name="${esc(header)}" data-col-index="${columnIndex}"><span class="th-content">${esc(header)}</span><div class="col-resize-handle" data-col-resize="${esc(header)}" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
+  }).join('');
+  const actionsTh = canDeleteRows ? (() => {
+    const savedActionW = savedWidths['Actions'];
+    const widthStyle = savedActionW ? ` style="width: ${savedActionW}px; min-width: ${savedActionW}px;"` : '';
+    return `<th class="row-actions"${widthStyle} data-col-name="Actions"><span class="th-content">Actions</span><div class="col-resize-handle" data-col-resize="Actions" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
+  })() : '';
+
+  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${headersHtml}${actionsTh}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
     const specialisationDefault = name === 'Specialisations' && sourceColumnIndex === 1 ? 'Unspecialised' : (name === 'Specialisations' && [2, 3, 5].includes(sourceColumnIndex) ? '0' : '');
     const val = row[sourceColumnIndex] || specialisationDefault;
     const path = `tables.${name}.${rowIndex}.${sourceColumnIndex}`;
+    if (name === 'Skills' && header === 'Skill Type') {
+      return `<td>${editableSelect(path, val, skillTypeOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Skills' && header === 'Stat') {
+      return `<td>${editableSelect(path, val, skillStatOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Skills' && (header === 'CS Level' || header === 'Focus Cost')) {
+      return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Skills' && header === 'Action Type') {
+      return `<td>${editableSelect(path, val, actionTypeOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Spell' && (header === 'Scell Value' || header === 'Mana Cost')) {
+      return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Spell' && header === 'Action Type') {
+      return `<td>${editableSelect(path, val, actionTypeOptions, 'cell-input cell-select')}</td>`;
+    }
     if (name === 'Weapons' && (header === 'Touch Stat' || header === 'Damage Bonus Stat')) {
       return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
     }
@@ -1968,6 +2661,9 @@ function tablePage(name, character) {
     if (name === 'Specialisations' && ['Ini Bonus', 'Touch Bonus', 'Potential Bonus'].includes(header)) {
       return `<td>${readOnlyCell(val)}</td>`;
     }
+    if ((name === 'Skills' || name === 'Spell') && ['White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'].includes(header)) {
+      return `<td>${formulaCellHtml(path, val, character)}</td>`;
+    }
     if (isActionTypes) return `<td><span class="cell-readonly action-type-cell">${esc(val)}</span></td>`;
     return `<td>${editable(path, val, 'cell-input')}</td>`;
   }).join('')}${canDeleteRows ? `<td class="row-actions"><button type="button" class="delete-row" data-delete-row="${esc(name)}" data-row-index="${rowIndex}" title="Delete this row">Delete</button></td>` : ''}</tr>`).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
@@ -1977,7 +2673,6 @@ function pageFor(character) {
   if (activeTab === 'Rolls & Ini') return rollsAndIniPage();
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
-  if (activeTab === 'Universale Chart') return universalChartPage();
   if (activeTab === 'Monture') return monturePage(character);
   return tablePage(activeTab, character);
 }
@@ -2020,6 +2715,8 @@ function applyFontScale(scale, persist = true) {
       localStorage.setItem('terranova.fontScale', clamped.toString());
     } catch (e) {}
   }
+
+  autoResizeAllTextareas();
 }
 
 function restoreSavedFontScale() {
@@ -2081,6 +2778,25 @@ function render(focusPath = null, selectAll = false) {
   }
 
   const character = currentCharacter();
+
+  if (user.role !== 'GM' && !character) {
+    app.innerHTML = `<div class="sheet-app">
+    <main class="sheet-frame unassigned-frame">
+      <div class="page-resize-handle page-resize-r" data-direction="r" title="Drag right edge to resize width (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-b" data-direction="b" title="Drag bottom edge to resize height (Double-click to reset size)"></div>
+      <div class="page-resize-handle page-resize-l" data-direction="l" title="Drag left edge to resize width (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-br" data-direction="br" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-bl" data-direction="bl" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
+      <div class="unassigned-container">
+        <div class="unassigned-message">Waiting for DM to assign a character</div>
+      </div>
+    </main>
+  </div>`;
+    bindEvents();
+    autoResizeAllTextareas(app);
+    return;
+  }
+
   app.innerHTML = `<div class="sheet-app">
     <main class="sheet-frame">
       <div class="page-resize-handle page-resize-r" data-direction="r" title="Drag right edge to resize width (Double-click to reset to 50% width)"></div>
@@ -2112,6 +2828,7 @@ function render(focusPath = null, selectAll = false) {
     </main>
   </div>`;
   bindEvents();
+  autoResizeAllTextareas(app);
 
   if (targetPath) {
     const el = app.querySelector(`[data-path="${targetPath.replace(/"/g, '\\"')}"]`);
@@ -2281,7 +2998,9 @@ async function load() {
     }
     const savedCharId = localStorage.getItem('terranova.activeCharId');
     if (savedCharId && state.characters[savedCharId]) {
-      activeCharacterId = savedCharId;
+      if (user.role === 'GM' || getAssignedCharacters(user.id).some(([id]) => id === savedCharId)) {
+        activeCharacterId = savedCharId;
+      }
     }
     const savedTab = localStorage.getItem('terranova.activeTab');
     if (savedTab && getAvailableTabs().includes(savedTab)) {
@@ -2302,7 +3021,7 @@ async function load() {
       activeCharacterId = Object.keys(state.characters)[0] || null;
     } else {
       const myChars = getAssignedCharacters(user.id);
-      activeCharacterId = myChars[0]?.[0] || Object.keys(state.characters)[0] || null;
+      activeCharacterId = myChars[0]?.[0] || null;
     }
   }
 
@@ -2518,6 +3237,7 @@ if (typeof window !== 'undefined') {
       document.documentElement.style.setProperty('--sheet-width', '100%');
       document.documentElement.style.setProperty('--sheet-height', '100%');
     }
+    autoResizeAllTextareas();
   });
 }
 
@@ -2675,7 +3395,8 @@ async function initialise() {
             data.playerName || rollInfo.playerName,
             isMyRoll,
             rollInfo.rollId,
-            rollInfo.targetTier || 'standard'
+            rollInfo.targetTier || 'standard',
+            rollInfo.columnShift || 0
           );
         }
       } else {
@@ -2733,16 +3454,18 @@ async function initialise() {
           });
           recordInitiative(data.characterId, data.charName, data.playerName, null, data.label, data.bonus, data.d12, data.total);
         } else if (data.statName) {
+          const shiftSuffix = (typeof data.columnShift === 'number' && data.columnShift !== 0) ? ` [CS: ${data.columnShift > 0 ? '+' + data.columnShift : data.columnShift}]` : '';
+          const targetSuffix = data.targetTier && data.targetTier !== 'standard' ? ` [Target: ${data.targetTier.toUpperCase()}${data.karmaCost > 0 ? ', Karma: ' + data.karmaCost : ''}]` : '';
           addRollToHistory({
             id: data.rollId || `stat_${data.timestamp}_${data.charName}`,
             timestamp: data.timestamp || Date.now(),
             type: 'stat',
             charName: data.charName || 'Character',
             playerName: data.playerName || 'Player',
-            statName: data.statName,
+            statName: data.targetTier && data.targetTier !== 'standard' ? `${data.statName} (${data.targetTier.toUpperCase()})` : data.statName,
             statValue: data.statValue,
             rankName: data.rankName,
-            detail: `D100 = ${data.roll} (${data.statValue} ➔ ${data.rankName})`,
+            detail: `D100 = ${data.roll} (${data.statValue} ➔ ${data.rankName})${shiftSuffix}${targetSuffix}`,
             roll: data.roll,
             outcomeType: data.outcomeType,
             outcomeLabel: data.outcomeLabel,
@@ -2762,6 +3485,12 @@ async function initialise() {
 
 function bindEvents() {
   app.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => { activeTab = button.dataset.tab; render(); }));
+  app.querySelectorAll('textarea').forEach((textarea) => {
+    autoResizeTextarea(textarea);
+    textarea.addEventListener('input', () => {
+      autoResizeTextarea(textarea);
+    });
+  });
   app.querySelector('#dismiss-roll-result')?.addEventListener('click', () => {
     activeRollResult = null;
     render();
@@ -2794,8 +3523,9 @@ function bindEvents() {
       const name = btn.dataset.qaUniversalRoll;
       const statVal = parseFloat(btn.dataset.statVal) || 0;
       const targetTier = btn.dataset.targetTier || 'standard';
+      const csLevel = parseInt(btn.dataset.csLevel) || 0;
       if (name) {
-        rollUniversalCheck(name, statVal, targetTier);
+        rollUniversalCheck(name, statVal, targetTier, csLevel);
       }
     });
   });
@@ -2826,6 +3556,44 @@ function bindEvents() {
       }
     });
   });
+  app.querySelectorAll('.qa-skill-select').forEach((select) => {
+    select.addEventListener('change', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const val = parseInt(select.value);
+      const character = currentCharacter();
+      if (character) {
+        character.data.quickAccessSkillSlot = val;
+        await save();
+        render();
+      }
+    });
+  });
+  app.querySelectorAll('.qa-spell-select').forEach((select) => {
+    select.addEventListener('change', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const val = parseInt(select.value);
+      const character = currentCharacter();
+      if (character) {
+        character.data.quickAccessSpellSlot = val;
+        await save();
+        render();
+      }
+    });
+  });
+  app.querySelectorAll('.rollable-qa-effect').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const actionName = btn.dataset.qaEffectName || 'Action';
+      const tierLabel = btn.dataset.qaTierLabel || 'Effect';
+      const expr = btn.dataset.qaEffectExpr || '';
+      if (expr && expr !== '—') {
+        rollFormulaEffect(actionName, tierLabel, expr);
+      }
+    });
+  });
   app.querySelector('#font-decrease-btn')?.addEventListener('click', () => {
     applyFontScale(currentFontScale - 0.1, true);
   });
@@ -2846,6 +3614,22 @@ function bindEvents() {
       setPath(input.dataset.path, input.dataset.checkbox ? input.checked : input.value);
       if (activeTab === 'Stats') {
         updateStatsCalculations();
+      }
+      const formulaCell = input.closest('.formula-cell');
+      if (formulaCell) {
+        const resultTextEl = formulaCell.querySelector('.formula-result-text');
+        if (resultTextEl) {
+          const statsMap = getCharacterStatsMap(currentCharacter());
+          const val = input.value;
+          const hasVal = Boolean(val && val.trim());
+          const translated = translateFormula(val, statsMap);
+          resultTextEl.textContent = hasVal ? (translated || val) : '—';
+          if (hasVal) {
+            resultTextEl.classList.remove('formula-result-empty');
+          } else {
+            resultTextEl.classList.add('formula-result-empty');
+          }
+        }
       }
     };
     input.addEventListener('input', handleUpdate);
@@ -3066,6 +3850,56 @@ function bindEvents() {
   });
   app.querySelector('#roll-unassigned-next-ini-btn')?.addEventListener('click', () => {
     rollAllUnassignedInitiative('Next Rounds');
+  });
+  app.querySelector('#all-npcs-enter-combat-btn')?.addEventListener('click', async () => {
+    Object.entries(state.characters).forEach(([id, c]) => {
+      if (!c.ownerId && (!state.assignments || !state.assignments[c.ownerId])) {
+        c.data ??= {};
+        c.data.inCombat = true;
+      }
+    });
+    await save();
+    render();
+  });
+  app.querySelector('#all-npcs-leave-combat-btn')?.addEventListener('click', async () => {
+    Object.entries(state.characters).forEach(([id, c]) => {
+      if (!c.ownerId && (!state.assignments || !state.assignments[c.ownerId])) {
+        c.data ??= {};
+        c.data.inCombat = false;
+        if (state.initiativeTracker?.[id]) {
+          delete state.initiativeTracker[id];
+        }
+      }
+    });
+    await save();
+    render();
+  });
+  app.querySelectorAll('[data-ini-toggle-combat]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const charId = btn.dataset.iniToggleCombat;
+      if (!charId) return;
+      const character = state.characters[charId];
+      if (character) {
+        character.data ??= {};
+        const currentStatus = character.data.inCombat !== false;
+        character.data.inCombat = !currentStatus;
+        if (character.data.inCombat === false && state.initiativeTracker?.[charId]) {
+          delete state.initiativeTracker[charId];
+        }
+        await save();
+        render();
+      } else if (state.initiativeTracker?.[charId]) {
+        const tVal = state.initiativeTracker[charId];
+        tVal.inCombat = !(tVal.inCombat !== false);
+        if (tVal.inCombat === false) {
+          delete state.initiativeTracker[charId];
+        }
+        await save();
+        render();
+      }
+    });
   });
   app.querySelectorAll('[data-ini-roll-char]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -3374,7 +4208,75 @@ function bindEvents() {
     });
   });
 
+  bindColumnResizing();
   bindPageResizing();
+}
+
+function bindColumnResizing() {
+  app.querySelectorAll('.col-resize-handle').forEach((handle) => {
+    const tableName = handle.dataset.tableName || activeTab;
+    const colName = handle.dataset.colResize;
+    const th = handle.closest('th');
+    if (!th) return;
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      const startScreenX = typeof e.screenX === 'number' && e.screenX !== 0 ? e.screenX : e.clientX;
+      const startWidth = th.getBoundingClientRect().width;
+      let currentWidth = startWidth;
+
+      document.body.classList.add('col-resizing');
+      handle.classList.add('resizing');
+
+      const onPointerMove = (moveEvent) => {
+        const currScreenX = typeof moveEvent.screenX === 'number' && moveEvent.screenX !== 0 ? moveEvent.screenX : moveEvent.clientX;
+        const deltaX = currScreenX - startScreenX;
+        currentWidth = Math.max(35, Math.min(1600, Math.round(startWidth + deltaX)));
+
+        th.style.width = `${currentWidth}px`;
+        th.style.minWidth = `${currentWidth}px`;
+      };
+
+      const onPointerUp = (upEvent) => {
+        try {
+          if (handle.hasPointerCapture(upEvent.pointerId)) {
+            handle.releasePointerCapture(upEvent.pointerId);
+          }
+        } catch (err) {}
+
+        handle.removeEventListener('pointermove', onPointerMove);
+        handle.removeEventListener('pointerup', onPointerUp);
+        handle.removeEventListener('pointercancel', onPointerUp);
+
+        document.body.classList.remove('col-resizing');
+        handle.classList.remove('resizing');
+
+        savePlayerColumnWidth(tableName, colName, currentWidth);
+      };
+
+      handle.addEventListener('pointermove', onPointerMove);
+      handle.addEventListener('pointerup', onPointerUp);
+      handle.addEventListener('pointercancel', onPointerUp);
+    };
+
+    handle.addEventListener('pointerdown', onPointerDown);
+
+    handle.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      savePlayerColumnWidth(tableName, colName, null);
+      th.style.width = '';
+      th.style.minWidth = '';
+      render();
+    });
+  });
 }
 
 function bindPageResizing() {
