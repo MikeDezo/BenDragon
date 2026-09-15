@@ -7,14 +7,14 @@ import wowUrl from '../sounds/wow.mp3';
 const tabs = [
   'Infos', 'Stats', 'Action Types', 'Skills', 'Spell', 'Specialisations',
   'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur',
-  'Unique Power', 'Universale Chart'
+  'Unique Power'
 ];
 const STORAGE_KEY = 'terranova.characterSheets';
 const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 'gender'], ['Origins', 'origins'], ['Age', 'age'], ['Heigth', 'height'], ['Weigth', 'weight'], ['Eyes Color', 'eyesColor'], ['Hairs Color', 'hairColor'], ['Skin Color', 'skinColor'], ['Languages', 'languages'], ['Alphabet', 'alphabet'], ['Gods', 'gods'], ['Xp to spend/Total', 'xp'], ['BackGround', 'background']];
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 const tables = {
-  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Specialisations Initiative Bonuses', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'], Armor: ['Name', 'Base Armor', 'Emplacements runiques', 'Runes', 'Quality'], Inventory: ['Object', 'Qte', 'Description', 'Localisation'], Relations: ['Name', 'Link', 'Relation type', 'Unlocked', 'Unlockable'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
+  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'], Skills: ['Skill Type', 'Stat', 'CS Level', 'Focus Cost', 'White', 'Green', 'Yellow', 'Red'], Spell: ['Scell Value', 'Mana Cost', 'Scells', 'Intention', 'Description'], Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'], Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'], Armor: ['Name', 'Base Armor', 'Quality', 'Runes Slots', 'Runes', 'Description'], Inventory: ['Qte', 'Name', 'Description', 'Localisation'], Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'], Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'], 'Note du joueur': ['Note'], 'Unique Power': ['Name', 'Description', 'Cost'], 'Universale Chart': ['Class', 'Poor', 'Typical', 'Good', 'Excelent', 'Remarkable', 'Incredible', 'Amazing', 'Monstrous', 'Unearthly']
 };
 
 const ACTION_TYPES_ROWS = [
@@ -104,8 +104,8 @@ function editable(path, value, className = 'field-input', placeholder = '') {
   return `<textarea class="${className}" data-path="${path}" rows="1"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea>`;
 }
 
-function editableInteger(path, value, className = 'cell-input') {
-  return `<input type="number" class="${className}" data-path="${path}" data-integer="true" step="1" inputmode="numeric" value="${esc(value)}">`;
+function editableInteger(path, value, className = 'cell-input', attributes = '') {
+  return `<input type="number" class="${className}" data-path="${path}" data-integer="true" step="1" inputmode="numeric" value="${esc(value)}"${attributes ? ` ${attributes}` : ''}>`;
 }
 
 function readOnlyCell(value) {
@@ -113,13 +113,58 @@ function readOnlyCell(value) {
 }
 
 function editableSelect(path, value, options, className = 'cell-select', attributes = '') {
-  const isCustom = value && !options.includes(value);
+  const strVal = value == null ? '' : String(value);
+  const isCustom = strVal && !options.some((opt) => String(opt) === strVal);
   const optsHtml = [
     '<option value="">-- Select --</option>',
-    ...options.map((opt) => `<option value="${esc(opt)}" ${opt === value ? 'selected' : ''}>${esc(opt)}</option>`),
-    ...(isCustom ? [`<option value="${esc(value)}" selected>${esc(value)}</option>`] : [])
+    ...options.map((opt) => `<option value="${esc(opt)}" ${String(opt) === strVal ? 'selected' : ''}>${esc(opt)}</option>`),
+    ...(isCustom ? [`<option value="${esc(strVal)}" selected>${esc(strVal)}</option>`] : [])
   ].join('');
   return `<select class="${className}" data-path="${path}" ${attributes}>${optsHtml}</select>`;
+}
+
+function armorRunesInputs(path, value, slotsCount, rowIndex) {
+  const count = Math.max(0, parseInt(slotsCount) || 0);
+  const values = Array.isArray(value) ? value : (typeof value === 'string' && value ? [value] : []);
+  if (count === 0) {
+    return `<div class="armor-runes-container" data-armor-runes-container="${rowIndex}"><span class="cell-readonly runes-empty-note">0 slots</span></div>`;
+  }
+  const lines = [];
+  for (let i = 0; i < count; i++) {
+    const val = values[i] || '';
+    lines.push(
+      `<div class="armor-rune-line">` +
+        `<span class="armor-rune-badge">R${i + 1}</span>` +
+        `<input type="text" class="cell-input rune-input" data-armor-rune-path="${path}" data-armor-rune-index="${i}" value="${esc(val)}" placeholder="Rune ${i + 1}" />` +
+      `</div>`
+    );
+  }
+  return `<div class="armor-runes-container" data-armor-runes-container="${rowIndex}">${lines.join('')}</div>`;
+}
+
+function bindArmorRuneInputs(container = app) {
+  container.querySelectorAll('[data-armor-rune-path]').forEach((input) => {
+    const updateRune = () => {
+      const runePath = input.dataset.armorRunePath;
+      const rowPath = runePath.split('.').slice(0, -1).join('.');
+      const row = getPath(rowPath);
+      if (!row) return;
+      if (!Array.isArray(row[4])) {
+        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      }
+      const idx = Number(input.dataset.armorRuneIndex);
+      row[4][idx] = input.value;
+      queueSave();
+    };
+    input.addEventListener('input', updateRune);
+    input.addEventListener('blur', updateRune);
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        input.blur();
+      }
+    });
+  });
 }
 
 function editableCheckbox(path, value) {
@@ -191,6 +236,140 @@ async function promptImageUrl() {
     await save();
     render();
   }
+}
+
+function ensureMountRow(character, mountIndex) {
+  if (!character.data.tables) character.data.tables = {};
+  if (!Array.isArray(character.data.tables.Monture)) {
+    character.data.tables.Monture = [];
+  }
+  while (character.data.tables.Monture.length <= mountIndex) {
+    character.data.tables.Monture.push({});
+  }
+}
+
+function getMountImage(character, mountIndex) {
+  const row = character.data?.tables?.Monture?.[mountIndex];
+  if (!row) return '';
+  return row.image || row[5] || '';
+}
+
+function setMountImage(character, mountIndex, url) {
+  ensureMountRow(character, mountIndex);
+  const row = character.data.tables.Monture[mountIndex];
+  if (Array.isArray(row)) {
+    row[5] = url;
+  }
+  row.image = url;
+}
+
+function removeMountImage(character, mountIndex) {
+  const row = character.data?.tables?.Monture?.[mountIndex];
+  if (!row) return;
+  delete row.image;
+  delete row[5];
+}
+
+async function chooseOwlbearAssetForMount(mountIndex) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  if (!OBR.isAvailable || !OBR.assets?.downloadImages) {
+    promptMountImageUrl(mountIndex);
+    return;
+  }
+  try {
+    const downloads = await OBR.assets.downloadImages(false);
+    if (downloads && downloads.length > 0 && downloads[0].image?.url) {
+      setMountImage(character, mountIndex, downloads[0].image.url);
+      await save();
+      render();
+    }
+  } catch (err) {
+    console.error('Owlbear mount image selection error:', err);
+  }
+}
+
+async function promptMountImageUrl(mountIndex) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  const current = getMountImage(character, mountIndex);
+  const url = window.prompt('Enter mount image URL (Owlbear Cloud URL, Discord, Imgur, etc.):', current);
+  if (url !== null) {
+    const trimmed = url.trim();
+    if (trimmed) {
+      setMountImage(character, mountIndex, trimmed);
+    } else {
+      removeMountImage(character, mountIndex);
+    }
+    await save();
+    render();
+  }
+}
+
+function monturePage(character) {
+  const storedRows = character.data.tables?.Monture;
+  let rows = Array.isArray(storedRows)
+    ? storedRows
+    : storedRows && typeof storedRows === 'object'
+      ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
+      : [{}];
+
+  if (rows.length === 0) {
+    rows = [{}];
+  }
+  character.data.tables.Monture = rows;
+
+  return `<section class="monture-page">
+    <div class="monture-list">
+      ${rows.map((row, mountIndex) => {
+        const image = row.image || row[5] || '';
+        const imgSettings = row.imageSettings || { width: 320, height: 380 };
+        const widthVal = imgSettings.width || 320;
+        const heightVal = imgSettings.height || 380;
+        const mountName = row[0] || (rows.length > 1 ? `Monture ${mountIndex + 1}` : 'Monture');
+
+        return `<div class="mount-card" data-mount-card="${mountIndex}">
+          ${rows.length > 1 ? `<div class="mount-header"><span>${esc(mountName)}</span></div>` : ''}
+          <div class="grid-sheet info-layout mount-layout" style="--portrait-width: ${widthVal}px; --portrait-height: ${heightVal}px;">
+            <div class="portrait-column">
+              <div class="character-image mount-image ${image ? 'has-image' : ''}" data-mount-image-container="${mountIndex}" tabindex="0" role="button" aria-label="Mount image">
+                ${image ? `
+                  <img src="${esc(image)}" alt="Mount image" class="character-image-preview" />
+                  <div class="image-overlay">
+                    <div class="image-overlay-actions">
+                      ${OBR.isAvailable ? `<button type="button" class="img-btn" data-mount-owlbear-btn="${mountIndex}">Owlbear Cloud</button>` : ''}
+                      <button type="button" class="img-btn" data-mount-url-btn="${mountIndex}">Set URL</button>
+                    </div>
+                    <button type="button" class="image-remove-btn" data-mount-remove-btn="${mountIndex}" title="Remove image">&times;</button>
+                  </div>
+                ` : `
+                  <div class="empty-image-placeholder">
+                    <span class="image-label">INSERT MOUNT IMAGE</span>
+                    <div class="image-choice-buttons">
+                      ${OBR.isAvailable ? `<button type="button" class="img-choice-btn" data-mount-owlbear-btn="${mountIndex}">Owlbear Cloud</button>` : ''}
+                      <button type="button" class="img-choice-btn" data-mount-url-btn="${mountIndex}">Image URL</button>
+                    </div>
+                  </div>
+                `}
+                <div class="image-corner-handle" data-mount-corner-handle="${mountIndex}" title="Drag corner to resize mount box"></div>
+              </div>
+              <div class="mount-actions">
+                <button type="button" class="add-row mount-action-btn" data-add-mount title="Add a new mount">+ Add Mount</button>
+                <button type="button" class="delete-row mount-action-btn" data-delete-mount="${mountIndex}" title="Delete this mount">Delete Mount</button>
+              </div>
+            </div>
+            <div class="info-fields">
+              <label class="field-row"><span class="field-label">Name</span>${editable(`tables.Monture.${mountIndex}.0`, row[0] || '', 'field-input', 'Name')}</label>
+              <label class="field-row"><span class="field-label">Type</span>${editable(`tables.Monture.${mountIndex}.1`, row[1] || '', 'field-input', 'Type')}</label>
+              <label class="field-row"><span class="field-label">Speed</span>${editable(`tables.Monture.${mountIndex}.2`, row[2] || '', 'field-input', 'Speed')}</label>
+              <label class="field-row"><span class="field-label">Armor</span>${editable(`tables.Monture.${mountIndex}.3`, row[3] || '', 'field-input', 'Armor')}</label>
+              <label class="field-row tall"><span class="field-label">Notes</span>${editable(`tables.Monture.${mountIndex}.4`, row[4] || '', 'field-input', 'Notes')}</label>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </section>`;
 }
 
 function infoPage(character) {
@@ -1666,8 +1845,68 @@ function tablePage(name, character) {
     });
     if (!character.data.tables[name]) character.data.tables[name] = rows;
   }
+  if (name === 'Armor') {
+    rows.forEach((row) => {
+      if (row && !row._v2) {
+        if (row[5] === undefined && (row[4] === '10' || row[4] === '20' || row[4] === '30' || row[4] === '40' || row[4] === '50' || row[4] === '75' || row[4] === '100' || (row[2] !== undefined && !['10', '20', '30', '40', '50', '75', '100'].includes(row[2]) && row[4] !== undefined))) {
+          const oldName = row[0] || '';
+          const oldBaseArmor = row[1] || '';
+          const oldSlots = row[2] || '';
+          const oldRunes = row[3] || '';
+          const oldQuality = row[4] || '';
+          row[0] = oldName;
+          row[1] = oldBaseArmor;
+          row[2] = oldQuality;
+          row[3] = oldSlots;
+          row[4] = Array.isArray(oldRunes) ? oldRunes : (oldRunes ? [oldRunes] : []);
+          row[5] = '';
+        }
+        row._v2 = true;
+      }
+      if (row[3] === undefined) row[3] = '0';
+      if (!Array.isArray(row[4])) {
+        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      }
+    });
+    if (!character.data.tables[name]) character.data.tables[name] = rows;
+  }
+  if (name === 'Inventory') {
+    rows.forEach((row) => {
+      if (row && !row._v2) {
+        if (row[0] !== undefined || row[1] !== undefined) {
+          const oldObject = row[0] || '';
+          const oldQte = row[1] || '';
+          row[0] = oldQte;
+          row[1] = oldObject;
+        }
+        row._v2 = true;
+      }
+    });
+    if (!character.data.tables[name]) character.data.tables[name] = rows;
+  }
+  if (name === 'Relations') {
+    rows.forEach((row) => {
+      if (row && !row._v2) {
+        if (row[3] !== undefined || row[4] !== undefined) {
+          const oldName = row[0] || '';
+          const oldLink = row[1] || '';
+          const oldRelType = row[2] || '';
+          row[0] = oldName;
+          row[1] = '';
+          row[2] = '';
+          row[3] = '';
+          row[4] = oldLink;
+          row[5] = oldRelType;
+          row[6] = '';
+        }
+        row._v2 = true;
+      }
+    });
+    if (!character.data.tables[name]) character.data.tables[name] = rows;
+  }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
   const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
+  const armorQualityOptions = ['10', '20', '30', '40', '50', '75', '100'];
   const storedSpecialisationRows = character.data.tables.Specialisations;
   const specialisationRows = Array.isArray(storedSpecialisationRows)
     ? storedSpecialisationRows
@@ -1683,7 +1922,7 @@ function tablePage(name, character) {
   const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
   const canDeleteRows = ['Skills', 'Spell', 'Specialisations', 'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur', 'Unique Power'].includes(name);
 
-  const tableClass = name === 'Action Types' ? ' sheet-table-action-types' : name === 'Specialisations' ? ' sheet-table-specialisations' : name === 'Weapons' ? ' sheet-table-weapons' : '';
+  const tableClass = name === 'Action Types' ? ' sheet-table-action-types' : name === 'Specialisations' ? ' sheet-table-specialisations' : name === 'Weapons' ? ' sheet-table-weapons' : name === 'Armor' ? ' sheet-table-armor' : name === 'Inventory' ? ' sheet-table-inventory' : name === 'Relations' ? ' sheet-table-relations' : '';
   return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${displayColumns.map((columnIndex) => `<th>${esc(headers[columnIndex])}</th>`).join('')}${canDeleteRows ? '<th class="row-actions">Actions</th>' : ''}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
@@ -1701,6 +1940,24 @@ function tablePage(name, character) {
     }
     if (name === 'Weapons' && header === 'Two handed?') {
       return `<td>${editableCheckbox(path, val)}</td>`;
+    }
+    if (name === 'Armor' && header === 'Base Armor') {
+      return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Armor' && header === 'Quality') {
+      return `<td>${editableSelect(path, val, armorQualityOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Armor' && header === 'Runes Slots') {
+      return `<td>${editableInteger(path, val, 'cell-input', 'data-armor-runes-slots="true" min="0"')}</td>`;
+    }
+    if (name === 'Armor' && header === 'Runes') {
+      return `<td>${armorRunesInputs(path, val, row[3], rowIndex)}</td>`;
+    }
+    if (name === 'Inventory' && header === 'Qte') {
+      return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Relations' && header === 'Age') {
+      return `<td>${editableInteger(path, val)}</td>`;
     }
     if (name === 'Specialisations' && header === 'Actual LVL') {
       return `<td>${editableSelect(path, val, specialisationLevelOptions, 'cell-input cell-select', `data-specialisation-level="${esc(path)}"`)}</td>`;
@@ -1721,6 +1978,7 @@ function pageFor(character) {
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
   if (activeTab === 'Universale Chart') return universalChartPage();
+  if (activeTab === 'Monture') return monturePage(character);
   return tablePage(activeTab, character);
 }
 
@@ -1787,25 +2045,22 @@ function controls(character) {
         <label>Character <select id="player-character-select">${options}</select></label>
         <span class="control-note">(${myChars.length} sheets assigned)</span>
         ${fontControl}
-        <span class="cloud-status" id="cloud-status">Cloud ready</span>
       </div>`;
     } else if (myChars.length === 1 || character) {
       return `<div class="sheet-controls">
         <span class="control-note">Assigned sheet: <strong>${esc(character?.name || 'Character')}</strong></span>
         ${fontControl}
-        <span class="cloud-status" id="cloud-status">Cloud ready</span>
       </div>`;
     }
     return `<div class="sheet-controls">
       <span class="control-note">No character sheet assigned by DM</span>
       ${fontControl}
-      <span class="cloud-status" id="cloud-status">Cloud ready</span>
     </div>`;
   }
 
   const options = Object.entries(state.characters).map(([id, item]) => `<option value="${esc(id)}" ${id === activeCharacterId ? 'selected' : ''}>${esc(item.name || id)}</option>`).join('');
   const playerOptions = players.map((player) => `<option value="${esc(player.id)}" ${character?.ownerId === player.id ? 'selected' : ''}>${esc(player.name)} (${player.role})</option>`).join('');
-  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label>${fontControl}<span class="cloud-status" id="cloud-status">Cloud ready</span></div>`;
+  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label>${fontControl}</div>`;
 }
 
 function render(focusPath = null, selectAll = false) {
@@ -1828,17 +2083,20 @@ function render(focusPath = null, selectAll = false) {
   const character = currentCharacter();
   app.innerHTML = `<div class="sheet-app">
     <main class="sheet-frame">
-      <div class="page-resize-handle page-resize-r" data-direction="r" title="Drag right edge to resize width"></div>
-      <div class="page-resize-handle page-resize-b" data-direction="b" title="Drag bottom edge to resize height"></div>
-      <div class="page-resize-handle page-resize-l" data-direction="l" title="Drag left edge to resize width"></div>
-      <div class="page-resize-handle page-resize-br" data-direction="br" title="Drag corner to resize page"></div>
-      <div class="page-resize-handle page-resize-bl" data-direction="bl" title="Drag corner to resize page"></div>
+      <div class="page-resize-handle page-resize-r" data-direction="r" title="Drag right edge to resize width (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-b" data-direction="b" title="Drag bottom edge to resize height (Double-click to reset size)"></div>
+      <div class="page-resize-handle page-resize-l" data-direction="l" title="Drag left edge to resize width (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-br" data-direction="br" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
+      <div class="page-resize-handle page-resize-bl" data-direction="bl" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
       <header class="sheet-header">
         <div>
           <p class="sheet-kicker">Terranova / Fiche de personnage ${character?.name ? `— ${esc(character.name)}` : ''}</p>
           <h1 class="sheet-title">${esc(activeTab)}</h1>
         </div>
-        <div class="sheet-meta">${user.role === 'GM' ? 'DM workspace' : 'Player workspace'}<br>${esc(user.name)}</div>
+        <div class="sheet-meta">
+          <div class="sheet-meta-workspace">${user.role === 'GM' ? 'DM workspace' : 'Player workspace'}<br>${esc(user.name)}</div>
+          <span class="cloud-status" id="cloud-status">Cloud ready</span>
+        </div>
       </header>
       ${controls(character)}
       <nav class="sheet-tabs" aria-label="Character sheet tabs">
@@ -2061,9 +2319,18 @@ let lastObrSyncTime = 0;
 let obrSyncTimeout = null;
 let isObrResizing = false;
 let pendingObrSize = null;
+let isObrReady = false;
+
+function isPopoutMode() {
+  try {
+    return window.self === window.top || Boolean(window.opener);
+  } catch (e) {
+    return false;
+  }
+}
 
 async function doSyncObrSize(w, h) {
-  if (!OBR.isAvailable || !OBR.action) return;
+  if (!OBR.isAvailable) return;
   if (isObrResizing) {
     pendingObrSize = { w, h };
     return;
@@ -2071,8 +2338,18 @@ async function doSyncObrSize(w, h) {
   isObrResizing = true;
   try {
     const promises = [];
-    if (OBR.action.setWidth) promises.push(OBR.action.setWidth(w));
-    if (OBR.action.setHeight) promises.push(OBR.action.setHeight(h));
+    if (OBR.action?.setWidth) promises.push(OBR.action.setWidth(w));
+    if (OBR.action?.setHeight) promises.push(OBR.action.setHeight(h));
+    if (OBR.popover?.setWidth) {
+      try {
+        promises.push(OBR.popover.setWidth(w));
+      } catch (e) {}
+    }
+    if (OBR.popover?.setHeight) {
+      try {
+        promises.push(OBR.popover.setHeight(h));
+      } catch (e) {}
+    }
     await Promise.all(promises);
   } catch (e) {
   } finally {
@@ -2083,13 +2360,13 @@ async function doSyncObrSize(w, h) {
       pendingObrSize = null;
       setTimeout(() => {
         doSyncObrSize(next.w, next.h);
-      }, 100);
+      }, 50);
     }
   }
 }
 
 function scheduleSyncObrSize(w, h, immediate = false) {
-  if (!OBR.isAvailable || !OBR.action) return;
+  if (!OBR.isAvailable) return;
 
   if (immediate) {
     if (obrSyncTimeout) {
@@ -2102,7 +2379,7 @@ function scheduleSyncObrSize(w, h, immediate = false) {
 
   const now = Date.now();
   const timeSinceLast = now - lastObrSyncTime;
-  const THROTTLE_MS = 200;
+  const THROTTLE_MS = 150;
 
   if (timeSinceLast >= THROTTLE_MS && !isObrResizing) {
     if (obrSyncTimeout) {
@@ -2112,7 +2389,7 @@ function scheduleSyncObrSize(w, h, immediate = false) {
     doSyncObrSize(w, h);
   } else {
     if (!obrSyncTimeout) {
-      const delay = Math.max(50, THROTTLE_MS - timeSinceLast);
+      const delay = Math.max(30, THROTTLE_MS - timeSinceLast);
       obrSyncTimeout = setTimeout(() => {
         obrSyncTimeout = null;
         doSyncObrSize(w, h);
@@ -2123,14 +2400,20 @@ function scheduleSyncObrSize(w, h, immediate = false) {
   }
 }
 
-function applyPageSize(w, h, persist = true) {
+function applyPageSize(w, h, persist = true, immediate = false) {
+  if (isPopoutMode()) {
+    document.documentElement.style.setProperty('--sheet-width', '100%');
+    document.documentElement.style.setProperty('--sheet-height', '100%');
+    return;
+  }
+
   const clampedW = Math.max(480, Math.min(2560, Math.round(w)));
   const clampedH = Math.max(400, Math.min(2000, Math.round(h)));
 
   document.documentElement.style.setProperty('--sheet-width', `${clampedW}px`);
   document.documentElement.style.setProperty('--sheet-height', `${clampedH}px`);
 
-  scheduleSyncObrSize(clampedW, clampedH, persist);
+  scheduleSyncObrSize(clampedW, clampedH, immediate || persist);
 
   if (persist) {
     try {
@@ -2139,18 +2422,112 @@ function applyPageSize(w, h, persist = true) {
   }
 }
 
+async function getDefaultWindowDimensions() {
+  let screenWidth = 1920;
+  let screenHeight = 1080;
+
+  if (typeof window !== 'undefined') {
+    screenWidth = window.screen?.availWidth || window.screen?.width || window.outerWidth || 1920;
+    screenHeight = window.screen?.availHeight || window.screen?.height || window.outerHeight || 1080;
+  }
+
+  let windowWidth = screenWidth;
+  let windowHeight = screenHeight;
+
+  if (isPopoutMode()) {
+    windowWidth = window.innerWidth || screenWidth;
+    windowHeight = window.innerHeight || screenHeight;
+    return {
+      width: Math.max(480, Math.min(2560, windowWidth)),
+      height: Math.max(400, Math.min(2000, windowHeight)),
+    };
+  }
+
+  if (OBR.isAvailable && isObrReady && OBR.viewport?.getWidth) {
+    try {
+      const vWidth = await OBR.viewport.getWidth();
+      if (typeof vWidth === 'number' && vWidth > 0) {
+        windowWidth = vWidth;
+      }
+    } catch (e) {
+      console.warn('Failed to get OBR viewport width:', e);
+    }
+  }
+
+  if (OBR.isAvailable && isObrReady && OBR.viewport?.getHeight) {
+    try {
+      const vHeight = await OBR.viewport.getHeight();
+      if (typeof vHeight === 'number' && vHeight > 0) {
+        windowHeight = vHeight;
+      }
+    } catch (e) {
+      console.warn('Failed to get OBR viewport height:', e);
+    }
+  }
+
+  // Default width is 50% of the window/viewport size
+  const defaultWidth = Math.round(windowWidth * 0.5);
+  const defaultHeight = Math.round(windowHeight * 0.88);
+
+  return {
+    width: Math.max(480, Math.min(2560, defaultWidth)),
+    height: Math.max(400, Math.min(2000, defaultHeight)),
+  };
+}
+
 async function restoreSavedWindowSize() {
+  if (isPopoutMode()) {
+    document.documentElement.style.setProperty('--sheet-width', '100%');
+    document.documentElement.style.setProperty('--sheet-height', '100%');
+    return;
+  }
+
   try {
     const saved = JSON.parse(localStorage.getItem('terranova.windowDimensions') || 'null');
     if (saved?.width && saved?.height) {
-      applyPageSize(saved.width, saved.height, false);
+      applyPageSize(saved.width, saved.height, false, true);
+      return;
     }
   } catch (e) {}
+
+  const defaults = await getDefaultWindowDimensions();
+  applyPageSize(defaults.width, defaults.height, false, true);
+}
+
+// Initial quick sizing right away before full async OBR ready
+if (typeof window !== 'undefined') {
+  try {
+    if (isPopoutMode()) {
+      document.documentElement.style.setProperty('--sheet-width', '100%');
+      document.documentElement.style.setProperty('--sheet-height', '100%');
+    } else {
+      const saved = JSON.parse(localStorage.getItem('terranova.windowDimensions') || 'null');
+      if (saved?.width && saved?.height) {
+        document.documentElement.style.setProperty('--sheet-width', `${saved.width}px`);
+        document.documentElement.style.setProperty('--sheet-height', `${saved.height}px`);
+      } else {
+        const screenW = window.screen?.availWidth || window.screen?.width || 1920;
+        const initialW = Math.max(480, Math.min(2560, Math.round(screenW * 0.5)));
+        document.documentElement.style.setProperty('--sheet-width', `${initialW}px`);
+      }
+    }
+  } catch (e) {}
+
+  window.addEventListener('resize', () => {
+    if (isPopoutMode()) {
+      document.documentElement.style.setProperty('--sheet-width', '100%');
+      document.documentElement.style.setProperty('--sheet-height', '100%');
+    }
+  });
 }
 
 async function initialise() {
+  // Apply size as soon as script runs
+  await restoreSavedWindowSize();
+
   if (OBR.isAvailable) {
     await new Promise((resolve) => OBR.onReady(resolve));
+    isObrReady = true;
     user.id = await OBR.player.getId();
     user.name = await OBR.player.getName();
     user.role = await OBR.player.getRole();
@@ -2158,6 +2535,20 @@ async function initialise() {
       players = await OBR.party.getPlayers();
     } catch (e) {
       console.warn('Failed to get players:', e);
+    }
+
+    // Sync size immediately upon OBR ready and again with small delays to ensure popout/popover window catches it
+    await restoreSavedWindowSize();
+    setTimeout(() => { restoreSavedWindowSize(); }, 50);
+    setTimeout(() => { restoreSavedWindowSize(); }, 200);
+
+    if (OBR.action?.onOpenChange) {
+      OBR.action.onOpenChange(async (isOpen) => {
+        if (isOpen) {
+          await restoreSavedWindowSize();
+          setTimeout(() => { restoreSavedWindowSize(); }, 50);
+        }
+      });
     }
 
     OBR.player.onChange((player) => {
@@ -2518,6 +2909,33 @@ function bindEvents() {
     input.addEventListener('input', updateEffect);
     input.addEventListener('blur', updateEffect);
   });
+  bindArmorRuneInputs(app);
+  app.querySelectorAll('[data-armor-runes-slots]').forEach((input) => {
+    const handleSlotsChange = () => {
+      const pathParts = input.dataset.path.split('.');
+      const rowIndex = pathParts[2];
+      const rowPath = pathParts.slice(0, -1).join('.');
+      const row = getPath(rowPath);
+      if (!row) return;
+      const slotsCount = Math.max(0, parseInt(input.value) || 0);
+      row[3] = String(slotsCount);
+      if (!Array.isArray(row[4])) {
+        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      }
+      const container = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
+      if (container) {
+        const runePath = `tables.Armor.${rowIndex}.4`;
+        container.outerHTML = armorRunesInputs(runePath, row[4], slotsCount, rowIndex);
+        const newContainer = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
+        if (newContainer) {
+          bindArmorRuneInputs(newContainer);
+        }
+      }
+      queueSave(200);
+    };
+    input.addEventListener('input', handleSlotsChange);
+    input.addEventListener('change', handleSlotsChange);
+  });
   const nameInput = app.querySelector('#sheet-name-input');
   if (nameInput) {
     nameInput.addEventListener('input', (event) => {
@@ -2803,6 +3221,159 @@ function bindEvents() {
     });
   }
 
+  app.querySelectorAll('[data-add-mount]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      if (!Array.isArray(character.data.tables.Monture)) {
+        character.data.tables.Monture = [];
+      }
+      const newIndex = character.data.tables.Monture.length;
+      character.data.tables.Monture.push({});
+      await save();
+      const targetPath = `tables.Monture.${newIndex}.0`;
+      render(targetPath, true);
+    });
+  });
+
+  app.querySelectorAll('[data-delete-mount]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const mountIndex = Number(btn.dataset.deleteMount);
+      if (!Array.isArray(character.data.tables.Monture) || !Number.isInteger(mountIndex)) return;
+      character.data.tables.Monture.splice(mountIndex, 1);
+      if (character.data.tables.Monture.length === 0) {
+        character.data.tables.Monture.push({});
+      }
+      await save();
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-mount-owlbear-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.mountOwlbearBtn);
+      chooseOwlbearAssetForMount(idx);
+    });
+  });
+
+  app.querySelectorAll('[data-mount-url-btn]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.mountUrlBtn);
+      promptMountImageUrl(idx);
+    });
+  });
+
+  app.querySelectorAll('[data-mount-remove-btn]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const character = currentCharacter();
+      if (!character || !canEditCurrent()) return;
+      const idx = Number(btn.dataset.mountRemoveBtn);
+      removeMountImage(character, idx);
+      await save();
+      render();
+    });
+  });
+
+  app.querySelectorAll('[data-mount-image-container]').forEach((container) => {
+    container.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('.image-corner-handle')) return;
+      const idx = Number(container.dataset.mountImageContainer);
+      const character = currentCharacter();
+      if (!character) return;
+      const currentImg = getMountImage(character, idx);
+      if (!currentImg) {
+        if (OBR.isAvailable) {
+          chooseOwlbearAssetForMount(idx);
+        } else {
+          promptMountImageUrl(idx);
+        }
+      }
+    });
+  });
+
+  app.querySelectorAll('[data-mount-corner-handle]').forEach((cornerHandle) => {
+    const mountIndex = Number(cornerHandle.dataset.mountCornerHandle);
+    const mountCard = cornerHandle.closest('.mount-card');
+    const imgContainer = mountCard?.querySelector(`[data-mount-image-container="${mountIndex}"]`);
+    const mountLayout = mountCard?.querySelector('.mount-layout');
+
+    if (!imgContainer || !mountLayout) return;
+
+    cornerHandle.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      try {
+        cornerHandle.setPointerCapture(e.pointerId);
+      } catch (err) {}
+
+      const startScreenX = typeof e.screenX === 'number' && e.screenX !== 0 ? e.screenX : e.clientX;
+      const startScreenY = typeof e.screenY === 'number' && e.screenY !== 0 ? e.screenY : e.clientY;
+      const startWidth = imgContainer.offsetWidth;
+      const startHeight = imgContainer.offsetHeight;
+      let currentWidth = startWidth;
+      let currentHeight = startHeight;
+
+      cornerHandle.classList.add('resizing');
+      const prevCursor = document.body.style.cursor;
+      document.body.style.cursor = 'nwse-resize';
+      document.body.style.userSelect = 'none';
+
+      const onPointerMove = (moveEvent) => {
+        const currScreenX = typeof moveEvent.screenX === 'number' && moveEvent.screenX !== 0 ? moveEvent.screenX : moveEvent.clientX;
+        const currScreenY = typeof moveEvent.screenY === 'number' && moveEvent.screenY !== 0 ? moveEvent.screenY : moveEvent.clientY;
+        const deltaX = currScreenX - startScreenX;
+        const deltaY = currScreenY - startScreenY;
+
+        currentWidth = Math.max(180, Math.min(850, Math.round(startWidth + deltaX)));
+        currentHeight = Math.max(180, Math.min(1200, Math.round(startHeight + deltaY)));
+        mountLayout.style.setProperty('--portrait-width', `${currentWidth}px`);
+        mountLayout.style.setProperty('--portrait-height', `${currentHeight}px`);
+      };
+
+      const onPointerUp = (upEvent) => {
+        try {
+          if (cornerHandle.hasPointerCapture(upEvent.pointerId)) {
+            cornerHandle.releasePointerCapture(upEvent.pointerId);
+          }
+        } catch (err) {}
+
+        cornerHandle.removeEventListener('pointermove', onPointerMove);
+        cornerHandle.removeEventListener('pointerup', onPointerUp);
+        cornerHandle.removeEventListener('pointercancel', onPointerUp);
+
+        cornerHandle.classList.remove('resizing');
+        document.body.style.cursor = prevCursor;
+        document.body.style.userSelect = '';
+
+        const character = currentCharacter();
+        if (character) {
+          ensureMountRow(character, mountIndex);
+          const row = character.data.tables.Monture[mountIndex];
+          if (row) {
+            row.imageSettings = {
+              width: currentWidth,
+              height: currentHeight
+            };
+            queueSave(300);
+          }
+        }
+      };
+
+      cornerHandle.addEventListener('pointermove', onPointerMove);
+      cornerHandle.addEventListener('pointerup', onPointerUp);
+      cornerHandle.addEventListener('pointercancel', onPointerUp);
+    });
+  });
+
   bindPageResizing();
 }
 
@@ -2881,6 +3452,13 @@ function bindPageResizing() {
     };
 
     handle.addEventListener('pointerdown', onPointerDown);
+
+    handle.addEventListener('dblclick', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const defaults = await getDefaultWindowDimensions();
+      applyPageSize(defaults.width, defaults.height, true, true);
+    });
   });
 }
 

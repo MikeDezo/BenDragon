@@ -82,7 +82,30 @@ button { color: inherit; }
 }
 .sheet-kicker { margin: 0 0 7px; font: 500 11px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .sheet-title { margin: 0; font-size: clamp(24px, 4vw, 42px); font-weight: 600; letter-spacing: -.04em; }
-.sheet-meta { text-align: right; font: 11px 'DM Mono', monospace; color: var(--muted); line-height: 1.6; }
+.sheet-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  font: 11px 'DM Mono', monospace;
+  color: var(--muted);
+  line-height: 1.5;
+  gap: 3px;
+}
+.sheet-meta-workspace {
+  color: var(--muted);
+}
+.cloud-status {
+  font-size: calc(10.5px * var(--font-scale, 1));
+  font-weight: 500;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.04);
+  padding: 2px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
 
 .sheet-tabs {
   display: flex;
@@ -313,6 +336,55 @@ button { color: inherit; }
 }
 .info-fields { border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
 
+/* Monture Tab Layout */
+.monture-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.monture-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.mount-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 20px;
+  border-bottom: 1px dashed var(--line-soft);
+}
+.mount-card:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.mount-header {
+  font: 600 calc(13px * var(--font-scale, 1)) 'Space Grotesk', sans-serif;
+  color: var(--accent);
+}
+.mount-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  width: 100%;
+}
+.mount-actions .mount-action-btn {
+  flex: 1 1 0px;
+  width: 50%;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  padding: 6px 10px;
+  font: 500 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace;
+  box-sizing: border-box;
+  text-align: center;
+  white-space: nowrap;
+}
+
 /* Page and window resizing handles */
 .page-resize-handle {
   position: absolute;
@@ -499,14 +571,76 @@ body.page-resizing {
 .sheet-table-weapons th:nth-child(11), .sheet-table-weapons td:nth-child(11),
 .sheet-table-weapons th:nth-child(12), .sheet-table-weapons td:nth-child(12) { width: 82px; }
 .sheet-table-weapons .cell-input { min-width: 0; }
-.sheet-table-specialisations .row-actions, .sheet-table-weapons .row-actions { width: 64px; min-width: 64px; }
-.sheet-table-specialisations .delete-row, .sheet-table-weapons .delete-row { padding: 3px 4px; font-size: calc(9px * var(--font-scale, 1)); }
+.sheet-table-armor { table-layout: fixed; }
+.sheet-table-armor th:nth-child(1), .sheet-table-armor td:nth-child(1) { width: 170px; }
+.sheet-table-armor th:nth-child(2), .sheet-table-armor td:nth-child(2) { width: 95px; }
+.sheet-table-armor th:nth-child(3), .sheet-table-armor td:nth-child(3) { width: 105px; }
+.sheet-table-armor th:nth-child(4), .sheet-table-armor td:nth-child(4) { width: 95px; }
+.sheet-table-armor th:nth-child(5), .sheet-table-armor td:nth-child(5) { width: 220px; }
+.sheet-table-armor th:nth-child(6), .sheet-table-armor td:nth-child(6) { width: 260px; }
+.sheet-table-armor .cell-input { min-width: 0; }
+.sheet-table-inventory { table-layout: fixed; }
+.sheet-table-inventory th:nth-child(1), .sheet-table-inventory td:nth-child(1) { width: 85px; }
+.sheet-table-inventory th:nth-child(2), .sheet-table-inventory td:nth-child(2) { width: 220px; }
+.sheet-table-inventory th:nth-child(3), .sheet-table-inventory td:nth-child(3) { width: 340px; }
+.sheet-table-inventory th:nth-child(4), .sheet-table-inventory td:nth-child(4) { width: 180px; }
+.sheet-table-inventory .cell-input { min-width: 0; }
+.sheet-table-relations { table-layout: fixed; }
+.sheet-table-relations th:nth-child(1), .sheet-table-relations td:nth-child(1) { width: 150px; }
+.sheet-table-relations th:nth-child(2), .sheet-table-relations td:nth-child(2) { width: 120px; }
+.sheet-table-relations th:nth-child(3), .sheet-table-relations td:nth-child(3) { width: 100px; }
+.sheet-table-relations th:nth-child(4), .sheet-table-relations td:nth-child(4) { width: 80px; }
+.sheet-table-relations th:nth-child(5), .sheet-table-relations td:nth-child(5) { width: 140px; }
+.sheet-table-relations th:nth-child(6), .sheet-table-relations td:nth-child(6) { width: 140px; }
+.sheet-table-relations th:nth-child(7), .sheet-table-relations td:nth-child(7) { width: 220px; }
+.sheet-table-relations .cell-input { min-width: 0; }
+.sheet-table-specialisations .row-actions, .sheet-table-weapons .row-actions, .sheet-table-armor .row-actions, .sheet-table-inventory .row-actions, .sheet-table-relations .row-actions { width: 64px; min-width: 64px; }
+.sheet-table-specialisations .delete-row, .sheet-table-weapons .delete-row, .sheet-table-armor .delete-row, .sheet-table-inventory .delete-row, .sheet-table-relations .delete-row { padding: 3px 4px; font-size: calc(9px * var(--font-scale, 1)); }
 .sheet-table .cell-input:focus { background: #fffdf4; box-shadow: inset 0 0 0 2px var(--accent-soft); }
 .sheet-table .special-effect-input { display: block; margin: 2px 0; }
 .sheet-table .special-effect-yellow { background: var(--yellow); }
 .sheet-table .special-effect-red { background: var(--red); }
 .sheet-table .special-effect-dark-red { background: var(--red-dark); }
 .sheet-table .special-effect-darkest-red { background: var(--red-darkest); color: #fff; }
+.armor-runes-container {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.armor-rune-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.armor-rune-badge {
+  font-family: 'DM Mono', monospace;
+  font-size: calc(9.5px * var(--font-scale, 1));
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--paper-deep);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+.armor-rune-line .rune-input {
+  min-height: 22px;
+  height: 22px;
+  padding: 1px 2px;
+  font-size: calc(11.5px * var(--font-scale, 1));
+}
+.runes-empty-note {
+  color: var(--muted);
+  font-size: calc(11px * var(--font-scale, 1));
+  font-style: italic;
+  padding: 4px 2px;
+}
 .add-row { margin-top: 10px; border: 1px solid var(--line); border-radius: 0; padding: 8px 10px; background: var(--paper-deep); cursor: pointer; font: 500 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace; }
 .add-row:hover { background: #fffdf4; }
 .row-actions { width: 64px; min-width: 64px; padding-left: 4px !important; padding-right: 4px !important; text-align: center !important; white-space: nowrap; }

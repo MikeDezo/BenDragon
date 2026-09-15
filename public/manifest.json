@@ -10,7 +10,7 @@
     "title": "Ben & Dragon!",
     "icon": "/icon.svg",
     "popover": "/character-sheet.html",
-    "height": 1800,
-    "width": 900
+    "height": 900,
+    "width": 960
   }
 }
