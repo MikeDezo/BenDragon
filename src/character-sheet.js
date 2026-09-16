@@ -113,7 +113,17 @@ const blankCharacter = (name = 'New Character') => ({
       FullRestante: '0',
       FreeRestante: '0'
     },
-    tables: {},
+    tables: {
+      Weapons: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Armor: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Inventory: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Relations: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Skills: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Specialisations: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({
+        1: 'Unspecialised', 2: '0', 3: '0', 4: [], 5: '0'
+      })),
+      'Note du joueur': [{}]
+    },
     powerThemes: [
       {
         title: 'Power Theme 1',
@@ -2013,10 +2023,18 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   character.data.quickAccessSkillSlot ??= 0;
   character.data.quickAccessSpellSlot ??= 0;
 
-  const rawWeapons = Array.isArray(character.data.tables?.Weapons) ? character.data.tables.Weapons : [];
-  const rawSpecs = Array.isArray(character.data.tables?.Specialisations) ? character.data.tables.Specialisations : [];
-  const rawSkills = Array.isArray(character.data.tables?.Skills) ? character.data.tables.Skills : [];
-  const rawSpells = Array.isArray(character.data.tables?.Spell) ? character.data.tables.Spell : [];
+  const normalizeTableRows = (stored) => {
+    if (Array.isArray(stored)) return stored;
+    if (stored && typeof stored === 'object') {
+      return Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((k) => stored[k]);
+    }
+    return [];
+  };
+
+  const rawWeapons = normalizeTableRows(character.data.tables?.Weapons);
+  const rawSpecs = normalizeTableRows(character.data.tables?.Specialisations);
+  const rawSkills = normalizeTableRows(character.data.tables?.Skills);
+  const rawSpells = normalizeTableRows(character.data.tables?.Spell);
 
   const defenseTableHtml = `
     <div class="qa-table-card">
@@ -2761,6 +2779,7 @@ function rollsAndIniPage() {
 
 function tablePage(name, character) {
   const headers = tables[name];
+  character.data.tables ??= {};
   const storedRows = character.data.tables[name];
   let rows = Array.isArray(storedRows)
     ? storedRows
@@ -2769,7 +2788,7 @@ function tablePage(name, character) {
       : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
   const isActionTypes = name === 'Action Types';
   if (isActionTypes) rows = ACTION_TYPES_ROWS;
-  if (storedRows && !Array.isArray(storedRows)) {
+  if (!isActionTypes) {
     character.data.tables[name] = rows;
   }
   if (name === 'Specialisations') {
@@ -3303,6 +3322,17 @@ async function load() {
   state.rollHistory ??= [];
   state.initiativeTracker ??= {};
 
+  Object.values(state.characters).forEach((char) => {
+    if (char?.data?.tables) {
+      Object.keys(char.data.tables).forEach((tName) => {
+        const tVal = char.data.tables[tName];
+        if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
+          char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+        }
+      });
+    }
+  });
+
   try {
     if (!OBR.isAvailable) {
       const savedUser = JSON.parse(localStorage.getItem('terranova.currentUser') || 'null');
@@ -3632,6 +3662,16 @@ async function initialise() {
         state.assignments ??= {};
         state.rollHistory ??= [];
         state.initiativeTracker ??= {};
+        Object.values(state.characters).forEach((char) => {
+          if (char?.data?.tables) {
+            Object.keys(char.data.tables).forEach((tName) => {
+              const tVal = char.data.tables[tName];
+              if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
+                char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+              }
+            });
+          }
+        });
         if (user.role === 'GM') {
           if (!activeCharacterId || !state.characters[activeCharacterId]) {
             activeCharacterId = Object.keys(state.characters)[0] || null;
@@ -3983,6 +4023,7 @@ function bindEvents() {
           }
         }
       }
+      queueSave(300);
     };
     input.addEventListener('input', handleUpdate);
     input.addEventListener('change', async () => {
@@ -4040,8 +4081,14 @@ function bindEvents() {
         } else if (tables[activeTab]) {
           const character = currentCharacter();
           if (character && canEditCurrent()) {
-            if (!character.data.tables[activeTab]) {
-              character.data.tables[activeTab] = Array.from({ length: activeTab === 'Note du joueur' ? 1 : 8 }, () => ({}));
+            character.data.tables ??= {};
+            if (!character.data.tables[activeTab] || !Array.isArray(character.data.tables[activeTab])) {
+              const stored = character.data.tables[activeTab];
+              character.data.tables[activeTab] = Array.isArray(stored)
+                ? stored
+                : stored && typeof stored === 'object'
+                  ? Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((k) => stored[k])
+                  : Array.from({ length: activeTab === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
             }
             const newRowIndex = character.data.tables[activeTab].length;
             character.data.tables[activeTab].push({});
@@ -4205,8 +4252,14 @@ function bindEvents() {
     if (!character || !canEditCurrent()) return;
     const name = button.dataset.addRow;
     activeTab = name;
-    if (!character.data.tables[name]) {
-      character.data.tables[name] = Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
+    character.data.tables ??= {};
+    if (!character.data.tables[name] || !Array.isArray(character.data.tables[name])) {
+      const stored = character.data.tables[name];
+      character.data.tables[name] = Array.isArray(stored)
+        ? stored
+        : stored && typeof stored === 'object'
+          ? Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((k) => stored[k])
+          : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
     }
     const newRowIndex = character.data.tables[name].length;
     character.data.tables[name].push({});
@@ -5005,6 +5058,18 @@ function bindPageResizing() {
       applyPageSize(defaults.width, defaults.height, true, true);
     });
   });
+}
+
+if (typeof window !== 'undefined') {
+  const flushSave = () => {
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
+      saveTimeout = null;
+    }
+    save();
+  };
+  window.addEventListener('beforeunload', flushSave);
+  window.addEventListener('pagehide', flushSave);
 }
 
 initialise().catch((error) => {
