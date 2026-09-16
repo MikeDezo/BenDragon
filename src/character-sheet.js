@@ -93,6 +93,7 @@ const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': 
 const blankCharacter = (name = 'New Character') => ({
   name,
   ownerId: null,
+  updatedAt: Date.now(),
   data: {
     info: {},
     stats: {
@@ -122,6 +123,24 @@ const blankCharacter = (name = 'New Character') => ({
       Specialisations: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({
         1: 'Unspecialised', 2: '0', 3: '0', 4: [], 5: '0'
       })),
+      Spell: [
+        [
+          'Counter Spell',
+          '2',
+          'Normal',
+          '10',
+          '2 x Spirit',
+          'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
+          'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
+          'Fail',
+          '(Fgt/10)D6 + (MP/4) Vs Energy',
+          '(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy',
+          '(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy',
+          '(Fgt/10)D6 + ((MP/4)*2) Vs Energy',
+          '(Fgt/10)D6 + ((MP/4)*3) Vs Energy'
+        ],
+        {}
+      ],
       'Note du joueur': [{}]
     },
     powerThemes: [
@@ -2781,11 +2800,31 @@ function tablePage(name, character) {
   const headers = tables[name];
   character.data.tables ??= {};
   const storedRows = character.data.tables[name];
-  let rows = Array.isArray(storedRows)
-    ? storedRows
-    : storedRows && typeof storedRows === 'object'
-      ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
-      : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
+  let rows;
+  if (name === 'Spell' && (!storedRows || (Array.isArray(storedRows) && storedRows.length === 0))) {
+    rows = [[
+      'Counter Spell',
+      '2',
+      'Normal',
+      '10',
+      '2 x Spirit',
+      'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
+      'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
+      'Fail',
+      '(Fgt/10)D6 + (MP/4) Vs Energy',
+      '(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy',
+      '(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy',
+      '(Fgt/10)D6 + ((MP/4)*2) Vs Energy',
+      '(Fgt/10)D6 + ((MP/4)*3) Vs Energy'
+    ]];
+    character.data.tables.Spell = rows;
+  } else {
+    rows = Array.isArray(storedRows)
+      ? storedRows
+      : storedRows && typeof storedRows === 'object'
+        ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
+        : Array.from({ length: name === 'Note du joueur' ? 1 : DEFAULT_TABLE_ROWS }, () => ({}));
+  }
   const isActionTypes = name === 'Action Types';
   if (isActionTypes) rows = ACTION_TYPES_ROWS;
   if (!isActionTypes) {
@@ -2859,26 +2898,6 @@ function tablePage(name, character) {
       }
     });
     if (!character.data.tables[name]) character.data.tables[name] = rows;
-  }
-  if (name === 'Spell') {
-    if (!character.data.tables.Spell || (Array.isArray(character.data.tables.Spell) && character.data.tables.Spell.length === 0)) {
-      rows = [[
-        'Counter Spell',
-        '2',
-        'Normal',
-        '10',
-        '2 x Spirit',
-        'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
-        'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
-        'Fail',
-        '(Fgt/10)D6 + (MP/4) Vs Energy',
-        '(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy',
-        '(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy',
-        '(Fgt/10)D6 + ((MP/4)*2) Vs Energy',
-        '(Fgt/10)D6 + ((MP/4)*3) Vs Energy'
-      ]];
-      character.data.tables.Spell = rows;
-    }
   }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
   const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
@@ -3203,6 +3222,8 @@ function setPath(path, value) {
     target = target[part];
   });
   target[parts.at(-1)] = value;
+  character.updatedAt = Date.now();
+  state.updatedAt = Date.now();
 }
 
 let saveTimeout = null;
@@ -3221,6 +3242,48 @@ function getSaveHash(data) {
   } catch (e) {
     return '';
   }
+}
+
+function mergeStates(roomState, localState) {
+  if (!roomState && !localState) {
+    return { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {}, updatedAt: Date.now() };
+  }
+  if (!roomState) return localState;
+  if (!localState) return roomState;
+
+  const merged = {
+    updatedAt: Math.max(roomState.updatedAt || 0, localState.updatedAt || 0),
+    characters: { ...roomState.characters },
+    assignments: { ...roomState.assignments, ...localState.assignments },
+    initiativeTracker: { ...roomState.initiativeTracker, ...localState.initiativeTracker },
+    rollHistory: []
+  };
+
+  const allCharIds = new Set([
+    ...Object.keys(roomState.characters || {}),
+    ...Object.keys(localState.characters || {})
+  ]);
+
+  allCharIds.forEach((id) => {
+    const rChar = roomState.characters?.[id];
+    const lChar = localState.characters?.[id];
+    if (rChar && lChar) {
+      const rTime = rChar.updatedAt || roomState.updatedAt || 0;
+      const lTime = lChar.updatedAt || localState.updatedAt || 0;
+      merged.characters[id] = lTime >= rTime ? lChar : rChar;
+    } else if (lChar) {
+      merged.characters[id] = lChar;
+    } else if (rChar) {
+      merged.characters[id] = rChar;
+    }
+  });
+
+  const historyMap = new Map();
+  (roomState.rollHistory || []).forEach((r) => { if (r && r.id) historyMap.set(r.id, r); });
+  (localState.rollHistory || []).forEach((r) => { if (r && r.id) historyMap.set(r.id, r); });
+  merged.rollHistory = Array.from(historyMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  return merged;
 }
 
 function queueSave(delay = 400) {
@@ -3255,7 +3318,8 @@ async function save() {
   }
 
   isSaving = true;
-  const payload = { ...state, updatedAt: Date.now() };
+  state.updatedAt = Date.now();
+  const payload = { ...state, updatedAt: state.updatedAt };
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -3268,9 +3332,9 @@ async function save() {
       const status = document.querySelector('#cloud-status');
       if (status) status.textContent = 'Saved to Owlbear cloud';
     } catch (err) {
-      console.error('Failed to save to Owlbear room metadata:', err);
+      console.warn('Failed to save to Owlbear room metadata:', err);
       const status = document.querySelector('#cloud-status');
-      if (status) status.textContent = 'Cloud save failed';
+      if (status) status.textContent = 'Saved locally';
     } finally {
       isSaving = false;
       if (pendingSave) {
@@ -3278,6 +3342,19 @@ async function save() {
         setTimeout(() => save(), 250);
       }
     }
+
+    try {
+      if (OBR.broadcast?.sendMessage) {
+        const char = currentCharacter();
+        if (char && activeCharacterId) {
+          OBR.broadcast.sendMessage('terranova/character-update', {
+            characterId: activeCharacterId,
+            character: char,
+            updatedAt: char.updatedAt || state.updatedAt
+          }, { destination: 'ALL' });
+        }
+      }
+    } catch (e) {}
   } else {
     lastSavedHash = currentHash;
     const status = document.querySelector('#cloud-status');
@@ -3300,23 +3377,21 @@ async function load() {
     }
   }
 
-  if (source && source[STORAGE_KEY]) {
-    state = source[STORAGE_KEY];
-  } else {
-    try {
-      const localStr = localStorage.getItem(STORAGE_KEY);
-      if (localStr) {
-        const parsed = JSON.parse(localStr);
-        if (parsed && parsed[STORAGE_KEY]) {
-          state = parsed[STORAGE_KEY];
-        } else if (parsed && parsed.characters) {
-          state = parsed;
-        }
+  let localParsed = null;
+  try {
+    const localStr = localStorage.getItem(STORAGE_KEY);
+    if (localStr) {
+      const parsed = JSON.parse(localStr);
+      if (parsed && parsed[STORAGE_KEY]) {
+        localParsed = parsed[STORAGE_KEY];
+      } else if (parsed && parsed.characters) {
+        localParsed = parsed;
       }
-    } catch (e) {}
-  }
+    }
+  } catch (e) {}
 
-  state ??= { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {} };
+  const roomState = source?.[STORAGE_KEY] || null;
+  state = mergeStates(roomState, localParsed);
   state.characters ??= {};
   state.assignments ??= {};
   state.rollHistory ??= [];
@@ -3389,8 +3464,12 @@ async function load() {
     }
   }
 
+  if (roomState && localParsed && (localParsed.updatedAt || 0) > (roomState.updatedAt || 0)) {
+    queueSave(500);
+  }
+
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: Date.now() }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt || Date.now() }));
     localStorage.setItem('terranova.currentUser', JSON.stringify(user));
     localStorage.setItem('terranova.players', JSON.stringify(players));
     if (activeCharacterId) {
@@ -3656,8 +3735,8 @@ async function initialise() {
         if (nextHash === lastSavedHash) {
           return;
         }
-        lastSavedHash = nextHash;
-        state = nextState;
+        state = mergeStates(nextState, state);
+        lastSavedHash = getSaveHash(state);
         state.characters ??= {};
         state.assignments ??= {};
         state.rollHistory ??= [];
@@ -3699,6 +3778,25 @@ async function initialise() {
         localStorage.setItem('terranova.players', JSON.stringify(players));
       } catch (e) {}
       render();
+    });
+
+    OBR.broadcast.onMessage('terranova/character-update', (event) => {
+      const data = event.data;
+      if (data && data.characterId && data.character) {
+        const existing = state.characters[data.characterId];
+        const existingTime = existing?.updatedAt || 0;
+        if (!existing || (data.updatedAt || 0) >= existingTime) {
+          state.characters[data.characterId] = data.character;
+          state.updatedAt = Math.max(state.updatedAt || 0, data.updatedAt || Date.now());
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt }));
+          } catch (e) {}
+          if (user.role === 'GM') {
+            queueSave(200);
+          }
+          render();
+        }
+      }
     });
 
     OBR.broadcast.onMessage('terranova/stat-roll-start', (event) => {
@@ -4107,6 +4205,9 @@ function bindEvents() {
       if (!row) return;
       if (!Array.isArray(row[4])) row[4] = [row[4] || ''];
       row[4][Number(input.dataset.specialEffectIndex)] = input.value;
+      const character = currentCharacter();
+      if (character) character.updatedAt = Date.now();
+      state.updatedAt = Date.now();
       queueSave();
     };
     input.addEventListener('input', updateEffect);
@@ -4125,6 +4226,9 @@ function bindEvents() {
       if (!Array.isArray(row[4])) {
         row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
       }
+      const character = currentCharacter();
+      if (character) character.updatedAt = Date.now();
+      state.updatedAt = Date.now();
       const container = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
       if (container) {
         const runePath = `tables.Armor.${rowIndex}.4`;
@@ -4145,6 +4249,8 @@ function bindEvents() {
       const character = currentCharacter();
       if (character) {
         character.name = event.target.value;
+        character.updatedAt = Date.now();
+        state.updatedAt = Date.now();
         const select = app.querySelector('#character-select');
         const activeOption = select?.querySelector(`option[value="${activeCharacterId}"]`);
         if (activeOption) {
@@ -4156,6 +4262,8 @@ function bindEvents() {
       const character = currentCharacter();
       if (character) {
         character.name = nameInput.value.trim() || 'Unnamed Character';
+        character.updatedAt = Date.now();
+        state.updatedAt = Date.now();
         await save();
         render();
       }
@@ -4190,6 +4298,7 @@ function bindEvents() {
     if (user.role !== 'GM') return;
     activeCharacterId = crypto.randomUUID();
     state.characters[activeCharacterId] = blankCharacter(`Character ${Object.keys(state.characters).length + 1}`);
+    state.updatedAt = Date.now();
     render();
     await save();
   });
@@ -4204,6 +4313,7 @@ function bindEvents() {
 
     const deletedId = activeCharacterId;
     delete state.characters[deletedId];
+    state.updatedAt = Date.now();
 
     const newAssignments = {};
     Object.entries(state.characters).forEach(([cId, c]) => {
@@ -4232,6 +4342,8 @@ function bindEvents() {
     const character = currentCharacter();
     if (character) {
       character.ownerId = event.target.value || null;
+      character.updatedAt = Date.now();
+      state.updatedAt = Date.now();
       const newAssignments = {};
       Object.entries(state.characters).forEach(([cId, c]) => {
         if (c.ownerId) {
@@ -4263,6 +4375,8 @@ function bindEvents() {
     }
     const newRowIndex = character.data.tables[name].length;
     character.data.tables[name].push({});
+    character.updatedAt = Date.now();
+    state.updatedAt = Date.now();
     await save();
     const targetPath = `tables.${name}.${newRowIndex}.0`;
     render(targetPath, true);
@@ -4276,6 +4390,8 @@ function bindEvents() {
     const rows = character.data.tables[name];
     if (!Array.isArray(rows) || !Number.isInteger(rowIndex)) return;
     rows.splice(rowIndex, 1);
+    character.updatedAt = Date.now();
+    state.updatedAt = Date.now();
     await save();
     render();
   }));
