@@ -159,6 +159,169 @@ const blankCharacter = (name = 'New Character') => ({
   }
 });
 
+function isCharacterAssigned(id, char) {
+  if (char?.ownerId) return true;
+  if (!state.assignments) return false;
+  return Object.values(state.assignments).some((val) => {
+    if (Array.isArray(val)) return val.includes(id);
+    return val === id;
+  });
+}
+
+function getSortedDmCharacterEntries() {
+  return Object.entries(state.characters || {}).sort(([idA, itemA], [idB, itemB]) => {
+    const isAssignedA = isCharacterAssigned(idA, itemA);
+    const isAssignedB = isCharacterAssigned(idB, itemB);
+    if (isAssignedA !== isAssignedB) {
+      return isAssignedA ? -1 : 1;
+    }
+    const nameA = String(itemA?.name || idA || '').trim();
+    const nameB = String(itemB?.name || idB || '').trim();
+    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
+  });
+}
+
+let tableSortState = {};
+let powerThemeSortState = {};
+let iniSortState = { colKey: 'order', direction: 'asc' };
+let rollHistorySortState = { colKey: 'time', direction: 'desc' };
+
+function compareValues(valA, valB, direction = 'asc') {
+  if (Array.isArray(valA)) valA = valA.filter(Boolean).join(', ');
+  if (Array.isArray(valB)) valB = valB.filter(Boolean).join(', ');
+
+  if (typeof valA === 'boolean' || typeof valB === 'boolean') {
+    valA = valA ? 1 : 0;
+    valB = valB ? 1 : 0;
+  }
+
+  const strA = valA != null ? String(valA).trim() : '';
+  const strB = valB != null ? String(valB).trim() : '';
+
+  const emptyA = strA === '' || strA === '-' || strA === '—';
+  const emptyB = strB === '' || strB === '-' || strB === '—';
+  if (emptyA && emptyB) return 0;
+  if (emptyA) return 1;
+  if (emptyB) return -1;
+
+  const numA = Number(strA);
+  const numB = Number(strB);
+  const isNumA = !isNaN(numA) && !isNaN(parseFloat(strA));
+  const isNumB = !isNaN(numB) && !isNaN(parseFloat(strB));
+
+  let cmp = 0;
+  if (isNumA && isNumB) {
+    cmp = numA - numB;
+  } else {
+    cmp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  return direction === 'desc' ? -cmp : cmp;
+}
+
+async function sortTable(tableName, columnIndex) {
+  const headers = tables[tableName];
+  if (!headers) return;
+  const colName = headers[columnIndex];
+
+  const currentSort = tableSortState[tableName];
+  let direction = 'asc';
+  if (currentSort && currentSort.colIndex === columnIndex) {
+    direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+  }
+  tableSortState[tableName] = { colIndex: columnIndex, colName, direction };
+
+  if (tableName === 'Action Types') {
+    ACTION_TYPES_ROWS.sort((rowA, rowB) => {
+      const valA = rowA[columnIndex];
+      const valB = rowB[columnIndex];
+      return compareValues(valA, valB, direction);
+    });
+    render();
+    return;
+  }
+
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) {
+    render();
+    return;
+  }
+
+  character.data.tables ??= {};
+  let rows = character.data.tables[tableName];
+  if (!Array.isArray(rows)) {
+    if (rows && typeof rows === 'object') {
+      rows = Object.keys(rows).sort((a, b) => Number(a) - Number(b)).map((key) => rows[key]);
+    } else {
+      rows = [];
+    }
+  }
+
+  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+  const sourceColumnIndex = tableName === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
+
+  rows.sort((rowA, rowB) => {
+    let valA = rowA ? rowA[sourceColumnIndex] : '';
+    let valB = rowB ? rowB[sourceColumnIndex] : '';
+
+    if (tableName === 'Specialisations') {
+      if (sourceColumnIndex === 1) {
+        valA = valA || 'Unspecialised';
+        valB = valB || 'Unspecialised';
+      } else if ([2, 3, 5].includes(sourceColumnIndex)) {
+        valA = valA || '0';
+        valB = valB || '0';
+      }
+    } else if (tableName === 'Weapons') {
+      if (headers[columnIndex] === 'Two handed?') {
+        valA = Boolean(rowA?.[10]);
+        valB = Boolean(rowB?.[10]);
+      }
+    }
+
+    return compareValues(valA, valB, direction);
+  });
+
+  character.data.tables[tableName] = rows;
+  character.updatedAt = Date.now();
+  state.updatedAt = Date.now();
+  await save();
+  render();
+}
+
+async function sortPowerThemeTable(themeIdx, colKey) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  const themes = getPowerThemes(character);
+  const theme = themes[themeIdx];
+  if (!theme || !Array.isArray(theme.powers)) return;
+
+  const currentSort = powerThemeSortState[themeIdx];
+  let direction = 'asc';
+  if (currentSort && currentSort.colKey === colKey) {
+    direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+  }
+  powerThemeSortState[themeIdx] = { colKey, direction };
+
+  theme.powers.sort((pA, pB) => {
+    if (colKey === 'roll') {
+      const rankA = getUniversalRankVal(pA?.roll);
+      const rankB = getUniversalRankVal(pB?.roll);
+      if (rankA != null && rankB != null) {
+        return direction === 'desc' ? rankB - rankA : rankA - rankB;
+      }
+    }
+    const valA = pA ? pA[colKey] : '';
+    const valB = pB ? pB[colKey] : '';
+    return compareValues(valA, valB, direction);
+  });
+
+  character.updatedAt = Date.now();
+  state.updatedAt = Date.now();
+  await save();
+  render();
+}
+
 function getAssignedCharacters(userId) {
   if (!userId) return [];
   return Object.entries(state.characters).filter(([id, char]) => {
@@ -890,6 +1053,16 @@ function uniquePowerPage(character) {
         const heightVal = imgSettings.height || 420;
         const powers = Array.isArray(theme.powers) ? theme.powers : [];
         const themeTitle = theme.title || (themes.length > 1 ? `Power Theme ${themeIdx + 1}` : 'Power Theme');
+        const currentPowerSort = powerThemeSortState[themeIdx];
+        const renderPowerTh = (colKey, label, className) => {
+          const isSorted = currentPowerSort && currentPowerSort.colKey === colKey;
+          const sortDir = isSorted ? currentPowerSort.direction : null;
+          const sortClass = isSorted ? ` sort-active sort-${sortDir}` : '';
+          const sortIcon = isSorted
+            ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Sorted ascending">▲</span>' : '<span class="sort-icon sort-desc" title="Sorted descending">▼</span>')
+            : '<span class="sort-icon sort-none" title="Click to sort">⇅</span>';
+          return `<th class="${className} sortable-header${sortClass}" data-sort-power-theme="${themeIdx}" data-power-col="${colKey}" title="Click to sort by ${esc(label)}"><span class="th-content">${esc(label)}${sortIcon}</span></th>`;
+        };
 
         return `<div class="power-theme-card" data-theme-card="${themeIdx}">
           <div class="grid-sheet info-layout power-theme-layout" style="--portrait-width: ${widthVal}px; --portrait-height: ${heightVal}px;">
@@ -934,11 +1107,11 @@ function uniquePowerPage(character) {
                 <table class="sheet-table sheet-table-unique-powers">
                   <thead>
                     <tr>
-                      <th class="col-p-name">Power Name</th>
-                      <th class="col-p-desc">Description</th>
-                      <th class="col-p-roll">Roll</th>
-                      <th class="col-p-cost">Cost</th>
-                      <th class="col-p-charges">Daily Use / Charge</th>
+                      ${renderPowerTh('name', 'Power Name', 'col-p-name')}
+                      ${renderPowerTh('description', 'Description', 'col-p-desc')}
+                      ${renderPowerTh('roll', 'Roll', 'col-p-roll')}
+                      ${renderPowerTh('cost', 'Cost', 'col-p-cost')}
+                      ${renderPowerTh('charges', 'Daily Use / Charge', 'col-p-charges')}
                       <th class="col-p-rollbtn" style="text-align: center;">Roll</th>
                       <th class="row-actions col-p-delete" style="text-align: center;">Delete</th>
                     </tr>
@@ -2621,7 +2794,28 @@ function rollsAndIniPage() {
     .filter((e) => !e.inCombat)
     .sort((a, b) => a.charName.localeCompare(b.charName));
 
-  const sortedIniList = [...inCombatRolled, ...inCombatUnrolled, ...outOfCombatList];
+  let sortedIniList;
+  if (!iniSortState || iniSortState.colKey === 'order') {
+    if (iniSortState?.direction === 'desc') {
+      sortedIniList = [...inCombatRolled.slice().reverse(), ...inCombatUnrolled.slice().reverse(), ...outOfCombatList.slice().reverse()];
+    } else {
+      sortedIniList = [...inCombatRolled, ...inCombatUnrolled, ...outOfCombatList];
+    }
+  } else if (iniSortState.colKey === 'charName') {
+    sortedIniList = [...allEntries].sort((a, b) => compareValues(a.charName, b.charName, iniSortState.direction));
+  } else if (iniSortState.colKey === 'status') {
+    sortedIniList = [...allEntries].sort((a, b) => {
+      const statusA = a.isAssigned ? (a.ownerName || 'Player') : (a.inCombat ? 'NPC (In Combat)' : 'NPC (Out of Combat)');
+      const statusB = b.isAssigned ? (b.ownerName || 'Player') : (b.inCombat ? 'NPC (In Combat)' : 'NPC (Out of Combat)');
+      return compareValues(statusA, statusB, iniSortState.direction);
+    });
+  } else if (iniSortState.colKey === 'mods') {
+    sortedIniList = [...allEntries].sort((a, b) => compareValues(a.firstRoundBonus, b.firstRoundBonus, iniSortState.direction));
+  } else if (iniSortState.colKey === 'result') {
+    sortedIniList = [...allEntries].sort((a, b) => compareValues(a.hasRolled ? a.total : null, b.hasRolled ? b.total : null, iniSortState.direction));
+  } else {
+    sortedIniList = [...inCombatRolled, ...inCombatUnrolled, ...outOfCombatList];
+  }
 
   const inCombatEntries = allEntries.filter((e) => e.inCombat);
   const inCombatNpcs = allEntries.filter((e) => !e.isAssigned && e.inCombat);
@@ -2633,6 +2827,49 @@ function rollsAndIniPage() {
     if (rollFilter === 'crits') return r.outcomeType === 'crit-fail' || r.outcomeType === 'crit-success' || r.roll === 1 || r.roll === 100;
     return true;
   });
+
+  if (rollHistorySortState?.colKey) {
+    filteredRolls.sort((a, b) => {
+      let valA, valB;
+      if (rollHistorySortState.colKey === 'time') {
+        valA = a.timestamp || 0;
+        valB = b.timestamp || 0;
+      } else if (rollHistorySortState.colKey === 'charName') {
+        valA = `${a.charName || ''} ${a.playerName || ''}`;
+        valB = `${b.charName || ''} ${b.playerName || ''}`;
+      } else if (rollHistorySortState.colKey === 'stat') {
+        valA = a.statName || a.label || '';
+        valB = b.statName || b.label || '';
+      } else if (rollHistorySortState.colKey === 'formula') {
+        valA = a.detail || String(a.roll || '');
+        valB = b.detail || String(b.roll || '');
+      } else if (rollHistorySortState.colKey === 'outcome') {
+        valA = a.outcomeLabel || a.total || a.roll || '';
+        valB = b.outcomeLabel || b.total || b.roll || '';
+      }
+      return compareValues(valA, valB, rollHistorySortState.direction);
+    });
+  }
+
+  const renderIniTh = (colKey, label, style = '', align = 'left') => {
+    const isSorted = iniSortState && iniSortState.colKey === colKey;
+    const sortDir = isSorted ? iniSortState.direction : null;
+    const sortClass = isSorted ? ` sort-active sort-${sortDir}` : '';
+    const sortIcon = isSorted
+      ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Sorted ascending">▲</span>' : '<span class="sort-icon sort-desc" title="Sorted descending">▼</span>')
+      : '<span class="sort-icon sort-none" title="Click to sort">⇅</span>';
+    return `<th class="sortable-header${sortClass}" data-sort-ini-col="${colKey}" style="${style} text-align: ${align}; cursor: pointer;" title="Click to sort by ${esc(label)}"><span class="th-content" style="display: flex; align-items: center; justify-content: ${align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'space-between')}; gap: 4px;">${esc(label)}${sortIcon}</span></th>`;
+  };
+
+  const renderRollHistoryTh = (colKey, label, style = '', align = 'left') => {
+    const isSorted = rollHistorySortState && rollHistorySortState.colKey === colKey;
+    const sortDir = isSorted ? rollHistorySortState.direction : null;
+    const sortClass = isSorted ? ` sort-active sort-${sortDir}` : '';
+    const sortIcon = isSorted
+      ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Sorted ascending">▲</span>' : '<span class="sort-icon sort-desc" title="Sorted descending">▼</span>')
+      : '<span class="sort-icon sort-none" title="Click to sort">⇅</span>';
+    return `<th class="sortable-header${sortClass}" data-sort-roll-col="${colKey}" style="${style} text-align: ${align}; cursor: pointer;" title="Click to sort by ${esc(label)}"><span class="th-content" style="display: flex; align-items: center; justify-content: ${align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'space-between')}; gap: 4px;">${esc(label)}${sortIcon}</span></th>`;
+  };
 
   return `<div class="roll-tracker-layout">
     ${rollResultBannerHtml()}
@@ -2659,11 +2896,11 @@ function rollsAndIniPage() {
           <table class="tracker-table">
             <thead>
               <tr>
-                <th style="width: 60px; text-align: center;">Order</th>
-                <th>Character</th>
-                <th>Status / Assignment</th>
-                <th>Initiative Mods</th>
-                <th>Rolled Result</th>
+                ${renderIniTh('order', 'Order', 'width: 60px;', 'center')}
+                ${renderIniTh('charName', 'Character')}
+                ${renderIniTh('status', 'Status / Assignment')}
+                ${renderIniTh('mods', 'Initiative Mods')}
+                ${renderIniTh('result', 'Rolled Result')}
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
@@ -2749,11 +2986,11 @@ function rollsAndIniPage() {
           <table class="tracker-table">
             <thead>
               <tr>
-                <th style="width: 85px;">Time</th>
-                <th>Character / Player</th>
-                <th>Roll / Stat</th>
-                <th>Formula &amp; Details</th>
-                <th style="text-align: right;">Outcome</th>
+                ${renderRollHistoryTh('time', 'Time', 'width: 85px;')}
+                ${renderRollHistoryTh('charName', 'Character / Player')}
+                ${renderRollHistoryTh('stat', 'Roll / Stat')}
+                ${renderRollHistoryTh('formula', 'Formula & Details')}
+                ${renderRollHistoryTh('outcome', 'Outcome', '', 'right')}
               </tr>
             </thead>
             <tbody>
@@ -2938,11 +3175,18 @@ function tablePage(name, character) {
                   ? ' sheet-table-relations'
                   : '';
   const savedWidths = getPlayerColumnWidths(name);
+  const currentSort = tableSortState[name];
   const headersHtml = displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
     const savedW = savedWidths[header];
     const widthStyle = savedW ? ` style="width: ${savedW}px; min-width: ${savedW}px;"` : '';
-    return `<th${widthStyle} data-col-name="${esc(header)}" data-col-index="${columnIndex}"><span class="th-content">${esc(header)}</span><div class="col-resize-handle" data-col-resize="${esc(header)}" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
+    const isSorted = currentSort && currentSort.colIndex === columnIndex;
+    const sortDir = isSorted ? currentSort.direction : null;
+    const sortClass = isSorted ? ` sort-active sort-${sortDir}` : '';
+    const sortIcon = isSorted
+      ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Sorted ascending">▲</span>' : '<span class="sort-icon sort-desc" title="Sorted descending">▼</span>')
+      : '<span class="sort-icon sort-none" title="Click to sort">⇅</span>';
+    return `<th${widthStyle} class="sortable-header${sortClass}" data-sort-table="${esc(name)}" data-col-index="${columnIndex}" data-col-name="${esc(header)}" title="Click to sort by ${esc(header)}"><span class="th-content">${esc(header)}${sortIcon}</span><div class="col-resize-handle" data-col-resize="${esc(header)}" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
   }).join('');
   const actionsTh = canDeleteRows ? (() => {
     const savedActionW = savedWidths['Actions'];
@@ -3111,7 +3355,8 @@ function controls(character) {
     </div>`;
   }
 
-  const options = Object.entries(state.characters).map(([id, item]) => `<option value="${esc(id)}" ${id === activeCharacterId ? 'selected' : ''}>${esc(item.name || id)}</option>`).join('');
+  const sortedEntries = getSortedDmCharacterEntries();
+  const options = sortedEntries.map(([id, item]) => `<option value="${esc(id)}" ${id === activeCharacterId ? 'selected' : ''}>${esc(item.name || id)}</option>`).join('');
   const playerOptions = players.map((player) => `<option value="${esc(player.id)}" ${character?.ownerId === player.id ? 'selected' : ''}>${esc(player.name)} (${player.role})</option>`).join('');
   return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label>${fontControl}</div>`;
 }
@@ -5017,6 +5262,61 @@ function bindEvents() {
       cornerHandle.addEventListener('pointermove', onPointerMove);
       cornerHandle.addEventListener('pointerup', onPointerUp);
       cornerHandle.addEventListener('pointercancel', onPointerUp);
+    });
+  });
+
+  // Sortable table headers
+  app.querySelectorAll('.sortable-header[data-sort-table]').forEach((th) => {
+    th.addEventListener('click', async (event) => {
+      if (event.target.closest('.col-resize-handle')) return;
+      const tableName = th.dataset.sortTable;
+      const colIndex = parseInt(th.dataset.colIndex, 10);
+      if (tableName && !isNaN(colIndex)) {
+        await sortTable(tableName, colIndex);
+      }
+    });
+  });
+
+  app.querySelectorAll('.sortable-header[data-sort-power-theme]').forEach((th) => {
+    th.addEventListener('click', async (event) => {
+      if (event.target.closest('.col-resize-handle')) return;
+      const themeIdx = parseInt(th.dataset.sortPowerTheme, 10);
+      const colKey = th.dataset.powerCol;
+      if (!isNaN(themeIdx) && colKey) {
+        await sortPowerThemeTable(themeIdx, colKey);
+      }
+    });
+  });
+
+  app.querySelectorAll('.sortable-header[data-sort-ini-col]').forEach((th) => {
+    th.addEventListener('click', (event) => {
+      if (event.target.closest('.col-resize-handle')) return;
+      const colKey = th.dataset.sortIniCol;
+      if (colKey) {
+        if (iniSortState.colKey === colKey) {
+          iniSortState.direction = iniSortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          iniSortState.colKey = colKey;
+          iniSortState.direction = 'asc';
+        }
+        render();
+      }
+    });
+  });
+
+  app.querySelectorAll('.sortable-header[data-sort-roll-col]').forEach((th) => {
+    th.addEventListener('click', (event) => {
+      if (event.target.closest('.col-resize-handle')) return;
+      const colKey = th.dataset.sortRollCol;
+      if (colKey) {
+        if (rollHistorySortState.colKey === colKey) {
+          rollHistorySortState.direction = rollHistorySortState.direction === 'asc' ? 'desc' : 'asc';
+        } else {
+          rollHistorySortState.colKey = colKey;
+          rollHistorySortState.direction = 'asc';
+        }
+        render();
+      }
     });
   });
 

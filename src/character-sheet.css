@@ -594,9 +594,63 @@ body.page-resizing {
   overflow: visible;
 }
 .th-content {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   word-break: break-word;
   padding-right: 6px;
+  gap: 4px;
+}
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.15s ease, background-color 0.15s ease;
+}
+.sortable-header:hover {
+  filter: brightness(0.93);
+}
+.sortable-header.sort-active {
+  filter: brightness(0.88);
+  box-shadow: inset 0 -2px 0 0 var(--accent, #333);
+}
+.sort-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  font-size: 10px;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+  flex-shrink: 0;
+}
+.sort-icon.sort-none {
+  opacity: 0.35;
+  color: inherit;
+  font-size: 11px;
+}
+.sortable-header:hover .sort-icon.sort-none {
+  opacity: 0.85;
+}
+.sort-icon.sort-asc,
+.sort-icon.sort-desc {
+  opacity: 1;
+  color: #1a56db;
+  font-weight: bold;
+}
+.sheet-table-action-types th:nth-child(10) .sort-icon.sort-asc,
+.sheet-table-action-types th:nth-child(10) .sort-icon.sort-desc,
+.sheet-table-skills th:nth-child(13) .sort-icon.sort-asc,
+.sheet-table-skills th:nth-child(13) .sort-icon.sort-desc,
+.sheet-table-spell th:nth-child(13) .sort-icon.sort-asc,
+.sheet-table-spell th:nth-child(13) .sort-icon.sort-desc {
+  color: #ffeb3b;
+}
+.tracker-table th.sortable-header:hover {
+  filter: brightness(0.93);
+}
+.tracker-table th.sortable-header.sort-active {
+  filter: brightness(0.88);
+  box-shadow: inset 0 -2px 0 0 var(--accent, #333);
 }
 .col-resize-handle {
   position: absolute;
