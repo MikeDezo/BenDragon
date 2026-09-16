@@ -51,6 +51,44 @@ function getAvailableTabs() {
   return tabs;
 }
 
+function updateUserRole(newRole, newName) {
+  let changed = false;
+  if (newRole && user.role !== newRole) {
+    user.role = newRole;
+    changed = true;
+  }
+  if (newName && user.name !== newName) {
+    user.name = newName;
+    changed = true;
+  }
+
+  if (user.role !== 'GM') {
+    const myChars = getAssignedCharacters(user.id);
+    if (!myChars.some(([id]) => id === activeCharacterId)) {
+      activeCharacterId = myChars[0]?.[0] || null;
+    }
+    if (activeTab === 'Rolls & Ini' || !getAvailableTabs().includes(activeTab)) {
+      activeTab = 'Infos';
+    }
+  } else {
+    if (!activeCharacterId || !state.characters[activeCharacterId]) {
+      activeCharacterId = Object.keys(state.characters)[0] || null;
+    }
+  }
+
+  try {
+    localStorage.setItem('terranova.currentUser', JSON.stringify(user));
+    if (activeCharacterId) {
+      localStorage.setItem('terranova.activeCharId', activeCharacterId);
+    } else {
+      localStorage.removeItem('terranova.activeCharId');
+    }
+    localStorage.setItem('terranova.activeTab', activeTab);
+  } catch (e) {}
+
+  return changed;
+}
+
 const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const blankCharacter = (name = 'New Character') => ({
   name,
@@ -1794,6 +1832,7 @@ async function rollInitiative(label, bonusVal) {
 }
 
 async function rollInitiativeForCharacter(charId, label, bonusVal) {
+  if (user.role !== 'GM') return;
   const character = state.characters[charId];
   const charName = character?.name || 'Character';
   const bonus = parseInt(bonusVal) || 0;
@@ -1863,6 +1902,7 @@ async function rollInitiativeForCharacter(charId, label, bonusVal) {
 }
 
 async function rollAllUnassignedInitiative(roundType = 'First round') {
+  if (user.role !== 'GM') return;
   const unassigned = Object.entries(state.characters).filter(([id, c]) => {
     const isUnassigned = !c.ownerId && (!state.assignments || !state.assignments[c.ownerId]);
     const inCombat = c.data?.inCombat !== false;
@@ -2944,7 +2984,10 @@ function tablePage(name, character) {
 }
 
 function pageFor(character) {
-  if (activeTab === 'Rolls & Ini') return rollsAndIniPage();
+  if (activeTab === 'Rolls & Ini') {
+    if (user.role === 'GM') return rollsAndIniPage();
+    return infoPage(character);
+  }
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
   if (activeTab === 'Monture') return monturePage(character);
@@ -3261,25 +3304,36 @@ async function load() {
   state.initiativeTracker ??= {};
 
   try {
-    const savedUser = JSON.parse(localStorage.getItem('terranova.currentUser') || 'null');
-    if (savedUser && savedUser.id) {
-      user.id = savedUser.id;
-      user.name = savedUser.name || user.name;
-      user.role = savedUser.role || user.role;
-    }
-    const savedPlayers = JSON.parse(localStorage.getItem('terranova.players') || 'null');
-    if (Array.isArray(savedPlayers) && savedPlayers.length) {
-      players = savedPlayers;
-    }
-    const savedCharId = localStorage.getItem('terranova.activeCharId');
-    if (savedCharId && state.characters[savedCharId]) {
-      if (user.role === 'GM' || getAssignedCharacters(user.id).some(([id]) => id === savedCharId)) {
-        activeCharacterId = savedCharId;
+    if (!OBR.isAvailable) {
+      const savedUser = JSON.parse(localStorage.getItem('terranova.currentUser') || 'null');
+      if (savedUser && savedUser.id) {
+        user.id = savedUser.id;
+        user.name = savedUser.name || user.name;
+        user.role = savedUser.role || user.role;
+      }
+      const savedPlayers = JSON.parse(localStorage.getItem('terranova.players') || 'null');
+      if (Array.isArray(savedPlayers) && savedPlayers.length) {
+        players = savedPlayers;
       }
     }
+
+    const savedCharId = localStorage.getItem('terranova.activeCharId');
+    if (savedCharId && state.characters[savedCharId]) {
+      if (user.role === 'GM') {
+        activeCharacterId = savedCharId;
+      } else {
+        const myChars = getAssignedCharacters(user.id);
+        if (myChars.some(([id]) => id === savedCharId)) {
+          activeCharacterId = savedCharId;
+        }
+      }
+    }
+
     const savedTab = localStorage.getItem('terranova.activeTab');
     if (savedTab && getAvailableTabs().includes(savedTab)) {
       activeTab = savedTab;
+    } else {
+      activeTab = 'Infos';
     }
   } catch (e) {}
 
@@ -3291,12 +3345,17 @@ async function load() {
     await save();
   }
 
-  if (!activeCharacterId || !state.characters[activeCharacterId]) {
-    if (user.role === 'GM') {
+  if (user.role === 'GM') {
+    if (!activeCharacterId || !state.characters[activeCharacterId]) {
       activeCharacterId = Object.keys(state.characters)[0] || null;
-    } else {
-      const myChars = getAssignedCharacters(user.id);
+    }
+  } else {
+    const myChars = getAssignedCharacters(user.id);
+    if (!activeCharacterId || !myChars.some(([id]) => id === activeCharacterId)) {
       activeCharacterId = myChars[0]?.[0] || null;
+    }
+    if (activeTab === 'Rolls & Ini' || !getAvailableTabs().includes(activeTab)) {
+      activeTab = 'Infos';
     }
   }
 
@@ -3304,8 +3363,12 @@ async function load() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: Date.now() }));
     localStorage.setItem('terranova.currentUser', JSON.stringify(user));
     localStorage.setItem('terranova.players', JSON.stringify(players));
-    if (activeCharacterId) localStorage.setItem('terranova.activeCharId', activeCharacterId);
-    if (activeTab) localStorage.setItem('terranova.activeTab', activeTab);
+    if (activeCharacterId) {
+      localStorage.setItem('terranova.activeCharId', activeCharacterId);
+    } else {
+      localStorage.removeItem('terranova.activeCharId');
+    }
+    localStorage.setItem('terranova.activeTab', activeTab);
   } catch (e) {}
 }
 
@@ -3524,10 +3587,12 @@ async function initialise() {
     await new Promise((resolve) => OBR.onReady(resolve));
     isObrReady = true;
     user.id = await OBR.player.getId();
-    user.name = await OBR.player.getName();
-    user.role = await OBR.player.getRole();
+    const currentName = await OBR.player.getName();
+    const currentRole = await OBR.player.getRole();
+    user.name = currentName || user.name;
+    user.role = currentRole || user.role;
     try {
-      players = await OBR.party.getPlayers();
+      players = (await OBR.party.getPlayers()) || [];
     } catch (e) {
       console.warn('Failed to get players:', e);
     }
@@ -3547,18 +3612,11 @@ async function initialise() {
     }
 
     OBR.player.onChange((player) => {
-      user.name = player.name;
-      user.role = player.role;
-      if (user.role !== 'GM') {
-        const myChars = getAssignedCharacters(user.id);
-        if (!myChars.some(([id]) => id === activeCharacterId)) {
-          activeCharacterId = myChars[0]?.[0] || null;
-        }
-        if (activeTab === 'Rolls & Ini') {
-          activeTab = 'Infos';
-        }
+      if (player) {
+        if (player.id) user.id = player.id;
+        updateUserRole(player.role, player.name);
+        render();
       }
-      render();
     });
 
     OBR.room.onMetadataChange((metadata) => {
@@ -3583,13 +3641,23 @@ async function initialise() {
           if (!myChars.some(([id]) => id === activeCharacterId)) {
             activeCharacterId = myChars[0]?.[0] || null;
           }
+          if (activeTab === 'Rolls & Ini' || !getAvailableTabs().includes(activeTab)) {
+            activeTab = 'Infos';
+          }
         }
         render();
       }
     });
 
     OBR.party.onChange((nextPlayers) => {
-      players = nextPlayers;
+      players = nextPlayers || [];
+      const me = players.find((p) => p.id === user.id);
+      if (me) {
+        updateUserRole(me.role, me.name);
+      }
+      try {
+        localStorage.setItem('terranova.players', JSON.stringify(players));
+      } catch (e) {}
       render();
     });
 
@@ -3759,7 +3827,16 @@ async function initialise() {
 }
 
 function bindEvents() {
-  app.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => { activeTab = button.dataset.tab; render(); }));
+  app.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
+    const tabName = button.dataset.tab;
+    if (getAvailableTabs().includes(tabName)) {
+      activeTab = tabName;
+      try {
+        localStorage.setItem('terranova.activeTab', activeTab);
+      } catch (e) {}
+      render();
+    }
+  }));
   app.querySelectorAll('textarea').forEach((textarea) => {
     autoResizeTextarea(textarea);
     textarea.addEventListener('input', () => {
@@ -4043,9 +4120,32 @@ function bindEvents() {
       }
     });
   }
-  app.querySelector('#character-select')?.addEventListener('change', (event) => { activeCharacterId = event.target.value; render(); });
-  app.querySelector('#player-character-select')?.addEventListener('change', (event) => { activeCharacterId = event.target.value; render(); });
-  app.querySelector('#new-character')?.addEventListener('click', async () => { activeCharacterId = crypto.randomUUID(); state.characters[activeCharacterId] = blankCharacter(`Character ${Object.keys(state.characters).length + 1}`); render(); await save(); });
+  app.querySelector('#character-select')?.addEventListener('change', (event) => {
+    if (user.role !== 'GM') return;
+    activeCharacterId = event.target.value;
+    try {
+      localStorage.setItem('terranova.activeCharId', activeCharacterId);
+    } catch (e) {}
+    render();
+  });
+  app.querySelector('#player-character-select')?.addEventListener('change', (event) => {
+    const val = event.target.value;
+    const myChars = getAssignedCharacters(user.id);
+    if (myChars.some(([id]) => id === val)) {
+      activeCharacterId = val;
+      try {
+        localStorage.setItem('terranova.activeCharId', activeCharacterId);
+      } catch (e) {}
+      render();
+    }
+  });
+  app.querySelector('#new-character')?.addEventListener('click', async () => {
+    if (user.role !== 'GM') return;
+    activeCharacterId = crypto.randomUUID();
+    state.characters[activeCharacterId] = blankCharacter(`Character ${Object.keys(state.characters).length + 1}`);
+    render();
+    await save();
+  });
   app.querySelector('#delete-character')?.addEventListener('click', async () => {
     if (user.role !== 'GM') return;
     const character = currentCharacter();
@@ -4081,6 +4181,7 @@ function bindEvents() {
     render();
   });
   app.querySelector('#owner-select')?.addEventListener('change', async (event) => {
+    if (user.role !== 'GM') return;
     const character = currentCharacter();
     if (character) {
       character.ownerId = event.target.value || null;
@@ -4127,6 +4228,7 @@ function bindEvents() {
   }));
 
   app.querySelector('#clear-initiative-btn')?.addEventListener('click', () => {
+    if (user.role !== 'GM') return;
     if (window.confirm('Are you sure you want to clear all initiative scores?')) {
       state.initiativeTracker = {};
       queueSave(200);
@@ -4134,6 +4236,7 @@ function bindEvents() {
     }
   });
   app.querySelector('#clear-rolls-btn')?.addEventListener('click', () => {
+    if (user.role !== 'GM') return;
     if (window.confirm('Are you sure you want to clear the roll history?')) {
       state.rollHistory = [];
       queueSave(200);
@@ -4141,12 +4244,15 @@ function bindEvents() {
     }
   });
   app.querySelector('#roll-unassigned-ini-btn')?.addEventListener('click', () => {
+    if (user.role !== 'GM') return;
     rollAllUnassignedInitiative('First round');
   });
   app.querySelector('#roll-unassigned-next-ini-btn')?.addEventListener('click', () => {
+    if (user.role !== 'GM') return;
     rollAllUnassignedInitiative('Next Rounds');
   });
   app.querySelector('#all-npcs-enter-combat-btn')?.addEventListener('click', async () => {
+    if (user.role !== 'GM') return;
     Object.entries(state.characters).forEach(([id, c]) => {
       if (!c.ownerId && (!state.assignments || !state.assignments[c.ownerId])) {
         c.data ??= {};
@@ -4157,6 +4263,7 @@ function bindEvents() {
     render();
   });
   app.querySelector('#all-npcs-leave-combat-btn')?.addEventListener('click', async () => {
+    if (user.role !== 'GM') return;
     Object.entries(state.characters).forEach(([id, c]) => {
       if (!c.ownerId && (!state.assignments || !state.assignments[c.ownerId])) {
         c.data ??= {};
@@ -4171,6 +4278,7 @@ function bindEvents() {
   });
   app.querySelectorAll('[data-ini-toggle-combat]').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
+      if (user.role !== 'GM') return;
       e.preventDefault();
       e.stopPropagation();
       const charId = btn.dataset.iniToggleCombat;
@@ -4198,6 +4306,7 @@ function bindEvents() {
   });
   app.querySelectorAll('[data-ini-roll-char]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
+      if (user.role !== 'GM') return;
       e.preventDefault();
       e.stopPropagation();
       const charId = btn.dataset.iniRollChar;
@@ -4210,6 +4319,7 @@ function bindEvents() {
   });
   app.querySelectorAll('[data-ini-clear-char]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
+      if (user.role !== 'GM') return;
       e.preventDefault();
       e.stopPropagation();
       const charId = btn.dataset.iniClearChar;
@@ -4222,6 +4332,7 @@ function bindEvents() {
   });
   app.querySelectorAll('[data-ini-set-score]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
+      if (user.role !== 'GM') return;
       e.preventDefault();
       e.stopPropagation();
       const charId = btn.dataset.iniSetScore;
