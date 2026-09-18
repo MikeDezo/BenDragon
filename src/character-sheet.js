@@ -72,7 +72,8 @@ function updateUserRole(newRole, newName) {
     }
   } else {
     if (!activeCharacterId || !state.characters[activeCharacterId]) {
-      activeCharacterId = Object.keys(state.characters)[0] || null;
+      const sorted = getSortedDmCharacterEntries();
+      activeCharacterId = sorted[0]?.[0] || Object.keys(state.characters)[0] || null;
     }
   }
 
@@ -173,7 +174,7 @@ function getSortedDmCharacterEntries() {
     const isAssignedA = isCharacterAssigned(idA, itemA);
     const isAssignedB = isCharacterAssigned(idB, itemB);
     if (isAssignedA !== isAssignedB) {
-      return isAssignedA ? -1 : 1;
+      return isAssignedA ? 1 : -1;
     }
     const nameA = String(itemA?.name || idA || '').trim();
     const nameB = String(itemB?.name || idB || '').trim();
@@ -329,12 +330,24 @@ function getAssignedCharacters(userId) {
     const direct = state.assignments?.[userId];
     if (Array.isArray(direct)) return direct.includes(id);
     return direct === id;
+  }).sort(([idA, itemA], [idB, itemB]) => {
+    const nameA = String(itemA?.name || idA || '').trim();
+    const nameB = String(itemB?.name || idB || '').trim();
+    return nameA.localeCompare(nameB, undefined, { sensitivity: 'base', numeric: true });
   });
 }
 
 function currentCharacter() {
   if (user.role === 'GM') {
-    return state.characters[activeCharacterId] || Object.values(state.characters)[0] || null;
+    if (activeCharacterId && state.characters[activeCharacterId]) {
+      return state.characters[activeCharacterId];
+    }
+    const sorted = getSortedDmCharacterEntries();
+    if (sorted.length > 0) {
+      activeCharacterId = sorted[0][0];
+      return sorted[0][1];
+    }
+    return null;
   }
   const myChars = getAssignedCharacters(user.id);
   if (!myChars.length) {
@@ -3697,7 +3710,8 @@ async function load() {
 
   if (user.role === 'GM') {
     if (!activeCharacterId || !state.characters[activeCharacterId]) {
-      activeCharacterId = Object.keys(state.characters)[0] || null;
+      const sorted = getSortedDmCharacterEntries();
+      activeCharacterId = sorted[0]?.[0] || Object.keys(state.characters)[0] || null;
     }
   } else {
     const myChars = getAssignedCharacters(user.id);
@@ -3998,7 +4012,8 @@ async function initialise() {
         });
         if (user.role === 'GM') {
           if (!activeCharacterId || !state.characters[activeCharacterId]) {
-            activeCharacterId = Object.keys(state.characters)[0] || null;
+            const sorted = getSortedDmCharacterEntries();
+            activeCharacterId = sorted[0]?.[0] || Object.keys(state.characters)[0] || null;
           }
         } else {
           const myChars = getAssignedCharacters(user.id);
@@ -4571,12 +4586,12 @@ function bindEvents() {
     });
     state.assignments = newAssignments;
 
-    const remainingIds = Object.keys(state.characters);
-    if (remainingIds.length === 0) {
+    const remaining = getSortedDmCharacterEntries();
+    if (remaining.length === 0) {
       activeCharacterId = crypto.randomUUID();
       state.characters[activeCharacterId] = blankCharacter('Character 1');
     } else {
-      activeCharacterId = remainingIds[0];
+      activeCharacterId = remaining[0][0];
     }
 
     await save();
