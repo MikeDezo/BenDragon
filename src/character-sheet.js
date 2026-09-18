@@ -84,7 +84,7 @@ function isSkillsEmpty(skillsRows) {
 
 const app = document.querySelector('#root');
 let activeTab = 'Infos';
-let state = { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {} };
+let state = { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {}, knownPlayers: {} };
 let user = { id: 'local-player', name: 'Local Player', role: 'GM' };
 let players = [];
 let activeCharacterId = null;
@@ -139,6 +139,7 @@ const esc = (value = '') => String(value).replace(/[&<>"']/g, (char) => ({ '&': 
 const blankCharacter = (name = 'New Character') => ({
   name,
   ownerId: null,
+  ownerName: '',
   updatedAt: Date.now(),
   data: {
     info: {},
@@ -211,6 +212,106 @@ function isCharacterAssigned(id, char) {
   return Object.values(state.assignments).some((val) => {
     if (Array.isArray(val)) return val.includes(id);
     return val === id;
+  });
+}
+
+function registerKnownPlayer(id, name, role) {
+  if (!id) return;
+  state.knownPlayers ??= {};
+  const current = state.knownPlayers[id] || {};
+  state.knownPlayers[id] = {
+    id,
+    name: name || current.name || 'Player',
+    role: role || current.role || 'PLAYER',
+    lastSeen: Date.now()
+  };
+}
+
+function updateKnownPlayers(playerList = []) {
+  state.knownPlayers ??= {};
+  if (user?.id) {
+    registerKnownPlayer(user.id, user.name, user.role);
+  }
+  (playerList || []).forEach((p) => {
+    if (p?.id) {
+      registerKnownPlayer(p.id, p.name, p.role);
+    }
+  });
+}
+
+function getAssignablePlayers(currentChar = null) {
+  state.knownPlayers ??= {};
+  const map = new Map();
+
+  // 1. Current user (including DM)
+  if (user && user.id) {
+    map.set(user.id, {
+      id: user.id,
+      name: user.name || (user.role === 'GM' ? 'DM' : 'Player'),
+      role: user.role || 'GM',
+      isOnline: true,
+      isSelf: true
+    });
+  }
+
+  // 2. Currently connected party members
+  (players || []).forEach((p) => {
+    if (p && p.id) {
+      const existing = map.get(p.id);
+      map.set(p.id, {
+        id: p.id,
+        name: p.name || existing?.name || 'Player',
+        role: p.role || existing?.role || 'PLAYER',
+        isOnline: true,
+        isSelf: p.id === user.id
+      });
+    }
+  });
+
+  // 3. Known players from state
+  if (state.knownPlayers) {
+    Object.values(state.knownPlayers).forEach((kp) => {
+      if (kp && kp.id && !map.has(kp.id)) {
+        map.set(kp.id, {
+          id: kp.id,
+          name: kp.name || 'Player',
+          role: kp.role || 'PLAYER',
+          isOnline: false,
+          isSelf: kp.id === user.id
+        });
+      }
+    });
+  }
+
+  // 4. Any assigned owner from any character in state
+  Object.values(state.characters || {}).forEach((c) => {
+    if (c?.ownerId && !map.has(c.ownerId)) {
+      map.set(c.ownerId, {
+        id: c.ownerId,
+        name: c.ownerName || 'Player',
+        role: 'PLAYER',
+        isOnline: false,
+        isSelf: c.ownerId === user.id
+      });
+    }
+  });
+
+  // 5. Current character's assigned owner if not yet in map
+  if (currentChar?.ownerId && !map.has(currentChar.ownerId)) {
+    map.set(currentChar.ownerId, {
+      id: currentChar.ownerId,
+      name: currentChar.ownerName || 'Player',
+      role: 'PLAYER',
+      isOnline: false,
+      isSelf: currentChar.ownerId === user.id
+    });
+  }
+
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.id === user.id && b.id !== user.id) return -1;
+    if (b.id === user.id && a.id !== user.id) return 1;
+    if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
   });
 }
 
@@ -2787,8 +2888,8 @@ function rollsAndIniPage() {
     const isAssigned = Boolean(c.ownerId);
     let ownerName = 'Unassigned (NPC)';
     if (isAssigned) {
-      const p = players.find((pl) => pl.id === c.ownerId);
-      ownerName = p ? p.name : 'Player';
+      const p = players.find((pl) => pl.id === c.ownerId) || state.knownPlayers?.[c.ownerId];
+      ownerName = p ? p.name : (c.ownerName || (c.ownerId === user.id ? user.name : 'Player'));
     }
     const intuitionVal = parseFloat(c.data?.stats?.Intuition ?? '6') || 0;
     const speedVal = parseFloat(c.data?.stats?.Speed ?? c.data?.stats?.Movement ?? '6') || 0;
@@ -3418,7 +3519,16 @@ function controls(character) {
 
   const sortedEntries = getSortedDmCharacterEntries();
   const options = sortedEntries.map(([id, item]) => `<option value="${esc(id)}" ${id === activeCharacterId ? 'selected' : ''}>${esc(item.name || id)}</option>`).join('');
-  const playerOptions = players.map((player) => `<option value="${esc(player.id)}" ${character?.ownerId === player.id ? 'selected' : ''}>${esc(player.name)} (${player.role})</option>`).join('');
+  const assignablePlayers = getAssignablePlayers(character);
+  const playerOptions = assignablePlayers.map((player) => {
+    let roleLabel = player.role || 'PLAYER';
+    if (player.id === user.id && user.role === 'GM') {
+      roleLabel = 'GM';
+    }
+    const statusLabel = player.isOnline ? roleLabel : `${roleLabel} - Offline`;
+    const isSelected = character?.ownerId === player.id;
+    return `<option value="${esc(player.id)}" ${isSelected ? 'selected' : ''}>${esc(player.name)} (${esc(statusLabel)})</option>`;
+  }).join('');
   return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label>${fontControl}</div>`;
 }
 
@@ -3543,7 +3653,8 @@ function getSaveHash(data) {
       characters: data?.characters || {},
       assignments: data?.assignments || {},
       rollHistoryCount: (data?.rollHistory || []).length,
-      initiativeTracker: data?.initiativeTracker || {}
+      initiativeTracker: data?.initiativeTracker || {},
+      knownPlayers: data?.knownPlayers || {}
     });
   } catch (e) {
     return '';
@@ -3552,7 +3663,7 @@ function getSaveHash(data) {
 
 function mergeStates(roomState, localState) {
   if (!roomState && !localState) {
-    return { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {}, updatedAt: Date.now() };
+    return { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {}, knownPlayers: {}, updatedAt: Date.now() };
   }
   if (!roomState) return localState;
   if (!localState) return roomState;
@@ -3562,6 +3673,7 @@ function mergeStates(roomState, localState) {
     characters: { ...roomState.characters },
     assignments: { ...roomState.assignments, ...localState.assignments },
     initiativeTracker: { ...roomState.initiativeTracker, ...localState.initiativeTracker },
+    knownPlayers: { ...(localState.knownPlayers || {}), ...(roomState.knownPlayers || {}) },
     rollHistory: []
   };
 
@@ -3702,19 +3814,33 @@ async function load() {
   state.assignments ??= {};
   state.rollHistory ??= [];
   state.initiativeTracker ??= {};
+  state.knownPlayers ??= {};
+
+  updateKnownPlayers(players);
 
   Object.values(state.characters).forEach((char) => {
-    if (char?.data) {
-      char.data.tables ??= {};
-      if (isSkillsEmpty(char.data.tables.Skills)) {
-        char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
-      }
-      Object.keys(char.data.tables).forEach((tName) => {
-        const tVal = char.data.tables[tName];
-        if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
-          char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+    if (char) {
+      if (char.ownerId && !char.ownerName) {
+        const foundPlayer = state.knownPlayers?.[char.ownerId] || (players || []).find((p) => p.id === char.ownerId) || (char.ownerId === user.id ? user : null);
+        if (foundPlayer?.name) {
+          char.ownerName = foundPlayer.name;
         }
-      });
+      }
+      if (char.ownerId && char.ownerName) {
+        registerKnownPlayer(char.ownerId, char.ownerName, char.ownerId === user.id ? user.role : 'PLAYER');
+      }
+      if (char.data) {
+        char.data.tables ??= {};
+        if (isSkillsEmpty(char.data.tables.Skills)) {
+          char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
+        }
+        Object.keys(char.data.tables).forEach((tName) => {
+          const tVal = char.data.tables[tName];
+          if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
+            char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+          }
+        });
+      }
     }
   });
 
@@ -4035,6 +4161,18 @@ async function initialise() {
       if (player) {
         if (player.id) user.id = player.id;
         updateUserRole(player.role, player.name);
+        registerKnownPlayer(user.id, user.name, user.role);
+        let charsUpdated = false;
+        Object.values(state.characters || {}).forEach((c) => {
+          if (c.ownerId === user.id && c.ownerName !== user.name) {
+            c.ownerName = user.name;
+            c.updatedAt = Date.now();
+            charsUpdated = true;
+          }
+        });
+        if (charsUpdated && user.role === 'GM') {
+          queueSave(500);
+        }
         render();
       }
     });
@@ -4052,18 +4190,31 @@ async function initialise() {
         state.assignments ??= {};
         state.rollHistory ??= [];
         state.initiativeTracker ??= {};
+        state.knownPlayers ??= {};
+        updateKnownPlayers(players);
         Object.values(state.characters).forEach((char) => {
-          if (char?.data) {
-            char.data.tables ??= {};
-            if (isSkillsEmpty(char.data.tables.Skills)) {
-              char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
-            }
-            Object.keys(char.data.tables).forEach((tName) => {
-              const tVal = char.data.tables[tName];
-              if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
-                char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+          if (char) {
+            if (char.ownerId && !char.ownerName) {
+              const foundPlayer = state.knownPlayers?.[char.ownerId] || (players || []).find((p) => p.id === char.ownerId) || (char.ownerId === user.id ? user : null);
+              if (foundPlayer?.name) {
+                char.ownerName = foundPlayer.name;
               }
-            });
+            }
+            if (char.ownerId && char.ownerName) {
+              registerKnownPlayer(char.ownerId, char.ownerName, char.ownerId === user.id ? user.role : 'PLAYER');
+            }
+            if (char.data) {
+              char.data.tables ??= {};
+              if (isSkillsEmpty(char.data.tables.Skills)) {
+                char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
+              }
+              Object.keys(char.data.tables).forEach((tName) => {
+                const tVal = char.data.tables[tName];
+                if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
+                  char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
+                }
+              });
+            }
           }
         });
         if (user.role === 'GM') {
@@ -4086,6 +4237,18 @@ async function initialise() {
 
     OBR.party.onChange((nextPlayers) => {
       players = nextPlayers || [];
+      updateKnownPlayers(players);
+      let charsUpdated = false;
+      Object.values(state.characters || {}).forEach((c) => {
+        if (c.ownerId) {
+          const matching = players.find((p) => p.id === c.ownerId);
+          if (matching && matching.name && c.ownerName !== matching.name) {
+            c.ownerName = matching.name;
+            c.updatedAt = Date.now();
+            charsUpdated = true;
+          }
+        }
+      });
       const me = players.find((p) => p.id === user.id);
       if (me) {
         updateUserRole(me.role, me.name);
@@ -4093,6 +4256,9 @@ async function initialise() {
       try {
         localStorage.setItem('terranova.players', JSON.stringify(players));
       } catch (e) {}
+      if (charsUpdated && user.role === 'GM') {
+        queueSave(500);
+      }
       render();
     });
 
@@ -4657,7 +4823,16 @@ function bindEvents() {
     if (user.role !== 'GM') return;
     const character = currentCharacter();
     if (character) {
-      character.ownerId = event.target.value || null;
+      const selectedId = event.target.value || null;
+      character.ownerId = selectedId;
+      if (selectedId) {
+        const assignable = getAssignablePlayers(character);
+        const selectedPlayer = assignable.find((p) => p.id === selectedId);
+        character.ownerName = selectedPlayer?.name || (selectedId === user.id ? user.name : '');
+        registerKnownPlayer(selectedId, character.ownerName, selectedPlayer?.role || (selectedId === user.id ? user.role : 'PLAYER'));
+      } else {
+        character.ownerName = '';
+      }
       character.updatedAt = Date.now();
       state.updatedAt = Date.now();
       const newAssignments = {};
