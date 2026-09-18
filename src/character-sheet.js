@@ -37,6 +37,51 @@ const ACTION_TYPES_ROWS = [
   ['Esquive', 'Full, Agilité', "L'Esquive permet d'éviter une attaque de mêlée ou une attaque à distance.", '', 'Échec', 'Évite 50 % des dégâts.', 'Évite complètement les dégâts', '- Évite complètement les dégâts.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre', '- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque avec une arme secondaire maîtrisée en Action libre.', '+5 Karma\n\n- Évite complètement les dégâts.\n\n- L\'Action défensive n\'est pas consommée.\n\n- Accorde une contre-attaque gratuite avec une arme secondaire maîtrisée, sans utiliser d\'Action libre.']
 ];
 
+const DEFAULT_SKILLS_ROWS = [
+  ['Acrobaties', 'Hors-Combat', 'Agility', '', '', '', "Garder l'équilibre, faire une roulade, franchir un obstacle difficile, marcher sur une surface étroite", '', '', '', '', '', ''],
+  ['Arcanes', 'Hors-Combat', 'Intelligence', '', '', '', "Comprendre la magie, identifier un phénomène magique, reconnaître un sort ou une théorie magique", '', '', '', '', '', ''],
+  ['Athlétisme', 'Hors-Combat', 'Depend', '', '', '', "Grimper, sauter, nager, pousser, tirer, accomplir un effort physique", '', '', '', '', '', ''],
+  ['Crochetage', 'Hors-Combat', 'Agility', '', '', '', "Ouvrir une serrure, désamorcer un mécanisme simple, manipuler un verrou", '', '', '', '', '', ''],
+  ['Discrétion', 'Hors-Combat', 'Agility', '', '', '', "Se cacher, avancer silencieusement, éviter d'être repéré", '', '', '', '', '', ''],
+  ['Étiquette', 'Hors-Combat', 'Wisdom', '', '', '', "Connaître les règles de politesse, les usages sociaux, les bonnes manières et le comportement attendu selon le milieu, le rang ou la culture.", '', '', '', '', '', ''],
+  ['Intimidation', 'Hors-Combat', 'Depend', '', '', '', "Menacer, imposer sa présence ou forcer quelqu'un à céder", '', '', '', '', '', ''],
+  ['Investigation', 'Hors-Combat', 'Intelligence', '', '', '', "Fouiller une pièce, rechercher un indice, comprendre une scène, déduire ce qui s'est passé", '', '', '', '', '', ''],
+  ['Lecture des Runes Auroriennes', 'Hors-Combat', 'Intelligence', '', '', '', "Lire, reconnaître et interpréter les runes auroriennes utilisées dans les enchantements, artefacts, mécanismes magitek, sceaux et inscriptions anciennes ou techniques.", '', '', '', '', '', ''],
+  ['Orientation', 'Hors-Combat', 'Wisdom', '', '', '', "Lire une carte, utiliser des repères, retrouver son chemin, déterminer une direction", '', '', '', '', '', ''],
+  ['Perception', 'Hors-Combat', 'Intuition', '', '', '', "Remarquer un bruit, une silhouette, une odeur, un mouvement ou un détail inhabituel", '', '', '', '', '', ''],
+  ['Performance', 'Hors-Combat', 'Psyche', '', '', '', "Jouer de la musique, chanter, danser, raconter une histoire ou captiver un public", '', '', '', '', '', ''],
+  ['Perspicacité', 'Hors-Combat', 'Intuition', '', '', '', "Comprendre l'attitude, les intentions ou l'état émotionnel d'une personne", '', '', '', '', '', ''],
+  ['Persuasion', 'Hors-Combat', 'Depend', '', '', '', "Convaincre quelqu'un par des arguments sincères ou une négociation", '', '', '', '', '', ''],
+  ['Pistage', 'Hors-Combat', 'Intuition', '', '', '', "Suivre des traces, reconnaître le passage d'une créature, déterminer une direction ou l'âge approximatif d'une piste", '', '', '', '', '', ''],
+  ['Premier Soins', 'Hors-Combat', 'Depend', '', '', '', "Examiner une blessure, identifier une maladie, stabiliser quelqu'un, déterminer une cause de mort", '', '', '', '', '', ''],
+  ['Survie', 'Hors-Combat', 'Endurance', '', '', '', "Trouver de la nourriture, installer un camp, éviter les dangers naturels, survivre dans un environnement hostile", '', '', '', '', '', ''],
+  ['Tromperie', 'Hors-Combat', 'Depend', '', '', '', "Mentir, cacher ses intentions, inventer une histoire crédible, maintenir une fausse identité", '', '', '', '', '', ''],
+  ['Protocole', 'Hors-Combat', 'Depend', '', '', '', "Connaître et appliquer les procédures officielles, militaires, diplomatiques, administratives ou cérémonielles propres à une institution ou à une autorité.", '', '', '', '', '', '']
+];
+
+function isSkillsEmpty(skillsRows) {
+  if (!skillsRows) return true;
+  let arr = skillsRows;
+  if (!Array.isArray(arr)) {
+    if (typeof arr === 'object') {
+      arr = Object.values(arr);
+    } else {
+      return true;
+    }
+  }
+  if (arr.length === 0) return true;
+  return arr.every((r) => {
+    if (!r) return true;
+    if (Array.isArray(r)) {
+      return r.every((v) => v === undefined || v === null || String(v).trim() === '');
+    }
+    if (typeof r === 'object') {
+      return Object.values(r).every((v) => v === undefined || v === null || String(v).trim() === '');
+    }
+    return true;
+  });
+}
+
 const app = document.querySelector('#root');
 let activeTab = 'Infos';
 let state = { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {} };
@@ -120,7 +165,7 @@ const blankCharacter = (name = 'New Character') => ({
       Armor: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
       Inventory: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
       Relations: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
-      Skills: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({})),
+      Skills: DEFAULT_SKILLS_ROWS.map((row) => [...row]),
       Specialisations: Array.from({ length: DEFAULT_TABLE_ROWS }, () => ({
         1: 'Unspecialised', 2: '0', 3: '0', 4: [], 5: '0'
       })),
@@ -3068,6 +3113,9 @@ function tablePage(name, character) {
       '(Fgt/10)D6 + ((MP/4)*3) Vs Energy'
     ]];
     character.data.tables.Spell = rows;
+  } else if (name === 'Skills' && isSkillsEmpty(storedRows)) {
+    rows = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
+    character.data.tables.Skills = rows;
   } else {
     rows = Array.isArray(storedRows)
       ? storedRows
@@ -3656,7 +3704,11 @@ async function load() {
   state.initiativeTracker ??= {};
 
   Object.values(state.characters).forEach((char) => {
-    if (char?.data?.tables) {
+    if (char?.data) {
+      char.data.tables ??= {};
+      if (isSkillsEmpty(char.data.tables.Skills)) {
+        char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
+      }
       Object.keys(char.data.tables).forEach((tName) => {
         const tVal = char.data.tables[tName];
         if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
@@ -4001,7 +4053,11 @@ async function initialise() {
         state.rollHistory ??= [];
         state.initiativeTracker ??= {};
         Object.values(state.characters).forEach((char) => {
-          if (char?.data?.tables) {
+          if (char?.data) {
+            char.data.tables ??= {};
+            if (isSkillsEmpty(char.data.tables.Skills)) {
+              char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
+            }
             Object.keys(char.data.tables).forEach((tName) => {
               const tVal = char.data.tables[tName];
               if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
