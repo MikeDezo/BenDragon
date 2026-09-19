@@ -802,21 +802,21 @@ function simplifyDiceExpression(str) {
   const trimmed = str.trim();
   if (!trimmed) return '';
 
-  const dicePattern = /([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g;
+  const dicePattern = /([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g;
   const diceMatches = Array.from(trimmed.matchAll(dicePattern));
   if (diceMatches.length === 0) return trimmed;
 
   let mathPortion = trimmed;
   let textSuffix = '';
 
-  const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+[A-Za-z].*)$/);
+  const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+(?![dD]\d+\b)[A-Za-z].*)$/);
   if (matchSuffix) {
     mathPortion = matchSuffix[1].trim();
     textSuffix = matchSuffix[2];
   }
 
-  const withoutDiceExpr = mathPortion.replace(/([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g, (match, sign) => {
-    return (sign === '-' ? '- 0' : '+ 0');
+  const withoutDiceExpr = mathPortion.replace(/([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g, (match, sign) => {
+    return (sign === '-' ? ' - 0 ' : ' + 0 ');
   });
 
   const flatVal = evaluateSafeMath(withoutDiceExpr);
@@ -827,9 +827,9 @@ function simplifyDiceExpression(str) {
   const diceList = [];
   const sidesMap = new Map();
 
-  for (const m of mathPortion.matchAll(/([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g)) {
+  for (const m of mathPortion.matchAll(/([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g)) {
     const sign = m[1] === '-' ? -1 : 1;
-    const count = parseInt(m[2], 10) * sign;
+    const count = (m[2] ? parseInt(m[2], 10) : 1) * sign;
     const sides = parseInt(m[3], 10);
     if (!sidesMap.has(sides)) {
       const entry = { sides, count: 0 };
@@ -979,7 +979,7 @@ function translateFormula(formula, stats) {
   result = replaceStats(result);
 
   // Clean spaced dice
-  result = result.replace(/(\d+)\s+([dD]\d+)/g, '$1$2');
+  result = result.replace(/(\d+)\s*[dD]\s*(\d+)/g, '$1D$2');
 
   // Evaluate parentheses from innermost to outermost
   // Inner nested parentheses evaluate as exact floats, and outermost/standalone parentheses round down
@@ -1933,11 +1933,21 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   render();
 }
 
-function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null) {
+function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null) {
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const label = `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`;
-  const diceStr = `${count}D${sides}`;
-  const bonusStr = flatBonus >= 0 ? `+ ${flatBonus}` : `- ${Math.abs(flatBonus)}`;
+  
+  let diceStr = '1D10';
+  if (typeof diceStrOrCount === 'string' && diceStrOrCount) {
+    diceStr = diceStrOrCount;
+  } else if (typeof diceStrOrCount === 'number' && sides) {
+    diceStr = `${diceStrOrCount}D${sides}`;
+  } else if (diceStrOrCount) {
+    diceStr = String(diceStrOrCount);
+  }
+
+  const bonus = parseInt(flatBonus) || 0;
+  const bonusStr = bonus > 0 ? `+ ${bonus}` : (bonus < 0 ? `- ${Math.abs(bonus)}` : '');
 
   activeRollResult = {
     rollId: currentRollId,
@@ -1946,7 +1956,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, indi
     weaponName,
     modLabel,
     diceStr,
-    flatBonus,
+    flatBonus: bonus,
     individualRolls: individualRolls || [],
     total: totalDamage,
     colorTone: 'red',
@@ -1958,6 +1968,11 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, indi
     timestamp: Date.now()
   };
 
+  const rollsText = (individualRolls && individualRolls.length > 0) ? individualRolls.join(', ') : (totalDamage - bonus);
+  const detail = bonusStr
+    ? `${diceStr} (${rollsText}) ${bonusStr} = ${totalDamage}`
+    : `${diceStr} (${rollsText}) = ${totalDamage}`;
+
   addRollToHistory({
     id: currentRollId,
     timestamp: Date.now(),
@@ -1965,7 +1980,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, indi
     charName: charName || 'Character',
     playerName: playerName || 'Player',
     statName: `Damage - ${label}`,
-    detail: `${diceStr} (${(individualRolls || []).join(', ') || (totalDamage - flatBonus)}) ${bonusStr} = ${totalDamage}`,
+    detail,
     roll: totalDamage,
     outcomeType: 'red',
     outcomeLabel: `Damage: ${totalDamage}`,
@@ -1980,7 +1995,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, indi
 
   if (OBR.isAvailable && OBR.notification?.show) {
     OBR.notification.show(
-      `💥 ${charName || 'Character'} (${playerName || 'Player'}) rolled Damage (${label}): ${diceStr} ${bonusStr} = ${totalDamage}`,
+      `💥 ${charName || 'Character'} (${playerName || 'Player'}) rolled Damage (${label}): ${diceStr}${bonusStr ? ' ' + bonusStr : ''} = ${totalDamage}`,
       'DEFAULT'
     );
   }
@@ -2064,13 +2079,38 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
   const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const charName = character?.name || 'Character';
 
+  const parsed = parseDiceAndModifiers(diceString || '1D10');
+  let diceGroups = [];
+  let diceStringRepr = '1D10';
+  let embeddedFlat = 0;
+  let totalDiceCount = 1;
+  let primarySides = 10;
+  let diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
+
+  if (parsed && parsed.hasDice) {
+    diceGroups = parsed.diceGroups;
+    diceStringRepr = parsed.diceString;
+    embeddedFlat = parsed.flatBonus || 0;
+    totalDiceCount = parsed.totalDiceCount || 1;
+    primarySides = parsed.sides || 10;
+    diceCounts = parsed.diceCounts;
+  } else {
+    const match = (diceString || '1D10').match(/^(\d*)\s*[dD]\s*(\d+)/);
+    const count = match ? (parseInt(match[1]) || 1) : 1;
+    const sides = match ? parseInt(match[2]) : 10;
+    diceGroups = [{ count, sides, sign: 1 }];
+    diceStringRepr = `${count}D${sides}`;
+    totalDiceCount = count;
+    primarySides = sides;
+    const countsKey = `d${sides}`;
+    if (diceCounts[countsKey] !== undefined) {
+      diceCounts[countsKey] = count;
+    }
+  }
+
   const bBonus = parseInt(baseBonus) || 0;
   const mBonus = parseInt(modBonus) || 0;
-  const totalFlat = bBonus + mBonus;
-
-  const match = (diceString || '1D10').match(/^(\d*)\s*[dD]\s*(\d+)/);
-  const count = match ? (parseInt(match[1]) || 1) : 1;
-  const sides = match ? parseInt(match[2]) : 10;
+  const totalFlat = embeddedFlat + bBonus + mBonus;
 
   const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const timestamp = Date.now();
@@ -2084,7 +2124,16 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     } catch (e) {}
   }
 
-  const notation = totalFlat > 0 ? `${count}d${sides} + ${totalFlat}` : (totalFlat < 0 ? `${count}d${sides} - ${Math.abs(totalFlat)}` : `${count}d${sides}`);
+  let notation = diceGroups.map((g, idx) => {
+    const prefix = idx > 0 ? (g.sign < 0 ? '- ' : '+ ') : (g.sign < 0 ? '-' : '');
+    return `${prefix}${g.count}d${g.sides}`;
+  }).join(' ');
+
+  if (totalFlat > 0) {
+    notation += ` + ${totalFlat}`;
+  } else if (totalFlat < 0) {
+    notation += ` - ${Math.abs(totalFlat)}`;
+  }
 
   const rollInfo = {
     rollId,
@@ -2092,8 +2141,10 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     label: `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`,
     weaponName,
     modLabel,
-    count,
-    sides,
+    diceStr: diceStringRepr,
+    diceGroups,
+    count: totalDiceCount,
+    sides: primarySides,
     flatBonus: totalFlat,
     notation,
     charName,
@@ -2105,12 +2156,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
 
   pendingStatRolls.set(rollId, rollInfo);
 
-  const countsKey = `d${sides}`;
-  const diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
   const diceIndices = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
-  if (diceCounts[countsKey] !== undefined) {
-    diceCounts[countsKey] = count;
-  }
 
   const payload = {
     rollId,
@@ -2143,13 +2189,15 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
   } else {
     let diceTotal = 0;
     const individualRolls = [];
-    for (let i = 0; i < count; i++) {
-      const die = Math.floor(Math.random() * sides) + 1;
-      individualRolls.push(die);
-      diceTotal += die;
+    for (const g of diceGroups) {
+      for (let i = 0; i < g.count; i++) {
+        const die = Math.floor(Math.random() * g.sides) + 1;
+        individualRolls.push(die);
+        diceTotal += (g.sign < 0 ? -die : die);
+      }
     }
     const totalDamage = diceTotal + totalFlat;
-    displayAndAnnounceDamageResult(weaponName, modLabel, count, sides, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
+    displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
   }
 }
 
@@ -2158,33 +2206,106 @@ function parseDiceAndModifiers(str) {
   const trimmed = str.trim();
   if (!trimmed || trimmed === '—') return null;
 
-  const diceMatch = trimmed.match(/(\d+)\s*[dD]\s*(\d*)/);
-  if (diceMatch) {
-    const count = parseInt(diceMatch[1], 10);
-    const sides = parseInt(diceMatch[2], 10) || 10;
-    const withoutDice = trimmed.replace(/(\d+)\s*[dD]\s*(\d*)/, '');
+  const diceRegex = /([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g;
+  const diceMatches = Array.from(trimmed.matchAll(diceRegex));
 
-    let flatBonus = 0;
-    const numMatches = withoutDice.matchAll(/([+\-])\s*(\d+)/g);
-    let hasExplicitSign = false;
-    for (const m of numMatches) {
-      hasExplicitSign = true;
-      const sign = m[1] === '-' ? -1 : 1;
-      flatBonus += sign * parseInt(m[2], 10);
+  if (diceMatches.length > 0) {
+    let mathPortion = trimmed;
+    let textSuffix = '';
+
+    const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+(?![dD]\d+\b)[A-Za-z].*)$/);
+    if (matchSuffix) {
+      mathPortion = matchSuffix[1].trim();
+      textSuffix = matchSuffix[2].trim();
     }
 
-    if (!hasExplicitSign) {
-      const standaloneNum = withoutDice.match(/\b\d+\b/);
-      if (standaloneNum) {
-        flatBonus = parseInt(standaloneNum[0], 10);
+    const withoutDice = mathPortion.replace(diceRegex, (match, sign) => {
+      return (sign === '-' ? ' - 0 ' : ' + 0 ');
+    });
+
+    let flatBonus = 0;
+    const flatVal = evaluateSafeMath(withoutDice);
+    if (flatVal !== null) {
+      flatBonus = Math.floor(flatVal);
+    } else {
+      let bonus = 0;
+      let hasExplicitSign = false;
+      for (const m of withoutDice.matchAll(/([+\-])\s*(\d+(?:\.\d+)?)/g)) {
+        hasExplicitSign = true;
+        const sign = m[1] === '-' ? -1 : 1;
+        bonus += sign * parseInt(m[2], 10);
+      }
+      if (!hasExplicitSign) {
+        const standalone = withoutDice.match(/\b\d+\b/);
+        if (standalone) bonus = parseInt(standalone[0], 10);
+      }
+      flatBonus = bonus;
+    }
+
+    const diceList = [];
+    const sidesMap = new Map();
+
+    for (const m of mathPortion.matchAll(diceRegex)) {
+      const sign = m[1] === '-' ? -1 : 1;
+      const count = (m[2] ? parseInt(m[2], 10) : 1) * sign;
+      const sides = parseInt(m[3], 10);
+      if (!sidesMap.has(sides)) {
+        const entry = { sides, count: 0 };
+        sidesMap.set(sides, entry);
+        diceList.push(entry);
+      }
+      sidesMap.get(sides).count += count;
+    }
+
+    const diceGroups = [];
+    const diceParts = [];
+    let totalDiceCount = 0;
+
+    for (const entry of diceList) {
+      if (entry.count !== 0) {
+        diceGroups.push({
+          count: Math.abs(entry.count),
+          sides: entry.sides,
+          sign: entry.count < 0 ? -1 : 1
+        });
+        totalDiceCount += Math.abs(entry.count);
+        if (entry.count > 0 && diceParts.length > 0) {
+          diceParts.push('+ ' + entry.count + 'D' + entry.sides);
+        } else if (entry.count < 0) {
+          diceParts.push('- ' + Math.abs(entry.count) + 'D' + entry.sides);
+        } else {
+          diceParts.push(entry.count + 'D' + entry.sides);
+        }
       }
     }
 
-    const textSuffix = withoutDice.replace(/[+\-\d\s\(\)]+/g, ' ').trim();
+    const diceString = diceParts.join(' ') || '1D10';
+
+    const diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
+    for (const g of diceGroups) {
+      const k = `d${g.sides}`;
+      if (diceCounts[k] !== undefined) {
+        diceCounts[k] = (diceCounts[k] || 0) + g.count;
+      }
+    }
+
+    let diceNotation = diceParts.map((p) => p.toLowerCase()).join(' ');
+    if (flatBonus > 0) {
+      diceNotation += ` + ${flatBonus}`;
+    } else if (flatBonus < 0) {
+      diceNotation += ` - ${Math.abs(flatBonus)}`;
+    }
+
     return {
       hasDice: true,
-      count,
-      sides,
+      isNumeric: false,
+      diceGroups,
+      totalDiceCount,
+      diceString,
+      diceNotation,
+      diceCounts,
+      count: diceGroups[0]?.count || 1,
+      sides: diceGroups[0]?.sides || 10,
       flatBonus,
       suffix: textSuffix
     };
@@ -2220,8 +2341,8 @@ async function rollFormulaEffect(actionName, tierLabel, expression) {
   const parsed = parseDiceAndModifiers(expression);
   const label = `${actionName} (${tierLabel})`;
 
-  if (parsed && parsed.hasDice && parsed.count > 0) {
-    const diceString = `${parsed.count}D${parsed.sides}`;
+  if (parsed && parsed.hasDice && parsed.totalDiceCount > 0) {
+    const diceString = parsed.diceString;
     const modLabel = `${tierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
     await rollWeaponDamage(actionName, diceString, parsed.flatBonus, modLabel, 0);
     return;
@@ -4535,7 +4656,7 @@ async function initialise() {
           displayAndAnnounceDamageResult(
             rollInfo.weaponName || rollInfo.label,
             rollInfo.modLabel || '',
-            rollInfo.count || 1,
+            rollInfo.diceStr || (rollInfo.count && rollInfo.sides ? `${rollInfo.count}D${rollInfo.sides}` : '1D10'),
             rollInfo.sides || 10,
             diceList,
             rollInfo.flatBonus || 0,
