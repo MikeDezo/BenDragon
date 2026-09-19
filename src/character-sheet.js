@@ -581,6 +581,116 @@ function evaluateSafeMath(expr) {
   return null;
 }
 
+function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
+  const st = character?.data?.stats || {};
+  const numFighting = parseFloat(st.Fighting ?? st['Combat Capacity'] ?? '6') || 0;
+  const numStrength = parseFloat(st.Strength ?? '6') || 0;
+  const numIntuition = parseFloat(st.Intuition ?? '6') || 0;
+  const numSpeed = parseFloat(st.Speed ?? st.Movement ?? '6') || 0;
+  const numAgility = parseFloat(st.Agility ?? '6') || 0;
+
+  const normalizeTableRows = (stored) => {
+    if (Array.isArray(stored)) return stored;
+    if (stored && typeof stored === 'object') {
+      return Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((k) => stored[k]);
+    }
+    return [];
+  };
+
+  const rawWeapons = normalizeTableRows(character?.data?.tables?.Weapons);
+  const rawSpecs = normalizeTableRows(character?.data?.tables?.Specialisations);
+
+  let targetIdx = 0;
+  if (weaponSelector !== null && weaponSelector !== undefined && weaponSelector !== '') {
+    if (typeof weaponSelector === 'number') {
+      targetIdx = weaponSelector;
+    } else if (typeof weaponSelector === 'string') {
+      const parsedNum = parseInt(weaponSelector, 10);
+      if (!isNaN(parsedNum) && String(parsedNum) === weaponSelector.trim()) {
+        targetIdx = parsedNum;
+      } else {
+        const cleanSelector = weaponSelector.replace(/^['"]|['"]$/g, '').trim().toLowerCase();
+        const foundIdx = rawWeapons.findIndex((w) => (w?.[0] || '').trim().toLowerCase() === cleanSelector);
+        if (foundIdx !== -1) {
+          targetIdx = foundIdx;
+        } else {
+          targetIdx = 0;
+        }
+      }
+    }
+  } else {
+    targetIdx = character?.data?.quickAccessWeaponSlot ?? (Array.isArray(character?.data?.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0);
+  }
+
+  if (targetIdx === undefined || targetIdx < 0 || (rawWeapons.length > 0 && targetIdx >= rawWeapons.length)) {
+    targetIdx = 0;
+  }
+
+  const weapon = (rawWeapons.length > 0 && rawWeapons[targetIdx]) ? rawWeapons[targetIdx] : [];
+  const weaponName = weapon[0] || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
+  const specName = weapon[9] || '';
+  const touchStatName = weapon[1] || 'Fighting';
+  const weaponTouchBonus = parseInt(weapon[11]) || 0;
+  const damageBonusStatName = weapon[2] || 'Strength';
+  const diceStr = weapon[6] || '1D10';
+  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on';
+
+  const specRow = rawSpecs.find((s) => (s[0] || '').trim() === (specName || '').trim() && (specName || '').trim() !== '');
+  const specIniBonus = specRow ? (parseInt(specRow[5]) || 0) : 0;
+  const specTouchBonus = specRow ? (parseInt(specRow[2]) || 0) : 0;
+  const specPotentialBonus = specRow ? (parseInt(specRow[3]) || 0) : 0;
+
+  const total1stBonus = Math.floor(numIntuition / 10) + specIniBonus;
+  const totalNextBonus = Math.floor(numSpeed / 10) + specIniBonus;
+
+  const touchStatVal = parseFloat(st[touchStatName] ?? (touchStatName === 'Fighting' ? numFighting : (touchStatName === 'Agility' ? numAgility : '6'))) || 0;
+  const totalTouchVal = touchStatVal + weaponTouchBonus + specTouchBonus;
+
+  const fightMult = Math.max(1, Math.floor(numFighting / 10));
+  const dMatch = diceStr.match(/^(\d*)\s*[dD]\s*(\d+)/);
+  const baseCount = dMatch ? (parseInt(dMatch[1]) || 1) : 1;
+  const dieSides = dMatch ? parseInt(dMatch[2]) : 10;
+  const totalDiceCount = fightMult * baseCount;
+  const finalDiceStr = `${totalDiceCount}D${dieSides}`;
+
+  const dmgStatVal = parseFloat(st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6'))) || 0;
+  const statDmgBonus = twoHanded ? Math.floor(dmgStatVal * 1.5) : dmgStatVal;
+  const totalFlatBonus = statDmgBonus + specPotentialBonus;
+
+  let damageExpr = finalDiceStr;
+  if (totalFlatBonus > 0) {
+    damageExpr = `${finalDiceStr} + ${totalFlatBonus}`;
+  } else if (totalFlatBonus < 0) {
+    damageExpr = `${finalDiceStr} - ${Math.abs(totalFlatBonus)}`;
+  }
+
+  return {
+    weaponIndex: targetIdx,
+    weapon,
+    weaponName,
+    specName,
+    touchStatName,
+    touchStatVal,
+    weaponTouchBonus,
+    specTouchBonus,
+    totalTouchVal,
+    total1stBonus,
+    totalNextBonus,
+    damageBonusStatName,
+    twoHanded,
+    diceStr,
+    baseDiceCount: baseCount,
+    dieSides,
+    fightMult,
+    totalDiceCount,
+    finalDiceStr,
+    statDmgBonus,
+    specPotentialBonus,
+    totalFlatBonus,
+    damageExpr
+  };
+}
+
 function getCharacterStatsMap(character) {
   const st = character?.data?.stats || {};
   const fgt = parseFloat(st.Fighting ?? st['Combat Capacity'] ?? '6') || 0;
@@ -656,7 +766,105 @@ function getCharacterStatsMap(character) {
     });
   });
 
+  const weaponInfo = getSelectedWeaponDamageInfo(character);
+  const dmgExpr = weaponInfo.damageExpr;
+
+  const weaponAliases = [
+    'WeaponDamage',
+    'Weapon Damage',
+    'Weapon_Damage',
+    'weapondamage',
+    'weaponDamage',
+    'WEAPONDAMAGE',
+    'WeaponDmg',
+    'Weapon Dmg',
+    'Weapon_Dmg',
+    'weapondmg'
+  ];
+
+  weaponAliases.forEach((alias) => {
+    map[alias] = dmgExpr;
+  });
+
+  map['WeaponFlatDamage'] = weaponInfo.totalFlatBonus;
+  map['WeaponFlatBonus'] = weaponInfo.totalFlatBonus;
+  map['WeaponDice'] = weaponInfo.finalDiceStr;
+  map['WeaponName'] = weaponInfo.weaponName;
+
+  map._weaponInfo = weaponInfo;
+  map._character = character;
+
   return map;
+}
+
+function simplifyDiceExpression(str) {
+  if (!str || typeof str !== 'string') return str;
+  const trimmed = str.trim();
+  if (!trimmed) return '';
+
+  const dicePattern = /([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g;
+  const diceMatches = Array.from(trimmed.matchAll(dicePattern));
+  if (diceMatches.length === 0) return trimmed;
+
+  let mathPortion = trimmed;
+  let textSuffix = '';
+
+  const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+[A-Za-z].*)$/);
+  if (matchSuffix) {
+    mathPortion = matchSuffix[1].trim();
+    textSuffix = matchSuffix[2];
+  }
+
+  const withoutDiceExpr = mathPortion.replace(/([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g, (match, sign) => {
+    return (sign === '-' ? '- 0' : '+ 0');
+  });
+
+  const flatVal = evaluateSafeMath(withoutDiceExpr);
+  if (flatVal === null) {
+    return trimmed;
+  }
+
+  const diceList = [];
+  const sidesMap = new Map();
+
+  for (const m of mathPortion.matchAll(/([+\-]?)\s*(\d+)\s*[dD]\s*(\d+)/g)) {
+    const sign = m[1] === '-' ? -1 : 1;
+    const count = parseInt(m[2], 10) * sign;
+    const sides = parseInt(m[3], 10);
+    if (!sidesMap.has(sides)) {
+      const entry = { sides, count: 0 };
+      sidesMap.set(sides, entry);
+      diceList.push(entry);
+    }
+    sidesMap.get(sides).count += count;
+  }
+
+  const diceParts = [];
+  for (const entry of diceList) {
+    if (entry.count !== 0) {
+      if (entry.count > 0 && diceParts.length > 0) {
+        diceParts.push('+ ' + entry.count + 'D' + entry.sides);
+      } else if (entry.count < 0) {
+        diceParts.push('- ' + Math.abs(entry.count) + 'D' + entry.sides);
+      } else {
+        diceParts.push(entry.count + 'D' + entry.sides);
+      }
+    }
+  }
+
+  if (diceParts.length === 0) {
+    return String(Math.floor(flatVal)) + textSuffix;
+  }
+
+  const roundedFlat = Math.floor(flatVal);
+  let res = diceParts.join(' ');
+  if (roundedFlat > 0) {
+    res += ' + ' + roundedFlat;
+  } else if (roundedFlat < 0) {
+    res += ' - ' + Math.abs(roundedFlat);
+  }
+
+  return res + textSuffix;
 }
 
 function translateFormula(formula, stats) {
@@ -688,12 +896,43 @@ function translateFormula(formula, stats) {
     cc: 'Combat Capacity',
     'combat capacity': 'Combat Capacity',
     mp: 'Mana Pool',
-    'mana pool': 'Mana Pool'
+    'mana pool': 'Mana Pool',
+    weapondamage: 'WeaponDamage',
+    'weapon damage': 'WeaponDamage',
+    weapon_damage: 'WeaponDamage',
+    weapondmg: 'WeaponDamage',
+    'weapon dmg': 'WeaponDamage',
+    weapon_dmg: 'WeaponDamage'
   };
+
+  let result = formula.trim();
+  if (result.startsWith('=')) {
+    result = result.slice(1).trim();
+  }
+
+  // Compatibility with direct Excel ROUNDDOWN formulas
+  if (/ROUNDDOWN/i.test(result)) {
+    result = result.replace(/ROUNDDOWN\(([^,]+),\s*\d+\)/gi, '($1)');
+    result = result.replace(/\s*&\s*/g, ' ');
+    result = result.replace(/"([^"]*)"/g, '$1');
+  }
+
+  // Handle WeaponDamage() or WeaponDamage(param) function call syntax
+  result = result.replace(/\b(WeaponDamage|Weapon\s*Damage|Weapon_Damage|weapondamage|weapondmg|WeaponDmg)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
+    const arg = (rawArgs || '').trim();
+    if (!arg) {
+      return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
+    }
+    if (stats?._character) {
+      const specific = getSelectedWeaponDamageInfo(stats._character, arg);
+      return specific.damageExpr;
+    }
+    return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
+  });
 
   const allKeys = Object.keys(stats).sort((a, b) => b.length - a.length);
   const escapedKeys = allKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP';
+  const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP|WeaponDamage|Weapon Damage|Weapon_Damage|weapondamage|weapondmg';
   const fullPattern = escapedKeys ? `(?:${escapedKeys}|${baseStatPattern})` : baseStatPattern;
   const tokenRegex = new RegExp(`\\b(${fullPattern})\\b`, 'gi');
 
@@ -736,17 +975,11 @@ function translateFormula(formula, stats) {
     return replaced;
   }
 
-  let result = formula.trim();
-
-  // Compatibility with direct Excel ROUNDDOWN formulas
-  if (/ROUNDDOWN/i.test(result)) {
-    result = result.replace(/ROUNDDOWN\(([^,]+),\s*\d+\)/gi, '($1)');
-    result = result.replace(/\s*&\s*/g, ' ');
-    result = result.replace(/"([^"]*)"/g, '$1');
-  }
-
-  // Replace all stat abbreviations and specialisation identifiers with numbers
+  // Replace all stat abbreviations, specialisation identifiers and WeaponDamage with values
   result = replaceStats(result);
+
+  // Clean spaced dice
+  result = result.replace(/(\d+)\s+([dD]\d+)/g, '$1$2');
 
   // Evaluate parentheses from innermost to outermost
   // Inner nested parentheses evaluate as exact floats, and outermost/standalone parentheses round down
@@ -776,6 +1009,9 @@ function translateFormula(formula, stats) {
   if (wholeVal !== null) {
     return String(Math.floor(wholeVal));
   }
+
+  // Simplify dice arithmetic (e.g. 1D10 + 15 + 10 -> 1D10 + 25)
+  result = simplifyDiceExpression(result);
 
   return result;
 }
@@ -2421,36 +2657,17 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
     ? '<option value="0">-- No weapons in Weapons tab --</option>'
     : rawWeapons.map((w, wIdx) => `<option value="${wIdx}" ${wIdx === selectedWIdx ? 'selected' : ''}>${esc(w[0] || `Weapon ${wIdx + 1}`)}</option>`).join('');
 
-  const weapon = (rawWeapons.length > 0 && rawWeapons[selectedWIdx]) ? rawWeapons[selectedWIdx] : [];
-  const weaponName = weapon[0] || (rawWeapons.length > 0 ? `Weapon ${selectedWIdx + 1}` : 'Weapon');
-  const specName = weapon[9] || '';
-  const touchStatName = weapon[1] || 'Fighting';
-  const weaponTouchBonus = parseInt(weapon[11]) || 0;
-  const damageBonusStatName = weapon[2] || 'Strength';
-  const diceStr = weapon[6] || '1D10';
-  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on';
-
-  const specRow = rawSpecs.find((s) => (s[0] || '').trim() === (specName || '').trim() && (specName || '').trim() !== '');
-  const specIniBonus = specRow ? (parseInt(specRow[5]) || 0) : 0;
-  const specTouchBonus = specRow ? (parseInt(specRow[2]) || 0) : 0;
-  const specPotentialBonus = specRow ? (parseInt(specRow[3]) || 0) : 0;
-
-  const total1stBonus = Math.floor(numIntuition / 10) + specIniBonus;
-  const totalNextBonus = Math.floor(numSpeed / 10) + specIniBonus;
-
-  const touchStatVal = parseFloat(st[touchStatName] ?? (touchStatName === 'Fighting' ? numFighting : (touchStatName === 'Agility' ? numAgility : '6'))) || 0;
-  const totalTouchVal = touchStatVal + weaponTouchBonus + specTouchBonus;
-
-  const fightMult = Math.max(1, Math.floor(numFighting / 10));
-  const dMatch = diceStr.match(/^(\d*)\s*[dD]\s*(\d+)/);
-  const baseCount = dMatch ? (parseInt(dMatch[1]) || 1) : 1;
-  const dieSides = dMatch ? parseInt(dMatch[2]) : 10;
-  const totalDiceCount = fightMult * baseCount;
-  const finalDiceStr = `${totalDiceCount}D${dieSides}`;
-
-  const dmgStatVal = parseFloat(st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6'))) || 0;
-  const statDmgBonus = twoHanded ? Math.floor(dmgStatVal * 1.5) : dmgStatVal;
-  const totalFlatBonus = statDmgBonus + specPotentialBonus;
+  const weaponInfo = getSelectedWeaponDamageInfo(character, selectedWIdx);
+  const weapon = weaponInfo.weapon;
+  const weaponName = weaponInfo.weaponName;
+  const touchStatName = weaponInfo.touchStatName;
+  const totalTouchVal = weaponInfo.totalTouchVal;
+  const total1stBonus = weaponInfo.total1stBonus;
+  const totalNextBonus = weaponInfo.totalNextBonus;
+  const finalDiceStr = weaponInfo.finalDiceStr;
+  const statDmgBonus = weaponInfo.statDmgBonus;
+  const specPotentialBonus = weaponInfo.specPotentialBonus;
+  const totalFlatBonus = weaponInfo.totalFlatBonus;
 
   const weaponTableHtml = `
     <div class="qa-table-card">
