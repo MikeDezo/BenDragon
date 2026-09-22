@@ -1,0 +1,504 @@
+{
+  "updatedAt": 1790041861606,
+  "characters": {
+    "5c73122f-9ade-40f0-9311-37a18e5ae4c3": {
+      "name": "WendiNick",
+      "ownerId": null,
+      "ownerName": "",
+      "updatedAt": 1790041741668,
+      "data": {
+        "info": {},
+        "stats": {
+          "Fighting": "6",
+          "Strength": "6",
+          "Agility": "6",
+          "Endurance": "6",
+          "Speed": "6",
+          "Intelligence": "6",
+          "Wisdom": "6",
+          "Intuition": "6",
+          "Psyche": "6",
+          "Luck": "0",
+          "Karma": "0",
+          "CombatCapacityBonus": "0",
+          "ManaPoolBonus": "0",
+          "Focus": "0",
+          "FullRestante": "0",
+          "FreeRestante": "0"
+        },
+        "tables": {
+          "Weapons": [
+            {},
+            {}
+          ],
+          "Armor": [
+            {},
+            {}
+          ],
+          "Inventory": [
+            {},
+            {}
+          ],
+          "Relations": [
+            {},
+            {}
+          ],
+          "Skills": [
+            [
+              "Acrobaties",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Garder l'équilibre, faire une roulade, franchir un obstacle difficile, marcher sur une surface étroite",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Arcanes",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Comprendre la magie, identifier un phénomène magique, reconnaître un sort ou une théorie magique",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Athlétisme",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Grimper, sauter, nager, pousser, tirer, accomplir un effort physique",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Crochetage",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Ouvrir une serrure, désamorcer un mécanisme simple, manipuler un verrou",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Discrétion",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Se cacher, avancer silencieusement, éviter d'être repéré",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Étiquette",
+              "Hors-Combat",
+              "Wisdom",
+              "",
+              "",
+              "",
+              "Connaître les règles de politesse, les usages sociaux, les bonnes manières et le comportement attendu selon le milieu, le rang ou la culture.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Intimidation",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Menacer, imposer sa présence ou forcer quelqu'un à céder",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Investigation",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Fouiller une pièce, rechercher un indice, comprendre une scène, déduire ce qui s'est passé",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Lecture des Runes Auroriennes",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Lire, reconnaître et interpréter les runes auroriennes utilisées dans les enchantements, artefacts, mécanismes magitek, sceaux et inscriptions anciennes ou techniques.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Orientation",
+              "Hors-Combat",
+              "Wisdom",
+              "",
+              "",
+              "",
+              "Lire une carte, utiliser des repères, retrouver son chemin, déterminer une direction",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Perception",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Remarquer un bruit, une silhouette, une odeur, un mouvement ou un détail inhabituel",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Performance",
+              "Hors-Combat",
+              "Psyche",
+              "",
+              "",
+              "",
+              "Jouer de la musique, chanter, danser, raconter une histoire ou captiver un public",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Perspicacité",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Comprendre l'attitude, les intentions ou l'état émotionnel d'une personne",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Persuasion",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Convaincre quelqu'un par des arguments sincères ou une négociation",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Pistage",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Suivre des traces, reconnaître le passage d'une créature, déterminer une direction ou l'âge approximatif d'une piste",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Premier Soins",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Examiner une blessure, identifier une maladie, stabiliser quelqu'un, déterminer une cause de mort",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Survie",
+              "Hors-Combat",
+              "Endurance",
+              "",
+              "",
+              "",
+              "Trouver de la nourriture, installer un camp, éviter les dangers naturels, survivre dans un environnement hostile",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Tromperie",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Mentir, cacher ses intentions, inventer une histoire crédible, maintenir une fausse identité",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Protocole",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Connaître et appliquer les procédures officielles, militaires, diplomatiques, administratives ou cérémonielles propres à une institution ou à une autorité.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ],
+          "Specialisations": [
+            {
+              "1": "Unspecialised",
+              "2": "0",
+              "3": "0",
+              "4": [],
+              "5": "0"
+            },
+            {
+              "1": "Unspecialised",
+              "2": "0",
+              "3": "0",
+              "4": [],
+              "5": "0"
+            }
+          ],
+          "Spell": [
+            [
+              "Counter Spell",
+              "2",
+              "Normal",
+              "10",
+              "2 x Spirit",
+              "Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.",
+              "Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort",
+              "Fail",
+              "(Fgt/10)D6 + (MP/4) Vs Energy",
+              "(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy",
+              "(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy",
+              "(Fgt/10)D6 + ((MP/4)*2) Vs Energy",
+              "(Fgt/10)D6 + ((MP/4)*3) Vs Energy"
+            ],
+            {}
+          ],
+          "Note du joueur": [
+            {}
+          ]
+        },
+        "powerThemes": [
+          {
+            "title": "Power Theme 1",
+            "description": "",
+            "image": "",
+            "imageSettings": {
+              "width": 320,
+              "height": 420
+            },
+            "powers": [
+              {
+                "name": "",
+                "description": "",
+                "roll": "No Roll",
+                "cost": "",
+                "charges": ""
+              },
+              {
+                "name": "",
+                "description": "",
+                "roll": "No Roll",
+                "cost": "",
+                "charges": ""
+              }
+            ]
+          }
+        ],
+        "imageSettings": {
+          "width": 320,
+          "height": 480
+        },
+        "quickAccessWeaponSlot": 0,
+        "quickAccessSkillSlot": 0,
+        "quickAccessSpellSlot": 0
+      }
+    }
+  },
+  "assignments": {},
+  "rollHistory": [
+    {
+      "id": "roll_1789860052192_ta7g8x5",
+      "timestamp": 1789860055739,
+      "type": "damage",
+      "charName": "Character 1",
+      "playerName": "Mike",
+      "statName": "Damage - Test (Green)",
+      "detail": "3D6 + 3D8 (6, 3, 6, 4, 8, 2) + 72 = 101",
+      "roll": 101,
+      "outcomeType": "red",
+      "outcomeLabel": "Damage: 101",
+      "colorTone": "red"
+    },
+    {
+      "id": "roll_1789826450259_f9fy3d4",
+      "timestamp": 1789826450263,
+      "type": "dice-tray",
+      "charName": "Mike",
+      "playerName": "Mike",
+      "statName": "Dice Roll (Dice Tray)",
+      "detail": "Result: 4 (Notation: Tray)",
+      "roll": 4,
+      "outcomeType": "tray",
+      "outcomeLabel": "Total: 4",
+      "colorTone": "white"
+    },
+    {
+      "id": "roll_1789826431140_zfntsex",
+      "timestamp": 1789826431142,
+      "type": "dice-tray",
+      "charName": "Mike",
+      "playerName": "Mike",
+      "statName": "Dice Roll (Dice Tray)",
+      "detail": "Result: 2 (Notation: Tray)",
+      "roll": 2,
+      "outcomeType": "tray",
+      "outcomeLabel": "Total: 2",
+      "colorTone": "white"
+    },
+    {
+      "id": "roll_1789826395984_5z9vr27",
+      "timestamp": 1789826395988,
+      "type": "dice-tray",
+      "charName": "Mike",
+      "playerName": "Mike",
+      "statName": "Dice Roll (Dice Tray)",
+      "detail": "Result: 3 (Notation: Tray)",
+      "roll": 3,
+      "outcomeType": "tray",
+      "outcomeLabel": "Total: 3",
+      "colorTone": "white"
+    },
+    {
+      "id": "roll_1789826330000_alg0f5f",
+      "timestamp": 1789826333585,
+      "type": "damage",
+      "charName": "Character 1",
+      "playerName": "Mike",
+      "statName": "Damage - test (Critical)",
+      "detail": "(3D10 (2, 10, 9) + 45) x 1.5 = 99",
+      "roll": 99,
+      "outcomeType": "red",
+      "outcomeLabel": "Damage: 99",
+      "colorTone": "red"
+    },
+    {
+      "id": "roll_1789826278437_h40l2q0",
+      "timestamp": 1789826281788,
+      "type": "damage",
+      "charName": "Character 1",
+      "playerName": "Mike",
+      "statName": "Damage - test (Critical)",
+      "detail": "(3D10 (6, 5, 8) + 45) x 1.5 = 96",
+      "roll": 96,
+      "outcomeType": "red",
+      "outcomeLabel": "Damage: 96",
+      "colorTone": "red"
+    }
+  ],
+  "initiativeTracker": {},
+  "knownPlayers": {
+    "584a7c89-c370-4b19-a767-7655648c678d": {
+      "id": "584a7c89-c370-4b19-a767-7655648c678d",
+      "name": "Mike",
+      "role": "GM",
+      "lastSeen": 1790041635012
+    },
+    "a2837d97-6362-4568-a189-139e0d21ed36": {
+      "id": "a2837d97-6362-4568-a189-139e0d21ed36",
+      "name": "MikeExplorer",
+      "role": "PLAYER",
+      "lastSeen": 1790041290609
+    }
+  }
+}

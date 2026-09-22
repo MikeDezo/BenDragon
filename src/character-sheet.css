@@ -137,6 +137,8 @@ button { color: inherit; }
 .toolbar-button:hover { background: #496052; }
 .toolbar-button.danger { background: #b84c42; border-color: #9c3c33; color: #fff; }
 .toolbar-button.danger:hover { background: #a23a31; }
+.toolbar-button.secondary { background: var(--paper-deep); color: var(--ink); border: 1px solid var(--line); }
+.toolbar-button.secondary:hover { background: #e8e4d5; }
 
 .font-scale-control {
   display: inline-flex;

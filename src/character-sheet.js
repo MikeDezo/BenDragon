@@ -3867,7 +3867,7 @@ function controls(character) {
     const isSelected = character?.ownerId === player.id;
     return `<option value="${esc(player.id)}" ${isSelected ? 'selected' : ''}>${esc(player.name)} (${esc(statusLabel)})</option>`;
   }).join('');
-  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label>${fontControl}</div>`;
+  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label><button class="toolbar-button secondary" id="export-backup-btn" title="Export all character sheets to a JSON file">Export Backup</button><button class="toolbar-button secondary" id="import-backup-btn" title="Import character sheets from a JSON backup">Import Backup</button><input type="file" id="import-backup-input" accept=".json" style="display:none;" />${fontControl}</div>`;
 }
 
 function render(focusPath = null, selectAll = false) {
@@ -3980,6 +3980,95 @@ function setPath(path, value) {
   state.updatedAt = Date.now();
 }
 
+const CLOUD_API_BASE = '';
+let isCloudAvailable = true;
+let lastCloudSyncSuccess = false;
+let pendingDeletedCharacterIds = new Set();
+
+function updateCloudStatus(customText = null) {
+  const status = document.querySelector('#cloud-status');
+  if (!status) return;
+  if (customText) {
+    status.textContent = customText;
+    return;
+  }
+  if (isCloudAvailable && lastCloudSyncSuccess) {
+    status.textContent = OBR.isAvailable ? 'Saved to Render Cloud & Owlbear' : 'Saved to Render Cloud';
+  } else if (isCloudAvailable) {
+    status.textContent = 'Render Cloud Ready';
+  } else {
+    status.textContent = 'Saved locally (Cloud offline)';
+  }
+}
+
+async function fetchCloudState() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(`${CLOUD_API_BASE}/api/character-sheets`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    isCloudAvailable = true;
+    lastCloudSyncSuccess = true;
+    return data;
+  } catch (err) {
+    console.warn('[CloudStorage] Could not fetch state from Render cloud server:', err.message);
+    isCloudAvailable = false;
+    return null;
+  }
+}
+
+async function saveCloudState(payload, deletedIds = []) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(`${CLOUD_API_BASE}/api/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ ...payload, deletedCharacterIds: deletedIds }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const result = await res.json();
+    isCloudAvailable = true;
+    lastCloudSyncSuccess = true;
+    return result;
+  } catch (err) {
+    console.warn('[CloudStorage] Could not save state to Render cloud server:', err.message);
+    isCloudAvailable = false;
+    lastCloudSyncSuccess = false;
+    return null;
+  }
+}
+
+async function deleteCloudCharacter(charId) {
+  pendingDeletedCharacterIds.add(charId);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(`${CLOUD_API_BASE}/api/characters/${encodeURIComponent(charId)}`, {
+      method: 'DELETE',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      pendingDeletedCharacterIds.delete(charId);
+    }
+  } catch (err) {
+    console.warn('[CloudStorage] Could not immediately delete character on cloud server:', err.message);
+  }
+}
+
 let saveTimeout = null;
 let isSaving = false;
 let pendingSave = false;
@@ -3999,52 +4088,88 @@ function getSaveHash(data) {
   }
 }
 
-function mergeStates(roomState, localState) {
-  if (!roomState && !localState) {
-    return { characters: {}, assignments: {}, rollHistory: [], initiativeTracker: {}, knownPlayers: {}, updatedAt: Date.now() };
+function mergeStates(...states) {
+  const validStates = states.filter((s) => s && typeof s === 'object');
+  if (validStates.length === 0) {
+    return {
+      characters: {},
+      assignments: {},
+      rollHistory: [],
+      initiativeTracker: {},
+      knownPlayers: {},
+      updatedAt: Date.now()
+    };
   }
-  if (!roomState) return localState;
-  if (!localState) return roomState;
+
+  const maxUpdatedAt = Math.max(0, ...validStates.map((s) => s.updatedAt || 0));
 
   const merged = {
-    updatedAt: Math.max(roomState.updatedAt || 0, localState.updatedAt || 0),
-    characters: { ...roomState.characters },
-    assignments: { ...roomState.assignments, ...localState.assignments },
-    initiativeTracker: { ...roomState.initiativeTracker, ...localState.initiativeTracker },
-    knownPlayers: { ...(localState.knownPlayers || {}), ...(roomState.knownPlayers || {}) },
+    updatedAt: maxUpdatedAt || Date.now(),
+    characters: {},
+    assignments: {},
+    initiativeTracker: {},
+    knownPlayers: {},
     rollHistory: []
   };
 
-  const allCharIds = new Set([
-    ...Object.keys(roomState.characters || {}),
-    ...Object.keys(localState.characters || {})
-  ]);
+  validStates.forEach((s) => {
+    Object.assign(merged.assignments, s.assignments || {});
+    Object.assign(merged.initiativeTracker, s.initiativeTracker || {});
+    Object.assign(merged.knownPlayers, s.knownPlayers || {});
+  });
+
+  const allCharIds = new Set();
+  validStates.forEach((s) => {
+    Object.keys(s.characters || {}).forEach((id) => allCharIds.add(id));
+  });
 
   allCharIds.forEach((id) => {
-    const rChar = roomState.characters?.[id];
-    const lChar = localState.characters?.[id];
-    if (rChar && lChar) {
-      const rTime = rChar.updatedAt || roomState.updatedAt || 0;
-      const lTime = lChar.updatedAt || localState.updatedAt || 0;
-      merged.characters[id] = lTime >= rTime ? lChar : rChar;
-    } else if (lChar) {
-      merged.characters[id] = lChar;
-    } else if (rChar) {
-      merged.characters[id] = rChar;
+    if (pendingDeletedCharacterIds.has(id)) {
+      return;
+    }
+    let latestChar = null;
+    let latestTime = -1;
+
+    validStates.forEach((s) => {
+      const char = s.characters?.[id];
+      if (char) {
+        const time = char.updatedAt || s.updatedAt || 0;
+        if (time >= latestTime) {
+          latestTime = time;
+          latestChar = char;
+        }
+      }
+    });
+
+    if (latestChar) {
+      merged.characters[id] = latestChar;
     }
   });
 
+  const newAssignments = {};
+  Object.entries(merged.characters).forEach(([cId, c]) => {
+    if (c.ownerId) {
+      newAssignments[c.ownerId] ??= [];
+      if (!newAssignments[c.ownerId].includes(cId)) {
+        newAssignments[c.ownerId].push(cId);
+      }
+    }
+  });
+  merged.assignments = newAssignments;
+
   const historyMap = new Map();
-  (roomState.rollHistory || []).forEach((r) => { if (r && r.id) historyMap.set(r.id, r); });
-  (localState.rollHistory || []).forEach((r) => { if (r && r.id) historyMap.set(r.id, r); });
-  merged.rollHistory = Array.from(historyMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  validStates.forEach((s) => {
+    (s.rollHistory || []).forEach((r) => {
+      if (r && r.id) historyMap.set(r.id, r);
+    });
+  });
+  merged.rollHistory = Array.from(historyMap.values()).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).slice(0, 200);
 
   return merged;
 }
 
 function queueSave(delay = 400) {
-  const status = document.querySelector('#cloud-status');
-  if (status) status.textContent = 'Saving...';
+  updateCloudStatus('Saving to Render cloud...');
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);
@@ -4062,9 +4187,8 @@ async function save() {
   }
 
   const currentHash = getSaveHash(state);
-  if (currentHash === lastSavedHash && lastSavedHash !== null && !pendingSave) {
-    const status = document.querySelector('#cloud-status');
-    if (status) status.textContent = OBR.isAvailable ? 'Saved to Owlbear cloud' : 'Saved locally';
+  if (currentHash === lastSavedHash && lastSavedHash !== null && !pendingSave && pendingDeletedCharacterIds.size === 0) {
+    updateCloudStatus();
     return;
   }
 
@@ -4074,56 +4198,74 @@ async function save() {
   }
 
   isSaving = true;
+  updateCloudStatus('Saving to Render cloud...');
   state.updatedAt = Date.now();
   const payload = { ...state, updatedAt: state.updatedAt };
 
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  } catch (e) {}
-
-  if (OBR.isAvailable) {
+    // 1. Immediate local storage save (offline resilience)
     try {
-      await OBR.room.setMetadata({ [STORAGE_KEY]: payload });
-      lastSavedHash = currentHash;
-      const status = document.querySelector('#cloud-status');
-      if (status) status.textContent = 'Saved to Owlbear cloud';
-    } catch (err) {
-      console.warn('Failed to save to Owlbear room metadata:', err);
-      const status = document.querySelector('#cloud-status');
-      if (status) status.textContent = 'Saved locally';
-    } finally {
-      isSaving = false;
-      if (pendingSave) {
-        pendingSave = false;
-        setTimeout(() => save(), 250);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) {}
+
+    // 2. Save to Render Cloud API
+    const deletedIds = Array.from(pendingDeletedCharacterIds);
+    try {
+      const cloudRes = await saveCloudState(payload, deletedIds);
+      if (cloudRes && cloudRes.success) {
+        deletedIds.forEach((id) => pendingDeletedCharacterIds.delete(id));
       }
+    } catch (err) {
+      console.warn('Failed to save to Render cloud:', err);
     }
 
-    try {
-      if (OBR.broadcast?.sendMessage) {
-        const char = currentCharacter();
-        if (char && activeCharacterId) {
-          OBR.broadcast.sendMessage('terranova/character-update', {
-            characterId: activeCharacterId,
-            character: char,
-            updatedAt: char.updatedAt || state.updatedAt
-          }, { destination: 'ALL' });
-        }
+    // 3. Save to Owlbear Rodeo Room Metadata (if available)
+    if (OBR.isAvailable) {
+      try {
+        await OBR.room.setMetadata({ [STORAGE_KEY]: payload });
+      } catch (err) {
+        console.warn('Failed to save to Owlbear room metadata:', err);
       }
-    } catch (e) {}
-  } else {
+
+      try {
+        if (OBR.broadcast?.sendMessage) {
+          const char = currentCharacter();
+          if (char && activeCharacterId) {
+            OBR.broadcast.sendMessage('terranova/character-update', {
+              characterId: activeCharacterId,
+              character: char,
+              updatedAt: char.updatedAt || state.updatedAt,
+              senderId: user.id
+            }, { destination: 'REMOTE' });
+          }
+        }
+      } catch (e) {}
+    }
+
     lastSavedHash = currentHash;
-    const status = document.querySelector('#cloud-status');
-    if (status) status.textContent = 'Saved locally';
+  } finally {
     isSaving = false;
     if (pendingSave) {
       pendingSave = false;
-      save();
+      setTimeout(() => save(), 250);
     }
   }
+
+  updateCloudStatus();
 }
 
 async function load() {
+  updateCloudStatus('Loading from Render cloud...');
+
+  // 1. Fetch Cloud State from Render
+  let cloudState = null;
+  try {
+    cloudState = await fetchCloudState();
+  } catch (e) {
+    console.warn('Failed to load Render cloud state:', e);
+  }
+
+  // 2. Fetch OBR Room Metadata if inside Owlbear Rodeo
   let source = null;
   if (OBR.isAvailable) {
     try {
@@ -4133,6 +4275,7 @@ async function load() {
     }
   }
 
+  // 3. Fetch Local Storage Cache
   let localParsed = null;
   try {
     const localStr = localStorage.getItem(STORAGE_KEY);
@@ -4147,7 +4290,7 @@ async function load() {
   } catch (e) {}
 
   const roomState = source?.[STORAGE_KEY] || null;
-  state = mergeStates(roomState, localParsed);
+  state = mergeStates(cloudState, roomState, localParsed);
   state.characters ??= {};
   state.assignments ??= {};
   state.rollHistory ??= [];
@@ -4239,9 +4382,16 @@ async function load() {
     }
   }
 
-  if (roomState && localParsed && (localParsed.updatedAt || 0) > (roomState.updatedAt || 0)) {
-    queueSave(500);
+  // If local had characters not yet on cloud, or local timestamp is newer, upload to Render cloud immediately
+  const localTime = localParsed?.updatedAt || 0;
+  const cloudTime = cloudState?.updatedAt || 0;
+  const hasLocalOnlyChars = localParsed?.characters && Object.keys(localParsed.characters).some((id) => !cloudState?.characters?.[id]);
+  if (localTime > cloudTime || hasLocalOnlyChars) {
+    lastSavedHash = null;
+    queueSave(300);
   }
+
+  updateCloudStatus();
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt || Date.now() }));
@@ -4602,17 +4752,22 @@ async function initialise() {
 
     OBR.broadcast.onMessage('terranova/character-update', (event) => {
       const data = event.data;
-      if (data && data.characterId && data.character) {
+      if (!data) return;
+      if (data.senderId && data.senderId === user.id) {
+        return;
+      }
+      if (data.characterId && data.character) {
         const existing = state.characters[data.characterId];
         const existingTime = existing?.updatedAt || 0;
-        if (!existing || (data.updatedAt || 0) >= existingTime) {
+        const incomingTime = data.updatedAt || data.character.updatedAt || 0;
+        if (!existing || incomingTime > existingTime) {
           state.characters[data.characterId] = data.character;
-          state.updatedAt = Math.max(state.updatedAt || 0, data.updatedAt || Date.now());
+          state.updatedAt = Math.max(state.updatedAt || 0, incomingTime || Date.now());
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt }));
           } catch (e) {}
           if (user.role === 'GM') {
-            queueSave(200);
+            queueSave(500);
           }
           render();
         }
@@ -5128,7 +5283,7 @@ function bindEvents() {
     if (!character || !activeCharacterId) return;
 
     const charName = character.name || 'this character sheet';
-    const confirmed = window.confirm(`Are you sure you want to delete "${charName}"? This action cannot be undone.`);
+    const confirmed = window.confirm(`Are you sure you want to delete "${charName}"? This action will permanently remove it from Render cloud storage.`);
     if (!confirmed) return;
 
     const deletedId = activeCharacterId;
@@ -5154,9 +5309,58 @@ function bindEvents() {
       activeCharacterId = remaining[0][0];
     }
 
+    await deleteCloudCharacter(deletedId);
     await save();
     render();
   });
+
+  app.querySelector('#export-backup-btn')?.addEventListener('click', () => {
+    try {
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(state, null, 2));
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `terranova-characters-backup-${dateStr}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } catch (err) {
+      window.open(`${CLOUD_API_BASE}/api/export`, '_blank');
+    }
+  });
+
+  const importInput = app.querySelector('#import-backup-input');
+  app.querySelector('#import-backup-btn')?.addEventListener('click', () => {
+    importInput?.click();
+  });
+
+  if (importInput) {
+    importInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const parsed = JSON.parse(event.target.result);
+          if (parsed && typeof parsed === 'object' && parsed.characters) {
+            const count = Object.keys(parsed.characters).length;
+            if (window.confirm(`Import backup containing ${count} character sheets? This will merge with and update your cloud character sheets.`)) {
+              state = mergeStates(state, parsed);
+              state.updatedAt = Date.now();
+              await save();
+              render();
+              alert(`Successfully imported ${count} character sheets and saved to Render cloud!`);
+            }
+          } else {
+            alert('Invalid backup JSON format: Missing character data.');
+          }
+        } catch (err) {
+          alert('Failed to parse backup file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
   app.querySelector('#owner-select')?.addEventListener('change', async (event) => {
     if (user.role !== 'GM') return;
     const character = currentCharacter();
@@ -6066,6 +6270,24 @@ if (typeof window !== 'undefined') {
       clearTimeout(saveTimeout);
       saveTimeout = null;
     }
+    try {
+      state.updatedAt = Date.now();
+      const payload = JSON.stringify({
+        ...state,
+        deletedCharacterIds: Array.from(pendingDeletedCharacterIds)
+      });
+      if (navigator.sendBeacon) {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon(`${CLOUD_API_BASE}/api/sync`, blob);
+      } else {
+        fetch(`${CLOUD_API_BASE}/api/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(() => {});
+      }
+    } catch (e) {}
     save();
   };
   window.addEventListener('beforeunload', flushSave);
