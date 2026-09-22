@@ -86,10 +86,16 @@ async function runTests() {
   console.log(`✓ Test 5: DB file and ${backups.length} backups verified on disk`);
 
   // Test 6: Cookie Deletion Simulation
-  // When browser cookies/localStorage are wiped, loadStateFromDisk() from Render Cloud restores all characters
+  // When browser cookies/localStorage are wiped, loadStateFromDisk() from server restores all characters
   const cloudRestoredState = loadStateFromDisk();
-  assert(cloudRestoredState.characters['test-char-1'], 'Character 1 successfully restored from cloud after cookie clear!');
-  console.log('✓ Test 6: Simulation of browser cookie deletion - All data restored 100% from Render cloud!');
+  assert(cloudRestoredState.characters['test-char-1'], 'Character 1 successfully restored from server character-sheets.json after browser cache wipe!');
+  console.log('✓ Test 6: Simulation of browser cookie & localStorage deletion - All data restored 100% from server character-sheets.json!');
+
+  // Test 7: Verify character-sheets.json content on server
+  const rawDbContent = fs.readFileSync(path.join(dataDir, 'character-sheets.json'), 'utf8');
+  const parsedDb = JSON.parse(rawDbContent);
+  assert(parsedDb.characters && parsedDb.characters['test-char-1'], 'character-sheets.json must contain character data');
+  console.log('✓ Test 7: Direct validation of data/character-sheets.json file contents passed');
 
   console.log('--- ALL STORAGE TESTS PASSED SUCCESSFULLY! ---');
 }

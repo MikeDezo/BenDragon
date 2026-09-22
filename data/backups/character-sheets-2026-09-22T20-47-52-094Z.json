@@ -1,11 +1,11 @@
 {
-  "updatedAt": 1790041863508,
+  "updatedAt": 1790110073093,
   "characters": {
-    "5c73122f-9ade-40f0-9311-37a18e5ae4c3": {
-      "name": "WendiNick",
+    "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
+      "name": "Character 1",
       "ownerId": null,
       "ownerName": "",
-      "updatedAt": 1790041741668,
+      "updatedAt": 1790041866718,
       "data": {
         "info": {},
         "stats": {
@@ -398,14 +398,41 @@
         "imageSettings": {
           "width": 320,
           "height": 480
-        },
-        "quickAccessWeaponSlot": 0,
-        "quickAccessSkillSlot": 0,
-        "quickAccessSpellSlot": 0
+        }
+      }
+    },
+    "test-char-1": {
+      "name": "Grommash the Legendary",
+      "ownerId": "player-1",
+      "ownerName": "Alice",
+      "updatedAt": 1790110073093,
+      "data": {
+        "stats": {
+          "Fighting": "15",
+          "Strength": "16"
+        }
+      }
+    },
+    "test-char-2": {
+      "name": "Elrond the Wise",
+      "ownerId": "player-2",
+      "ownerName": "Bob",
+      "updatedAt": 1790110072593,
+      "data": {
+        "stats": {
+          "Intelligence": "18"
+        }
       }
     }
   },
-  "assignments": {},
+  "assignments": {
+    "player-1": [
+      "test-char-1"
+    ],
+    "player-2": [
+      "test-char-2"
+    ]
+  },
   "rollHistory": [
     {
       "id": "roll_1789860052192_ta7g8x5",

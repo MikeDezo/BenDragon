@@ -34,6 +34,17 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // ----------------------------------------------------
+// Anti-Caching Middleware: Character sheets must NEVER be stored in browser cache
+// ----------------------------------------------------
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
+
+// ----------------------------------------------------
 // Cloud Storage API Routes
 // ----------------------------------------------------
 
@@ -193,23 +204,30 @@ app.post('/api/import', async (req, res) => {
 const distPath = path.join(__dirname, 'dist');
 const publicPath = path.join(__dirname, 'public');
 
+const setNoCacheHeaders = (res, filePath) => {
+  // Never cache HTML files or dynamic resources in the player's browser
+  if (filePath.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
+  }
+};
+
 // Serve static assets from dist if built, otherwise public/root
 if (fs.existsSync(distPath)) {
-  app.use(express.static(distPath, {
-    setHeaders: (res, filePath) => {
-      // Don't cache HTML files so extension updates are immediate
-      if (filePath.endsWith('.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      }
-    }
-  }));
+  app.use(express.static(distPath, { setHeaders: setNoCacheHeaders }));
 } else {
-  app.use(express.static(publicPath));
-  app.use(express.static(__dirname));
+  app.use(express.static(publicPath, { setHeaders: setNoCacheHeaders }));
+  app.use(express.static(__dirname, { setHeaders: setNoCacheHeaders }));
 }
 
 // Extension entry routes
 app.get('/character-sheet.html', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
   const file = fs.existsSync(path.join(distPath, 'character-sheet.html'))
     ? path.join(distPath, 'character-sheet.html')
     : path.join(__dirname, 'character-sheet.html');
@@ -230,6 +248,10 @@ app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Not found' });
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
   const file = fs.existsSync(path.join(distPath, 'character-sheet.html'))
     ? path.join(distPath, 'character-sheet.html')
     : path.join(__dirname, 'character-sheet.html');

@@ -9,7 +9,28 @@ const tabs = [
   'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur',
   'Unique Power'
 ];
-const STORAGE_KEY = 'terranova.characterSheets';
+
+// Proactively purge any legacy character sheet data from browser storage / cache
+function purgeBrowserCharacterCache() {
+  try {
+    localStorage.removeItem('terranova.characterSheets');
+    localStorage.removeItem('characterSheets');
+    sessionStorage.removeItem('terranova.characterSheets');
+    sessionStorage.removeItem('characterSheets');
+    if (typeof window !== 'undefined' && 'caches' in window) {
+      caches.keys().then((names) => {
+        for (const name of names) {
+          if (name.includes('character') || name.includes('terranova')) {
+            caches.delete(name);
+          }
+        }
+      }).catch(() => {});
+    }
+  } catch (e) {}
+}
+
+purgeBrowserCharacterCache();
+
 const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 'gender'], ['Origins', 'origins'], ['Age', 'age'], ['Heigth', 'height'], ['Weigth', 'weight'], ['Eyes Color', 'eyesColor'], ['Hairs Color', 'hairColor'], ['Skin Color', 'skinColor'], ['Languages', 'languages'], ['Alphabet', 'alphabet'], ['Gods', 'gods'], ['Xp to spend/Total', 'xp'], ['BackGround', 'background']];
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
@@ -3993,21 +4014,26 @@ function updateCloudStatus(customText = null) {
     return;
   }
   if (isCloudAvailable && lastCloudSyncSuccess) {
-    status.textContent = OBR.isAvailable ? 'Saved to Render Cloud & Owlbear' : 'Saved to Render Cloud';
+    status.textContent = 'Server: character-sheets.json';
   } else if (isCloudAvailable) {
-    status.textContent = 'Render Cloud Ready';
+    status.textContent = 'Server ready';
   } else {
-    status.textContent = 'Saved locally (Cloud offline)';
+    status.textContent = 'Connecting to Server...';
   }
 }
 
 async function fetchCloudState() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(`${CLOUD_API_BASE}/api/character-sheets`, {
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${CLOUD_API_BASE}/api/character-sheets?_t=${Date.now()}`, {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      cache: 'no-store',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -4017,7 +4043,7 @@ async function fetchCloudState() {
     lastCloudSyncSuccess = true;
     return data;
   } catch (err) {
-    console.warn('[CloudStorage] Could not fetch state from Render cloud server:', err.message);
+    console.warn('[ServerStorage] Could not fetch state from server:', err.message);
     isCloudAvailable = false;
     return null;
   }
@@ -4031,8 +4057,11 @@ async function saveCloudState(payload, deletedIds = []) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
       },
+      cache: 'no-store',
       body: JSON.stringify({ ...payload, deletedCharacterIds: deletedIds }),
       signal: controller.signal
     });
@@ -4043,7 +4072,7 @@ async function saveCloudState(payload, deletedIds = []) {
     lastCloudSyncSuccess = true;
     return result;
   } catch (err) {
-    console.warn('[CloudStorage] Could not save state to Render cloud server:', err.message);
+    console.warn('[ServerStorage] Could not save state to server:', err.message);
     isCloudAvailable = false;
     lastCloudSyncSuccess = false;
     return null;
@@ -4057,7 +4086,12 @@ async function deleteCloudCharacter(charId) {
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(`${CLOUD_API_BASE}/api/characters/${encodeURIComponent(charId)}`, {
       method: 'DELETE',
-      headers: { 'Accept': 'application/json' },
+      headers: {
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      cache: 'no-store',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -4065,7 +4099,7 @@ async function deleteCloudCharacter(charId) {
       pendingDeletedCharacterIds.delete(charId);
     }
   } catch (err) {
-    console.warn('[CloudStorage] Could not immediately delete character on cloud server:', err.message);
+    console.warn('[ServerStorage] Could not immediately delete character on server:', err.message);
   }
 }
 
@@ -4169,7 +4203,7 @@ function mergeStates(...states) {
 }
 
 function queueSave(delay = 400) {
-  updateCloudStatus('Saving to Render cloud...');
+  updateCloudStatus('Saving to server...');
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);
@@ -4198,17 +4232,15 @@ async function save() {
   }
 
   isSaving = true;
-  updateCloudStatus('Saving to Render cloud...');
+  updateCloudStatus('Saving to server...');
   state.updatedAt = Date.now();
   const payload = { ...state, updatedAt: state.updatedAt };
 
-  try {
-    // 1. Immediate local storage save (offline resilience)
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-    } catch (e) {}
+  // Ensure character sheets are NEVER stored in browser cache / localStorage
+  purgeBrowserCharacterCache();
 
-    // 2. Save to Render Cloud API
+  try {
+    // 1. Save exclusively to Server (character-sheets.json)
     const deletedIds = Array.from(pendingDeletedCharacterIds);
     try {
       const cloudRes = await saveCloudState(payload, deletedIds);
@@ -4216,17 +4248,11 @@ async function save() {
         deletedIds.forEach((id) => pendingDeletedCharacterIds.delete(id));
       }
     } catch (err) {
-      console.warn('Failed to save to Render cloud:', err);
+      console.warn('Failed to save to server:', err);
     }
 
-    // 3. Save to Owlbear Rodeo Room Metadata (if available)
+    // 2. Broadcast real-time update in memory to other room peers via OBR broadcast
     if (OBR.isAvailable) {
-      try {
-        await OBR.room.setMetadata({ [STORAGE_KEY]: payload });
-      } catch (err) {
-        console.warn('Failed to save to Owlbear room metadata:', err);
-      }
-
       try {
         if (OBR.broadcast?.sendMessage) {
           const char = currentCharacter();
@@ -4255,42 +4281,27 @@ async function save() {
 }
 
 async function load() {
-  updateCloudStatus('Loading from Render cloud...');
+  updateCloudStatus('Loading from server...');
 
-  // 1. Fetch Cloud State from Render
+  // Ensure character sheets are NEVER stored in browser cache / localStorage
+  purgeBrowserCharacterCache();
+
+  // Fetch state directly and exclusively from server character-sheets.json
   let cloudState = null;
   try {
     cloudState = await fetchCloudState();
   } catch (e) {
-    console.warn('Failed to load Render cloud state:', e);
+    console.warn('Failed to load server state:', e);
   }
 
-  // 2. Fetch OBR Room Metadata if inside Owlbear Rodeo
-  let source = null;
-  if (OBR.isAvailable) {
-    try {
-      source = await OBR.room.getMetadata();
-    } catch (e) {
-      console.warn('Failed to load OBR room metadata:', e);
-    }
-  }
-
-  // 3. Fetch Local Storage Cache
-  let localParsed = null;
-  try {
-    const localStr = localStorage.getItem(STORAGE_KEY);
-    if (localStr) {
-      const parsed = JSON.parse(localStr);
-      if (parsed && parsed[STORAGE_KEY]) {
-        localParsed = parsed[STORAGE_KEY];
-      } else if (parsed && parsed.characters) {
-        localParsed = parsed;
-      }
-    }
-  } catch (e) {}
-
-  const roomState = source?.[STORAGE_KEY] || null;
-  state = mergeStates(cloudState, roomState, localParsed);
+  state = cloudState || {
+    characters: {},
+    assignments: {},
+    rollHistory: [],
+    initiativeTracker: {},
+    knownPlayers: {},
+    updatedAt: Date.now()
+  };
   state.characters ??= {};
   state.assignments ??= {};
   state.rollHistory ??= [];
@@ -4382,28 +4393,10 @@ async function load() {
     }
   }
 
-  // If local had characters not yet on cloud, or local timestamp is newer, upload to Render cloud immediately
-  const localTime = localParsed?.updatedAt || 0;
-  const cloudTime = cloudState?.updatedAt || 0;
-  const hasLocalOnlyChars = localParsed?.characters && Object.keys(localParsed.characters).some((id) => !cloudState?.characters?.[id]);
-  if (localTime > cloudTime || hasLocalOnlyChars) {
-    lastSavedHash = null;
-    queueSave(300);
-  }
-
   updateCloudStatus();
 
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt || Date.now() }));
-    localStorage.setItem('terranova.currentUser', JSON.stringify(user));
-    localStorage.setItem('terranova.players', JSON.stringify(players));
-    if (activeCharacterId) {
-      localStorage.setItem('terranova.activeCharId', activeCharacterId);
-    } else {
-      localStorage.removeItem('terranova.activeCharId');
-    }
-    localStorage.setItem('terranova.activeTab', activeTab);
-  } catch (e) {}
+  // Ensure character sheets are NEVER stored in browser cache / localStorage
+  purgeBrowserCharacterCache();
 }
 
 let lastObrSyncTime = 0;
@@ -4665,64 +4658,6 @@ async function initialise() {
       }
     });
 
-    OBR.room.onMetadataChange((metadata) => {
-      if (metadata[STORAGE_KEY]) {
-        const nextState = metadata[STORAGE_KEY];
-        const nextHash = getSaveHash(nextState);
-        if (nextHash === lastSavedHash) {
-          return;
-        }
-        state = mergeStates(nextState, state);
-        lastSavedHash = getSaveHash(state);
-        state.characters ??= {};
-        state.assignments ??= {};
-        state.rollHistory ??= [];
-        state.initiativeTracker ??= {};
-        state.knownPlayers ??= {};
-        updateKnownPlayers(players);
-        Object.values(state.characters).forEach((char) => {
-          if (char) {
-            if (char.ownerId && !char.ownerName) {
-              const foundPlayer = state.knownPlayers?.[char.ownerId] || (players || []).find((p) => p.id === char.ownerId) || (char.ownerId === user.id ? user : null);
-              if (foundPlayer?.name) {
-                char.ownerName = foundPlayer.name;
-              }
-            }
-            if (char.ownerId && char.ownerName) {
-              registerKnownPlayer(char.ownerId, char.ownerName, char.ownerId === user.id ? user.role : 'PLAYER');
-            }
-            if (char.data) {
-              char.data.tables ??= {};
-              if (isSkillsEmpty(char.data.tables.Skills)) {
-                char.data.tables.Skills = DEFAULT_SKILLS_ROWS.map((row) => [...row]);
-              }
-              Object.keys(char.data.tables).forEach((tName) => {
-                const tVal = char.data.tables[tName];
-                if (tVal && typeof tVal === 'object' && !Array.isArray(tVal)) {
-                  char.data.tables[tName] = Object.keys(tVal).sort((a, b) => Number(a) - Number(b)).map((k) => tVal[k]);
-                }
-              });
-            }
-          }
-        });
-        if (user.role === 'GM') {
-          if (!activeCharacterId || !state.characters[activeCharacterId]) {
-            const sorted = getSortedDmCharacterEntries();
-            activeCharacterId = sorted[0]?.[0] || Object.keys(state.characters)[0] || null;
-          }
-        } else {
-          const myChars = getAssignedCharacters(user.id);
-          if (!myChars.some(([id]) => id === activeCharacterId)) {
-            activeCharacterId = myChars[0]?.[0] || null;
-          }
-          if (activeTab === 'Rolls & Ini' || !getAvailableTabs().includes(activeTab)) {
-            activeTab = 'Infos';
-          }
-        }
-        render();
-      }
-    });
-
     OBR.party.onChange((nextPlayers) => {
       players = nextPlayers || [];
       updateKnownPlayers(players);
@@ -4763,9 +4698,8 @@ async function initialise() {
         if (!existing || incomingTime > existingTime) {
           state.characters[data.characterId] = data.character;
           state.updatedAt = Math.max(state.updatedAt || 0, incomingTime || Date.now());
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, updatedAt: state.updatedAt }));
-          } catch (e) {}
+          // Never store character sheets in browser storage
+          purgeBrowserCharacterCache();
           if (user.role === 'GM') {
             queueSave(500);
           }

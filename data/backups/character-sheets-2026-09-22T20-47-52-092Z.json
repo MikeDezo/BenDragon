@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1790110304142,
+  "updatedAt": 1790110072092,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
@@ -402,14 +402,18 @@
       }
     },
     "test-char-1": {
-      "name": "Grommash the Legendary",
+      "name": "Grommash the Brave",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790110305140,
+      "updatedAt": 1790110072092,
       "data": {
         "stats": {
-          "Fighting": "15",
-          "Strength": "16"
+          "Fighting": "12",
+          "Strength": "14"
+        },
+        "info": {
+          "playerName": "Alice",
+          "origins": "Dwarf"
         }
       }
     }
@@ -417,8 +421,7 @@
   "assignments": {
     "player-1": [
       "test-char-1"
-    ],
-    "player-2": []
+    ]
   },
   "rollHistory": [
     {
