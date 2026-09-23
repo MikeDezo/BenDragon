@@ -6,10 +6,12 @@ import { fileURLToPath } from 'url';
 import {
   loadStateFromDisk,
   getState,
+  fetchState,
   saveStateToDisk,
   syncState,
   deleteCharacter,
-  upsertCharacter
+  upsertCharacter,
+  isPostgresConfigured
 } from './storage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,23 +50,28 @@ app.use('/api', (req, res, next) => {
 // Cloud Storage API Routes
 // ----------------------------------------------------
 
-// Health check endpoint (for Render health checks)
-app.get('/api/health', (req, res) => {
-  const state = getState();
-  const charCount = Object.keys(state.characters || {}).length;
-  res.json({
-    status: 'ok',
-    uptime: Math.floor(process.uptime()),
-    characterCount: charCount,
-    updatedAt: state.updatedAt || null,
-    timestamp: Date.now()
-  });
+// Health check endpoint (for Render / Cloudflare health checks)
+app.get('/api/health', async (req, res) => {
+  try {
+    const state = await fetchState();
+    const charCount = Object.keys(state.characters || {}).length;
+    res.json({
+      status: 'ok',
+      database: isPostgresConfigured() ? 'PostgreSQL' : 'Local Disk',
+      uptime: Math.floor(process.uptime()),
+      characterCount: charCount,
+      updatedAt: state.updatedAt || null,
+      timestamp: Date.now()
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', error: err.message });
+  }
 });
 
 // Get all character sheets and full state
-app.get(['/api/character-sheets', '/api/state'], (req, res) => {
+app.get(['/api/character-sheets', '/api/state'], async (req, res) => {
   try {
-    const state = getState();
+    const state = await fetchState();
     res.json(state);
   } catch (err) {
     console.error('[API] Error getting state:', err);
@@ -80,7 +87,7 @@ app.post(['/api/character-sheets', '/api/state'], async (req, res) => {
       return res.status(400).json({ error: 'Invalid state payload' });
     }
     await saveStateToDisk(incoming);
-    const updated = getState();
+    const updated = await fetchState();
     res.json({
       success: true,
       updatedAt: updated.updatedAt,
@@ -109,9 +116,9 @@ app.post('/api/sync', async (req, res) => {
 });
 
 // Get a single character by ID
-app.get('/api/characters/:id', (req, res) => {
+app.get('/api/characters/:id', async (req, res) => {
   try {
-    const state = getState();
+    const state = await fetchState();
     const character = state.characters?.[req.params.id];
     if (!character) {
       return res.status(404).json({ error: 'Character not found' });
@@ -164,9 +171,9 @@ app.delete('/api/characters/:id', async (req, res) => {
 });
 
 // Export full backup as downloadable JSON
-app.get('/api/export', (req, res) => {
+app.get('/api/export', async (req, res) => {
   try {
-    const state = getState();
+    const state = await fetchState();
     const dateStr = new Date().toISOString().slice(0, 10);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="terranova-characters-${dateStr}.json"`);
@@ -185,7 +192,7 @@ app.post('/api/import', async (req, res) => {
       return res.status(400).json({ error: 'Invalid backup file format' });
     }
     await saveStateToDisk(imported);
-    const updated = getState();
+    const updated = await fetchState();
     res.json({
       success: true,
       characterCount: Object.keys(updated.characters || {}).length,

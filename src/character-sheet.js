@@ -4014,11 +4014,11 @@ function updateCloudStatus(customText = null) {
     return;
   }
   if (isCloudAvailable && lastCloudSyncSuccess) {
-    status.textContent = 'Server: character-sheets.json';
+    status.textContent = 'Cloud Database: Synced';
   } else if (isCloudAvailable) {
-    status.textContent = 'Server ready';
+    status.textContent = 'Cloud Database ready';
   } else {
-    status.textContent = 'Connecting to Server...';
+    status.textContent = 'Connecting to Cloud Database...';
   }
 }
 
@@ -4043,7 +4043,7 @@ async function fetchCloudState() {
     lastCloudSyncSuccess = true;
     return data;
   } catch (err) {
-    console.warn('[ServerStorage] Could not fetch state from server:', err.message);
+    console.warn('[CloudStorage] Could not fetch state from database:', err.message);
     isCloudAvailable = false;
     return null;
   }
@@ -4072,7 +4072,7 @@ async function saveCloudState(payload, deletedIds = []) {
     lastCloudSyncSuccess = true;
     return result;
   } catch (err) {
-    console.warn('[ServerStorage] Could not save state to server:', err.message);
+    console.warn('[CloudStorage] Could not save state to database:', err.message);
     isCloudAvailable = false;
     lastCloudSyncSuccess = false;
     return null;
@@ -4099,7 +4099,7 @@ async function deleteCloudCharacter(charId) {
       pendingDeletedCharacterIds.delete(charId);
     }
   } catch (err) {
-    console.warn('[ServerStorage] Could not immediately delete character on server:', err.message);
+    console.warn('[CloudStorage] Could not immediately delete character in database:', err.message);
   }
 }
 
@@ -4203,7 +4203,7 @@ function mergeStates(...states) {
 }
 
 function queueSave(delay = 400) {
-  updateCloudStatus('Saving to server...');
+  updateCloudStatus('Saving to database...');
 
   if (saveTimeout) {
     clearTimeout(saveTimeout);
@@ -4232,7 +4232,7 @@ async function save() {
   }
 
   isSaving = true;
-  updateCloudStatus('Saving to server...');
+  updateCloudStatus('Saving to database...');
   state.updatedAt = Date.now();
   const payload = { ...state, updatedAt: state.updatedAt };
 
@@ -4240,7 +4240,7 @@ async function save() {
   purgeBrowserCharacterCache();
 
   try {
-    // 1. Save exclusively to Server (character-sheets.json)
+    // 1. Save to Cloud Database (PostgreSQL / Cloudflare)
     const deletedIds = Array.from(pendingDeletedCharacterIds);
     try {
       const cloudRes = await saveCloudState(payload, deletedIds);
@@ -4248,7 +4248,7 @@ async function save() {
         deletedIds.forEach((id) => pendingDeletedCharacterIds.delete(id));
       }
     } catch (err) {
-      console.warn('Failed to save to server:', err);
+      console.warn('Failed to save to cloud database:', err);
     }
 
     // 2. Broadcast real-time update in memory to other room peers via OBR broadcast
@@ -4281,17 +4281,17 @@ async function save() {
 }
 
 async function load() {
-  updateCloudStatus('Loading from server...');
+  updateCloudStatus('Loading from database...');
 
   // Ensure character sheets are NEVER stored in browser cache / localStorage
   purgeBrowserCharacterCache();
 
-  // Fetch state directly and exclusively from server character-sheets.json
+  // Fetch state directly from Cloud Database
   let cloudState = null;
   try {
     cloudState = await fetchCloudState();
   } catch (e) {
-    console.warn('Failed to load server state:', e);
+    console.warn('Failed to load database state:', e);
   }
 
   state = cloudState || {

@@ -2,10 +2,12 @@ import { defineConfig } from "vite";
 import {
   loadStateFromDisk,
   getState,
+  fetchState,
   saveStateToDisk,
   syncState,
   deleteCharacter,
-  upsertCharacter
+  upsertCharacter,
+  isPostgresConfigured
 } from './storage.js';
 
 function cloudStorageDevPlugin() {
@@ -50,17 +52,19 @@ function cloudStorageDevPlugin() {
 
         try {
           if (pathname === '/api/health' && req.method === 'GET') {
-            const state = getState();
+            const state = await fetchState();
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
               status: 'ok',
+              database: isPostgresConfigured() ? 'PostgreSQL' : 'Local Disk',
               characterCount: Object.keys(state.characters || {}).length,
+              updatedAt: state.updatedAt || null,
               timestamp: Date.now()
             }));
           }
 
           if ((pathname === '/api/character-sheets' || pathname === '/api/state') && req.method === 'GET') {
-            const state = getState();
+            const state = await fetchState();
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify(state));
           }
@@ -68,7 +72,7 @@ function cloudStorageDevPlugin() {
           if ((pathname === '/api/character-sheets' || pathname === '/api/state') && req.method === 'POST') {
             const body = await readJsonBody();
             await saveStateToDisk(body);
-            const state = getState();
+            const state = await fetchState();
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
               success: true,
@@ -92,7 +96,7 @@ function cloudStorageDevPlugin() {
           if (pathname.startsWith('/api/characters/')) {
             const charId = pathname.replace('/api/characters/', '');
             if (req.method === 'GET') {
-              const state = getState();
+              const state = await fetchState();
               const char = state.characters?.[charId];
               if (!char) {
                 res.statusCode = 404;
@@ -118,7 +122,7 @@ function cloudStorageDevPlugin() {
           }
 
           if (pathname === '/api/export' && req.method === 'GET') {
-            const state = getState();
+            const state = await fetchState();
             const dateStr = new Date().toISOString().slice(0, 10);
             res.setHeader('Content-Type', 'application/json');
             res.setHeader('Content-Disposition', `attachment; filename="terranova-characters-${dateStr}.json"`);
@@ -133,7 +137,7 @@ function cloudStorageDevPlugin() {
               return res.end(JSON.stringify({ error: 'Invalid backup format' }));
             }
             await saveStateToDisk(body);
-            const state = getState();
+            const state = await fetchState();
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
               success: true,

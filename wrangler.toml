@@ -1,0 +1,13 @@
+name = "bendragon-sheets"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# Optional: Cloudflare Hyperdrive binding for PostgreSQL connection pooling & caching acceleration
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<your-hyperdrive-id>"
+
+# Environment Variables (can also be set in Cloudflare Dashboard -> Settings -> Environment Variables)
+[vars]
+# DATABASE_URL = "postgres://user:password@hostname:5432/dbname?sslmode=require"

@@ -1,22 +1,34 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import {
+  getConnectionString,
+  getFullStateFromDb,
+  saveFullStateToDb,
+  syncStateWithDb,
+  deleteCharacterFromDb,
+  upsertCharacterInDb
+} from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Support custom data directory via environment variable (e.g. for Render persistent disks)
+// Support custom data directory via environment variable (e.g. for persistent disks or local dev)
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const DB_FILE = process.env.DATA_PATH || path.join(DATA_DIR, 'character-sheets.json');
 const MAX_BACKUPS = 15;
 
 function ensureDirectories() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(BACKUP_DIR)) {
-    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(BACKUP_DIR)) {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    }
+  } catch (e) {
+    // In read-only or serverless environments, ignore directory creation errors
   }
 }
 
@@ -33,6 +45,10 @@ function getDefaultState() {
 
 let cachedState = null;
 let saveQueue = Promise.resolve();
+
+export function isPostgresConfigured(env = {}) {
+  return Boolean(getConnectionString(env));
+}
 
 function createBackup(data) {
   try {
@@ -112,6 +128,19 @@ export function loadStateFromDisk() {
   return cachedState;
 }
 
+export async function fetchState(env = {}) {
+  if (isPostgresConfigured(env)) {
+    try {
+      const pgState = await getFullStateFromDb(env);
+      cachedState = pgState;
+      return pgState;
+    } catch (err) {
+      console.warn('[Storage] PostgreSQL query failed, falling back to local state:', err.message);
+    }
+  }
+  return getState();
+}
+
 export function getState() {
   if (!cachedState) {
     loadStateFromDisk();
@@ -119,7 +148,7 @@ export function getState() {
   return cachedState;
 }
 
-export async function saveStateToDisk(state) {
+export async function saveStateToDisk(state, env = {}) {
   ensureDirectories();
   const payload = {
     updatedAt: state.updatedAt || Date.now(),
@@ -132,6 +161,14 @@ export async function saveStateToDisk(state) {
 
   cachedState = payload;
 
+  if (isPostgresConfigured(env)) {
+    try {
+      await saveFullStateToDb(payload, env);
+    } catch (err) {
+      console.warn('[Storage] PostgreSQL save error:', err.message);
+    }
+  }
+
   saveQueue = saveQueue.then(async () => {
     try {
       const jsonStr = JSON.stringify(payload, null, 2);
@@ -140,15 +177,27 @@ export async function saveStateToDisk(state) {
       fs.renameSync(tmpFile, DB_FILE);
       createBackup(payload);
     } catch (err) {
-      console.error('[CloudStorage] Failed to save state to disk:', err);
-      throw err;
+      if (err.code !== 'EROFS' && !err.message?.includes('read-only')) {
+        console.warn('[Storage] Notice saving state to disk:', err.message);
+      }
     }
   });
 
   return saveQueue;
 }
 
-export async function syncState(incomingState, deletedCharacterIds = []) {
+export async function syncState(incomingState, deletedCharacterIds = [], env = {}) {
+  if (isPostgresConfigured(env)) {
+    try {
+      const pgMerged = await syncStateWithDb(incomingState, deletedCharacterIds, env);
+      cachedState = pgMerged;
+      saveStateToDisk(pgMerged).catch(() => {});
+      return pgMerged;
+    } catch (err) {
+      console.warn('[Storage] PostgreSQL sync failed, using in-memory / disk sync:', err.message);
+    }
+  }
+
   const current = getState();
   const merged = {
     updatedAt: Math.max(current.updatedAt || 0, incomingState.updatedAt || 0, Date.now()),
@@ -218,7 +267,19 @@ export async function syncState(incomingState, deletedCharacterIds = []) {
   return merged;
 }
 
-export async function deleteCharacter(characterId) {
+export async function deleteCharacter(characterId, env = {}) {
+  if (isPostgresConfigured(env)) {
+    try {
+      const deleted = await deleteCharacterFromDb(characterId, env);
+      if (deleted && cachedState?.characters) {
+        delete cachedState.characters[characterId];
+      }
+      return deleted;
+    } catch (err) {
+      console.warn('[Storage] PostgreSQL delete failed, using disk delete:', err.message);
+    }
+  }
+
   const current = getState();
   if (current.characters[characterId]) {
     delete current.characters[characterId];
@@ -242,7 +303,19 @@ export async function deleteCharacter(characterId) {
   return false;
 }
 
-export async function upsertCharacter(characterId, characterData) {
+export async function upsertCharacter(characterId, characterData, env = {}) {
+  if (isPostgresConfigured(env)) {
+    try {
+      const saved = await upsertCharacterInDb(characterId, characterData, env);
+      if (cachedState?.characters) {
+        cachedState.characters[characterId] = saved;
+      }
+      return saved;
+    } catch (err) {
+      console.warn('[Storage] PostgreSQL upsert failed, using disk upsert:', err.message);
+    }
+  }
+
   const current = getState();
   current.characters[characterId] = {
     ...characterData,
