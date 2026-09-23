@@ -1,20 +1,25 @@
 {
-  "name": "hello-world",
-  "version": "0.0.0",
+  "name": "bendragon-sheets",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server.js",
+    "deploy": "npm run build && wrangler deploy",
+    "cf-typegen": "wrangler types",
+    "check": "vite build && wrangler deploy --dry-run",
     "pages:dev": "wrangler pages dev dist --compatibility-flag=nodejs_compat",
     "pages:deploy": "npm run build && wrangler pages deploy dist",
+    "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
     "test": "node test/cloud-storage-test.js",
     "test:db": "node test/postgres-db-test.js"
   },
   "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3",
     "vite": "^8.2.2",
     "wrangler": "^4.137.0"
   },
@@ -24,6 +29,7 @@
     "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
+    "hono": "^4.11.1",
     "pg": "^8.23.0"
   }
 }

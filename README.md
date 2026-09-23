@@ -1,12 +1,12 @@
 # Ben & Dragon! - Owlbear Rodeo Extension
 
-An Owlbear Rodeo extension for managing character sheets, stats, roll histories, initiative tracking, and homebrew systems, optimized for **Cloudflare Pages** backed by a **PostgreSQL** database.
+An Owlbear Rodeo extension for managing character sheets, stats, roll histories, initiative tracking, and homebrew systems, optimized for **Cloudflare Workers** & **Cloudflare Pages** backed by a **PostgreSQL** database.
 
 ---
 
 ## 🌟 Features & Cloud Architecture
 
-- ⚡ **Cloudflare Pages & Functions**: Serverless edge deployment with low latency worldwide.
+- ⚡ **Cloudflare Workers & Pages**: Serverless edge deployment with Hono routing, low latency worldwide, and static asset serving.
 - 🐘 **PostgreSQL Cloud Storage**: All character sheets, player assignments, initiative states, and roll histories are stored directly in PostgreSQL.
 - 🔄 **Auto-Schema Migration**: Tables (`characters`, `app_state`, `roll_history`) are initialized automatically upon first connect.
 - 🔌 **Universal Compatibility**: Works seamlessly with Neon, Supabase, Cloudflare Hyperdrive, Railway, Render, AWS RDS, or any PostgreSQL provider.
@@ -34,18 +34,35 @@ An Owlbear Rodeo extension for managing character sheets, stats, roll histories,
    npm run dev
    ```
 
-4. **Test Cloudflare Pages Functions locally**:
+4. **Test Cloudflare Pages / Workers Functions locally**:
    ```bash
    npm run pages:dev
    ```
 
 ---
 
-## ☁️ Deploying to Cloudflare Pages
+## ☁️ Deploying to Cloudflare
 
-### Option 1: Cloudflare Dashboard (Recommended)
+### Option 1: Cloudflare Workers with Static Assets (Wrangler CLI)
 
-1. Go to the **Cloudflare Dashboard** → **Workers & Pages** → **Create application** → **Pages** → **Connect to Git**.
+```bash
+# 1. Build and deploy directly using Wrangler
+npm run deploy
+
+# Or run dry-run validation:
+npm run check
+```
+
+### Option 2: Cloudflare Pages
+
+```bash
+# 1. Build and deploy to Cloudflare Pages
+npm run pages:deploy
+```
+
+### Option 3: Cloudflare Dashboard
+
+1. Go to the **Cloudflare Dashboard** → **Workers & Pages** → **Create application** → **Connect to Git**.
 2. Select your repository.
 3. Configure the **Build Settings**:
    - **Framework preset**: `Vite` (or None)
@@ -56,18 +73,8 @@ An Owlbear Rodeo extension for managing character sheets, stats, roll histories,
    - Add variable: `DATABASE_URL`
    - Value: `postgres://<username>:<password>@<host>:5432/<dbname>?sslmode=require`
 5. Under **Settings** → **Functions** → **Compatibility flags**:
-   - Ensure `nodejs_compat` is enabled (already defined in `wrangler.toml`).
+   - Ensure `nodejs_compat` is enabled (already defined in `wrangler.json` & `wrangler.toml`).
 6. Click **Save and Deploy**.
-
-### Option 2: Wrangler CLI Deployment
-
-```bash
-# 1. Build the production bundle
-npm run build
-
-# 2. Deploy directly to Cloudflare Pages
-npx wrangler pages deploy dist
-```
 
 ---
 
