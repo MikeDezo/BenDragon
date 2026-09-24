@@ -1,11 +1,11 @@
 {
-  "updatedAt": 1790215073623,
+  "updatedAt": 1790218345580,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
       "ownerId": null,
       "ownerName": "",
-      "updatedAt": 1790214978243,
+      "updatedAt": 1790218345179,
       "data": {
         "info": {
           "xpToSpend": "200",
@@ -31,8 +31,15 @@
         },
         "tables": {
           "Weapons": [
-            {},
-            {}
+            {
+              "0": "Longsword",
+              "6": "D10",
+              "10": true
+            },
+            {
+              "0": "shield",
+              "6": "D8"
+            }
           ],
           "Armor": [
             {},
@@ -401,7 +408,10 @@
         "imageSettings": {
           "width": 320,
           "height": 480
-        }
+        },
+        "quickAccessWeaponSlot": 0,
+        "quickAccessSkillSlot": 0,
+        "quickAccessSpellSlot": 0
       }
     },
     "test-char-1": {
@@ -713,6 +723,32 @@
   },
   "rollHistory": [
     {
+      "id": "roll_1790218288413_o0amwk5",
+      "timestamp": 1790218288413,
+      "type": "damage",
+      "charName": "Character 1",
+      "playerName": "Local Player",
+      "statName": "Damage - Longsword (Block)",
+      "detail": "1D10 (2) + 9 = 11",
+      "roll": 11,
+      "outcomeType": "red",
+      "outcomeLabel": "Damage: 11",
+      "colorTone": "red"
+    },
+    {
+      "id": "roll_1790218256913_g86dic8",
+      "timestamp": 1790218256913,
+      "type": "damage",
+      "charName": "Character 1",
+      "playerName": "Local Player",
+      "statName": "Damage - Longsword (Block)",
+      "detail": "1D10 (4) + 16 = 20",
+      "roll": 20,
+      "outcomeType": "red",
+      "outcomeLabel": "Damage: 20",
+      "colorTone": "red"
+    },
+    {
       "id": "roll_1789860052192_ta7g8x5",
       "roll": 101,
       "type": "damage",
@@ -797,7 +833,7 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790214750594
+      "lastSeen": 1790215197834
     },
     "a2837d97-6362-4568-a189-139e0d21ed36": {
       "id": "a2837d97-6362-4568-a189-139e0d21ed36",
@@ -809,13 +845,13 @@
       "id": "local-player",
       "name": "Local Player",
       "role": "GM",
-      "lastSeen": 1790214915693
+      "lastSeen": 1790218187620
     },
     "player-1": {
       "id": "player-1",
       "name": "Alice",
       "role": "PLAYER",
-      "lastSeen": 1790214915693
+      "lastSeen": 1790218187620
     }
   }
 }

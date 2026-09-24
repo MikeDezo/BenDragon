@@ -649,12 +649,12 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
 
   const weapon = (rawWeapons.length > 0 && rawWeapons[targetIdx]) ? rawWeapons[targetIdx] : [];
   const weaponName = weapon[0] || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
-  const specName = weapon[9] || '';
-  const touchStatName = weapon[1] || 'Fighting';
-  const weaponTouchBonus = parseInt(weapon[11]) || 0;
-  const damageBonusStatName = weapon[2] || 'Strength';
-  const diceStr = weapon[6] || '1D10';
-  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on';
+  const specName = (typeof weapon[2] === 'string' && weapon[2] && !/^\d+d\d+/i.test(weapon[2]) ? weapon[2] : weapon[9]) || '';
+  const touchStatName = (weapon[3] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[3]) ? weapon[3] : (weapon[1] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[1]) ? weapon[1] : 'Fighting'));
+  const weaponTouchBonus = parseInt(weapon[4] !== undefined && weapon[4] !== '' ? weapon[4] : weapon[11]) || 0;
+  const damageBonusStatName = (weapon[5] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[5]) ? weapon[5] : (weapon[2] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[2]) ? weapon[2] : 'Strength'));
+  const diceStr = weapon[9] || weapon[6] || '1D10';
+  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on' || weapon['10'] === true || weapon['10'] === 'true' || weapon['10'] === 'on' || weapon['Two handed?'] === true || weapon.twoHanded === true;
 
   const specRow = rawSpecs.find((s) => (s[0] || '').trim() === (specName || '').trim() && (specName || '').trim() !== '');
   const specIniBonus = specRow ? (parseInt(specRow[5]) || 0) : 0;
@@ -2928,6 +2928,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const statDmgBonus = weaponInfo.statDmgBonus;
   const specPotentialBonus = weaponInfo.specPotentialBonus;
   const totalFlatBonus = weaponInfo.totalFlatBonus;
+  const twoHanded = weaponInfo.twoHanded;
 
   const weaponTableHtml = `
     <div class="qa-table-card">
@@ -2959,7 +2960,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       </div>
       <!-- Row 4: Attack Success Damage Modifiers (4 columns) -->
       <div class="qa-grid-4">
-        <div class="qa-cell bg-green rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Block" data-mod-bonus="10" title="Click to roll Damage (+10 Block): ${finalDiceStr} + ${totalFlatBonus + 10}">Block</div>
+        <div class="qa-cell bg-green rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Block" data-mod-bonus="${twoHanded ? 0 : 10}" title="${twoHanded ? `Click to roll Damage: ${finalDiceStr} + ${totalFlatBonus}` : `Click to roll Damage (+10 Block): ${finalDiceStr} + ${totalFlatBonus + 10}`}">Block</div>
         <div class="qa-cell bg-yellow rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Yellow" data-mod-bonus="20" title="Click to roll Damage (+20 Yellow): ${finalDiceStr} + ${totalFlatBonus + 20}">Yellow</div>
         <div class="qa-cell bg-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Red" data-mod-bonus="30" title="Click to roll Damage (+30 Red): ${finalDiceStr} + ${totalFlatBonus + 30}">Red</div>
         <div class="qa-cell bg-dark-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Natural Red" data-mod-bonus="40" title="Click to roll Damage (+40 Natural Red): ${finalDiceStr} + ${totalFlatBonus + 40}">NaturalRed</div>
