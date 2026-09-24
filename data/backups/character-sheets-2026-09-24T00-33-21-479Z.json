@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1790110275511,
+  "updatedAt": 1790210002478,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
@@ -405,11 +405,22 @@
       "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790110276509,
+      "updatedAt": 1790210002478,
       "data": {
         "stats": {
           "Fighting": "15",
           "Strength": "16"
+        }
+      }
+    },
+    "test-char-2": {
+      "name": "Elrond the Wise",
+      "ownerId": "player-2",
+      "ownerName": "Bob",
+      "updatedAt": 1790210001978,
+      "data": {
+        "stats": {
+          "Intelligence": "18"
         }
       }
     }
@@ -418,7 +429,9 @@
     "player-1": [
       "test-char-1"
     ],
-    "player-2": []
+    "player-2": [
+      "test-char-2"
+    ]
   },
   "rollHistory": [
     {

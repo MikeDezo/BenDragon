@@ -12,6 +12,163 @@ import {
 
 const app = new Hono();
 
+// Global in-memory cache for Worker isolate lifecycle
+let edgeMemoryState = {
+  updatedAt: Date.now(),
+  characters: {},
+  assignments: {},
+  rollHistory: [],
+  initiativeTracker: {},
+  knownPlayers: {}
+};
+
+// Helper to check Cloudflare KV binding
+function getKvBinding(env) {
+  return env?.BENDRAGON_KV || env?.KV || env?.STORAGE || env?.BENDRAGON_STORE || null;
+}
+
+// Fetch current state from PostgreSQL -> KV -> Memory
+async function getEffectiveState(env) {
+  const isPostgres = Boolean(getConnectionString(env));
+  if (isPostgres) {
+    try {
+      const dbState = await getFullStateFromDb(env);
+      if (dbState && typeof dbState === 'object') {
+        edgeMemoryState = dbState;
+        return dbState;
+      }
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL getFullState failed, checking KV/memory:', err.message);
+    }
+  }
+
+  const kv = getKvBinding(env);
+  if (kv) {
+    try {
+      const kvState = await kv.get('terranova_state', { type: 'json' });
+      if (kvState && typeof kvState === 'object') {
+        edgeMemoryState = kvState;
+        return kvState;
+      }
+    } catch (err) {
+      console.warn('[Worker] KV read error:', err.message);
+    }
+  }
+
+  return edgeMemoryState;
+}
+
+// Persist state to PostgreSQL -> KV -> Memory
+async function saveEffectiveState(state, env) {
+  edgeMemoryState = state;
+  let savedToDb = false;
+
+  const isPostgres = Boolean(getConnectionString(env));
+  if (isPostgres) {
+    try {
+      await saveFullStateToDb(state, env);
+      savedToDb = true;
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL save failed, falling back to KV/memory:', err.message);
+    }
+  }
+
+  const kv = getKvBinding(env);
+  if (kv) {
+    try {
+      await kv.put('terranova_state', JSON.stringify(state));
+    } catch (err) {
+      console.warn('[Worker] KV write error:', err.message);
+    }
+  }
+
+  return savedToDb;
+}
+
+// Synchronize state across PostgreSQL / KV / Memory
+async function syncEffectiveState(incomingState, deletedCharacterIds = [], env) {
+  const isPostgres = Boolean(getConnectionString(env));
+  if (isPostgres) {
+    try {
+      const mergedDb = await syncStateWithDb(incomingState, deletedCharacterIds, env);
+      if (mergedDb) {
+        edgeMemoryState = mergedDb;
+        const kv = getKvBinding(env);
+        if (kv) {
+          kv.put('terranova_state', JSON.stringify(mergedDb)).catch(() => {});
+        }
+        return mergedDb;
+      }
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL sync failed, falling back to local merge:', err.message);
+    }
+  }
+
+  // Merge in memory
+  const current = await getEffectiveState(env);
+  const now = Date.now();
+  const deletedSet = new Set(deletedCharacterIds || []);
+
+  const merged = {
+    updatedAt: Math.max(Number(current.updatedAt) || 0, Number(incomingState.updatedAt) || 0, now),
+    characters: { ...(current.characters || {}) },
+    assignments: { ...(current.assignments || {}), ...(incomingState.assignments || {}) },
+    initiativeTracker: { ...(current.initiativeTracker || {}), ...(incomingState.initiativeTracker || {}) },
+    knownPlayers: { ...(current.knownPlayers || {}), ...(incomingState.knownPlayers || {}) },
+    rollHistory: []
+  };
+
+  // Remove deleted characters
+  deletedSet.forEach((dId) => {
+    delete merged.characters[dId];
+    Object.keys(merged.assignments).forEach((ownerId) => {
+      if (Array.isArray(merged.assignments[ownerId])) {
+        merged.assignments[ownerId] = merged.assignments[ownerId].filter((id) => id !== dId);
+      }
+    });
+    if (merged.initiativeTracker[dId]) {
+      delete merged.initiativeTracker[dId];
+    }
+  });
+
+  // Merge characters
+  const inChars = incomingState.characters || {};
+  const allIds = new Set([...Object.keys(merged.characters), ...Object.keys(inChars)]);
+  allIds.forEach((id) => {
+    if (deletedSet.has(id)) return;
+    const curChar = merged.characters[id];
+    const inChar = inChars[id];
+    if (curChar && inChar) {
+      const curTime = Number(curChar.updatedAt) || Number(current.updatedAt) || 0;
+      const inTime = Number(inChar.updatedAt) || Number(incomingState.updatedAt) || 0;
+      merged.characters[id] = inTime >= curTime ? inChar : curChar;
+    } else if (inChar) {
+      merged.characters[id] = inChar;
+    }
+  });
+
+  // Update assignments
+  Object.entries(merged.characters).forEach(([cId, c]) => {
+    if (c.ownerId) {
+      merged.assignments[c.ownerId] ??= [];
+      if (!merged.assignments[c.ownerId].includes(cId)) {
+        merged.assignments[c.ownerId].push(cId);
+      }
+    }
+  });
+
+  // Merge rolls
+  const rollMap = new Map();
+  (incomingState.rollHistory || []).forEach((r) => { if (r?.id) rollMap.set(r.id, r); });
+  (current.rollHistory || []).forEach((r) => { if (r?.id && !rollMap.has(r.id)) rollMap.set(r.id, r); });
+  merged.rollHistory = Array.from(rollMap.values())
+    .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+    .slice(0, 200);
+
+  await saveEffectiveState(merged, env);
+  return merged;
+}
+
 // Enable CORS for all routes (specifically for Owlbear Rodeo extension embedding)
 app.use('*', cors({
   origin: '*',
@@ -41,25 +198,36 @@ app.onError((err, c) => {
 // Health check endpoint
 app.get('/api/health', async (c) => {
   const env = c.env || {};
-  const isPostgres = Boolean(getConnectionString(env));
+  const connStr = getConnectionString(env);
+  const isPostgres = Boolean(connStr);
+  const hasKv = Boolean(getKvBinding(env));
   let charCount = 0;
   let updatedAt = null;
-  let dbStatus = isPostgres ? 'connected' : 'unconfigured';
+  let dbStatus = isPostgres ? 'configured' : (hasKv ? 'kv-bound' : 'memory-fallback');
+  let isConnected = false;
 
   if (isPostgres) {
     try {
       const state = await getFullStateFromDb(env);
       charCount = Object.keys(state.characters || {}).length;
       updatedAt = state.updatedAt;
+      dbStatus = 'connected';
+      isConnected = true;
     } catch (err) {
-      dbStatus = `error: ${err.message}`;
+      dbStatus = `postgres-error: ${err.message}`;
     }
+  }
+
+  if (!isConnected) {
+    const state = await getEffectiveState(env);
+    charCount = Object.keys(state.characters || {}).length;
+    updatedAt = state.updatedAt;
   }
 
   return c.json({
     status: 'ok',
     runtime: 'cloudflare-worker',
-    database: 'PostgreSQL',
+    storageMode: isConnected ? 'PostgreSQL' : (hasKv ? 'Cloudflare KV' : 'Edge Memory'),
     dbStatus,
     characterCount: charCount,
     updatedAt,
@@ -69,12 +237,12 @@ app.get('/api/health', async (c) => {
 
 // Get all character sheets / state
 app.get('/api/character-sheets', async (c) => {
-  const state = await getFullStateFromDb(c.env);
+  const state = await getEffectiveState(c.env);
   return c.json(state);
 });
 
 app.get('/api/state', async (c) => {
-  const state = await getFullStateFromDb(c.env);
+  const state = await getEffectiveState(c.env);
   return c.json(state);
 });
 
@@ -84,11 +252,12 @@ app.post('/api/character-sheets', async (c) => {
   if (!incoming || typeof incoming !== 'object') {
     return c.json({ error: 'Invalid state payload' }, 400);
   }
-  const saved = await saveFullStateToDb(incoming, c.env);
+  await saveEffectiveState(incoming, c.env);
+  const state = await getEffectiveState(c.env);
   return c.json({
     success: true,
-    updatedAt: saved.updatedAt,
-    characterCount: Object.keys(saved.characters || {}).length
+    updatedAt: state.updatedAt,
+    characterCount: Object.keys(state.characters || {}).length
   });
 });
 
@@ -97,11 +266,12 @@ app.post('/api/state', async (c) => {
   if (!incoming || typeof incoming !== 'object') {
     return c.json({ error: 'Invalid state payload' }, 400);
   }
-  const saved = await saveFullStateToDb(incoming, c.env);
+  await saveEffectiveState(incoming, c.env);
+  const state = await getEffectiveState(c.env);
   return c.json({
     success: true,
-    updatedAt: saved.updatedAt,
-    characterCount: Object.keys(saved.characters || {}).length
+    updatedAt: state.updatedAt,
+    characterCount: Object.keys(state.characters || {}).length
   });
 });
 
@@ -109,7 +279,7 @@ app.post('/api/state', async (c) => {
 app.post('/api/sync', async (c) => {
   const body = await c.req.json();
   const { deletedCharacterIds, ...incomingState } = body || {};
-  const merged = await syncStateWithDb(incomingState, deletedCharacterIds || [], c.env);
+  const merged = await syncEffectiveState(incomingState, deletedCharacterIds || [], c.env);
   return c.json({
     success: true,
     state: merged,
@@ -120,33 +290,12 @@ app.post('/api/sync', async (c) => {
 // Single character operations
 app.get('/api/characters/:id', async (c) => {
   const id = c.req.param('id');
-  const res = await query(
-    `SELECT id, name, owner_id AS "ownerId", owner_name AS "ownerName", data, updated_at AS "updatedAt"
-     FROM characters WHERE id = $1`,
-    [id],
-    c.env
-  );
-
-  if (res.rows.length === 0) {
+  const state = await getEffectiveState(c.env);
+  const char = state.characters?.[id];
+  if (!char) {
     return c.json({ error: 'Character not found' }, 404);
   }
-
-  const row = res.rows[0];
-  let charData = row.data;
-  if (typeof charData === 'string') {
-    try { charData = JSON.parse(charData); } catch (e) {}
-  }
-
-  const character = {
-    id: row.id,
-    name: row.name,
-    ownerId: row.ownerId,
-    ownerName: row.ownerName,
-    updatedAt: Number(row.updatedAt) || Date.now(),
-    data: charData || {}
-  };
-
-  return c.json({ character });
+  return c.json({ character: char });
 });
 
 app.put('/api/characters/:id', async (c) => {
@@ -155,8 +304,31 @@ app.put('/api/characters/:id', async (c) => {
   if (!characterData || typeof characterData !== 'object') {
     return c.json({ error: 'Invalid character data payload' }, 400);
   }
-  const saved = await upsertCharacterInDb(id, characterData, c.env);
-  return c.json({ success: true, character: saved });
+
+  const isPostgres = Boolean(getConnectionString(c.env));
+  if (isPostgres) {
+    try {
+      const saved = await upsertCharacterInDb(id, characterData, c.env);
+      return c.json({ success: true, character: saved });
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL upsert failed, saving to local state:', err.message);
+    }
+  }
+
+  const current = await getEffectiveState(c.env);
+  const now = Date.now();
+  current.characters[id] = {
+    id,
+    name: characterData.name || '',
+    ownerId: characterData.ownerId || null,
+    ownerName: characterData.ownerName || null,
+    data: characterData.data || {},
+    updatedAt: Number(characterData.updatedAt) || now
+  };
+  current.updatedAt = now;
+  await saveEffectiveState(current, c.env);
+
+  return c.json({ success: true, character: current.characters[id] });
 });
 
 app.post('/api/characters/:id', async (c) => {
@@ -165,19 +337,57 @@ app.post('/api/characters/:id', async (c) => {
   if (!characterData || typeof characterData !== 'object') {
     return c.json({ error: 'Invalid character data payload' }, 400);
   }
-  const saved = await upsertCharacterInDb(id, characterData, c.env);
-  return c.json({ success: true, character: saved });
+
+  const isPostgres = Boolean(getConnectionString(c.env));
+  if (isPostgres) {
+    try {
+      const saved = await upsertCharacterInDb(id, characterData, c.env);
+      return c.json({ success: true, character: saved });
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL upsert failed, saving to local state:', err.message);
+    }
+  }
+
+  const current = await getEffectiveState(c.env);
+  const now = Date.now();
+  current.characters[id] = {
+    id,
+    name: characterData.name || '',
+    ownerId: characterData.ownerId || null,
+    ownerName: characterData.ownerName || null,
+    data: characterData.data || {},
+    updatedAt: Number(characterData.updatedAt) || now
+  };
+  current.updatedAt = now;
+  await saveEffectiveState(current, c.env);
+
+  return c.json({ success: true, character: current.characters[id] });
 });
 
 app.delete('/api/characters/:id', async (c) => {
   const id = c.req.param('id');
-  const deleted = await deleteCharacterFromDb(id, c.env);
+  const isPostgres = Boolean(getConnectionString(c.env));
+  if (isPostgres) {
+    try {
+      const deleted = await deleteCharacterFromDb(id, c.env);
+      return c.json({ success: true, deleted, id });
+    } catch (err) {
+      console.warn('[Worker] PostgreSQL delete failed, updating local state:', err.message);
+    }
+  }
+
+  const current = await getEffectiveState(c.env);
+  const deleted = Boolean(current.characters[id]);
+  delete current.characters[id];
+  current.updatedAt = Date.now();
+  await saveEffectiveState(current, c.env);
+
   return c.json({ success: true, deleted, id });
 });
 
 // Export character data
 app.get('/api/export', async (c) => {
-  const state = await getFullStateFromDb(c.env);
+  const state = await getEffectiveState(c.env);
   const dateStr = new Date().toISOString().slice(0, 10);
   c.header('Content-Disposition', `attachment; filename="terranova-characters-${dateStr}.json"`);
   return c.json(state);
@@ -189,11 +399,12 @@ app.post('/api/import', async (c) => {
   if (!imported || typeof imported !== 'object' || !imported.characters) {
     return c.json({ error: 'Invalid backup file format' }, 400);
   }
-  const saved = await saveFullStateToDb(imported, c.env);
+  await saveEffectiveState(imported, c.env);
+  const state = await getEffectiveState(c.env);
   return c.json({
     success: true,
-    characterCount: Object.keys(saved.characters || {}).length,
-    updatedAt: saved.updatedAt
+    characterCount: Object.keys(state.characters || {}).length,
+    updatedAt: state.updatedAt
   });
 });
 

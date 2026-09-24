@@ -11,8 +11,5 @@
 	"observability": {
 		"enabled": true
 	},
-	"upload_source_maps": true,
-	"vars": {
-		"DATABASE_URL": ""
-	}
+	"upload_source_maps": true
 }

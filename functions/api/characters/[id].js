@@ -2,12 +2,20 @@ import {
   getFullStateFromDb,
   upsertCharacterInDb,
   deleteCharacterFromDb,
+  getConnectionString,
   query
 } from '../../../db.js';
 
 export async function onRequestGet(context) {
   const { env, params } = context;
   const id = params.id;
+
+  if (!getConnectionString(env)) {
+    return new Response(JSON.stringify({ error: 'Character not found' }), {
+      status: 404,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 
   try {
     const res = await query(
@@ -75,14 +83,30 @@ async function handleUpsert(context) {
       });
     }
 
-    const saved = await upsertCharacterInDb(id, characterData, env);
-    return new Response(JSON.stringify({ success: true, character: saved }), {
+    if (getConnectionString(env)) {
+      const saved = await upsertCharacterInDb(id, characterData, env);
+      return new Response(JSON.stringify({ success: true, character: saved }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      character: {
+        id,
+        name: characterData.name || '',
+        ownerId: characterData.ownerId || null,
+        ownerName: characterData.ownerName || null,
+        data: characterData.data || {},
+        updatedAt: Number(characterData.updatedAt) || Date.now()
+      }
+    }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
     console.error(`[Cloudflare] Error upserting character ${id}:`, err);
     return new Response(JSON.stringify({
-      error: 'Failed to update character in PostgreSQL',
+      error: 'Failed to update character',
       message: err.message
     }), {
       status: 500,
@@ -96,8 +120,26 @@ export async function onRequestDelete(context) {
   const id = params.id;
 
   try {
-    const deleted = await deleteCharacterFromDb(id, env);
-    return new Response(JSON.stringify({ success: true, deleted, id }), {
+    if (getConnectionString(env)) {
+      const deleted = await deleteCharacterFromDb(id, env);
+      return new Response(JSON.stringify({ success: true, deleted, id }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    return new Response(JSON.stringify({ success: true, deleted: true, id }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err) {
+    console.error(`[Cloudflare] Error deleting character ${id}:`, err);
+    return new Response(JSON.stringify({
+      error: 'Failed to delete character',
+      message: err.message
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {

@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { neon, Pool as NeonPool } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 // Cache client pools across warm worker / server invocations
 const poolCache = new Map();
@@ -20,7 +20,7 @@ export function getConnectionString(env = {}) {
     env?.POSTGRES_URL ||
     (typeof process !== 'undefined' ? process.env?.DATABASE_URL || process.env?.POSTGRES_URL : null);
 
-  if (url && typeof url === 'string' && url.trim()) {
+  if (url && typeof url === 'string' && url.trim().length > 0) {
     return url.trim();
   }
 
@@ -48,45 +48,34 @@ export async function query(sqlText, params = [], env = {}) {
     throw new Error('DATABASE_URL is not configured. Please set DATABASE_URL or POSTGRES_URL in your Cloudflare / server environment.');
   }
 
-  // If it's a neon.tech domain and not using hyperdrive, we can use neon HTTP or NeonPool
+  // 1. If it's a neon.tech domain and not using hyperdrive, use Neon HTTP driver (fastest and most reliable for serverless)
   const isNeonHttp = connectionString.includes('neon.tech') && !connectionString.includes('sslmode=disable');
 
   if (isNeonHttp) {
     try {
-      const sql = neon(connectionString);
-      const rows = await sql(sqlText, params);
-      return { rows: Array.isArray(rows) ? rows : [], rowCount: Array.isArray(rows) ? rows.length : 0 };
+      const sql = neon(connectionString, { fullResults: true });
+      const res = await sql(sqlText, params);
+      return {
+        rows: res?.rows || (Array.isArray(res) ? res : []),
+        rowCount: res?.rowCount ?? (res?.rows ? res.rows.length : (Array.isArray(res) ? res.length : 0))
+      };
     } catch (neonErr) {
-      // Fallback to Pool if HTTP query fails
       console.warn('[DB] Neon HTTP query failed, falling back to connection pool:', neonErr.message);
     }
   }
 
-  // Use connection pool
+  // 2. Use connection pool (pg.Pool with SSL support)
   let pool = poolCache.get(connectionString);
   if (!pool) {
     try {
-      // For Cloudflare Worker / Edge runtime, NeonPool or pg Pool with SSL
       const isSsl = !connectionString.includes('localhost') && !connectionString.includes('127.0.0.1') && !connectionString.includes('sslmode=disable');
-      
-      // In serverless / worker environments, NeonPool works over WebSockets
-      if (typeof WebSocket !== 'undefined' || typeof process === 'undefined' || !process.versions?.node) {
-        pool = new NeonPool({
-          connectionString,
-          max: 10,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000,
-          ssl: isSsl ? { rejectUnauthorized: false } : undefined
-        });
-      } else {
-        pool = new Pool({
-          connectionString,
-          max: 10,
-          idleTimeoutMillis: 30000,
-          connectionTimeoutMillis: 5000,
-          ssl: isSsl ? { rejectUnauthorized: false } : undefined
-        });
-      }
+      pool = new Pool({
+        connectionString,
+        max: 5,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 8000,
+        ssl: isSsl ? { rejectUnauthorized: false } : false
+      });
       poolCache.set(connectionString, pool);
     } catch (err) {
       console.error('[DB] Failed to create PostgreSQL pool:', err);
@@ -110,8 +99,8 @@ export async function initDb(env = {}) {
   const connectionString = getConnectionString(env);
   if (!connectionString) return false;
 
-  const initSql = `
-    CREATE TABLE IF NOT EXISTS characters (
+  const ddlStatements = [
+    `CREATE TABLE IF NOT EXISTS characters (
       id VARCHAR(255) PRIMARY KEY,
       name VARCHAR(255) NOT NULL DEFAULT '',
       owner_id VARCHAR(255),
@@ -119,34 +108,32 @@ export async function initDb(env = {}) {
       data JSONB NOT NULL DEFAULT '{}'::jsonb,
       updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id);
-    CREATE INDEX IF NOT EXISTS idx_characters_updated_at ON characters(updated_at);
-
-    CREATE TABLE IF NOT EXISTS app_state (
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_characters_updated_at ON characters(updated_at)`,
+    `CREATE TABLE IF NOT EXISTS app_state (
       key VARCHAR(100) PRIMARY KEY,
       value JSONB NOT NULL DEFAULT '{}'::jsonb,
       updated_at BIGINT NOT NULL DEFAULT (EXTRACT(EPOCH FROM NOW()) * 1000)::BIGINT
-    );
-
-    CREATE TABLE IF NOT EXISTS roll_history (
+    )`,
+    `CREATE TABLE IF NOT EXISTS roll_history (
       id VARCHAR(255) PRIMARY KEY,
       character_id VARCHAR(255),
       character_name VARCHAR(255),
       data JSONB NOT NULL DEFAULT '{}'::jsonb,
       timestamp BIGINT NOT NULL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC);
-  `;
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC)`
+  ];
 
   try {
-    await query(initSql, [], env);
+    for (const stmt of ddlStatements) {
+      await query(stmt, [], env);
+    }
     schemaInitialized = true;
     return true;
   } catch (err) {
-    console.error('[DB] Error initializing database schema:', err);
+    console.error('[DB] Error initializing database schema:', err.message);
     throw err;
   }
 }

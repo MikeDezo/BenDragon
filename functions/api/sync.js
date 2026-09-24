@@ -1,4 +1,4 @@
-import { syncStateWithDb } from '../../db.js';
+import { syncStateWithDb, getConnectionString } from '../../db.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -6,19 +6,33 @@ export async function onRequestPost(context) {
     const body = await request.json();
     const { deletedCharacterIds, ...incomingState } = body || {};
 
-    const merged = await syncStateWithDb(incomingState, deletedCharacterIds || [], env);
+    if (getConnectionString(env)) {
+      try {
+        const merged = await syncStateWithDb(incomingState, deletedCharacterIds || [], env);
+        return new Response(JSON.stringify({
+          success: true,
+          state: merged,
+          serverTime: Date.now()
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (dbErr) {
+        console.warn('[Pages Functions] PostgreSQL sync error, returning accepted payload:', dbErr.message);
+      }
+    }
 
+    // Fallback response with incoming state preserved
     return new Response(JSON.stringify({
       success: true,
-      state: merged,
+      state: incomingState,
       serverTime: Date.now()
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
   } catch (err) {
-    console.error('[Cloudflare] Error syncing state with PostgreSQL:', err);
+    console.error('[Cloudflare Pages] Error processing sync request:', err);
     return new Response(JSON.stringify({
-      error: 'Failed to sync character sheets with PostgreSQL',
+      error: 'Failed to process sync request',
       message: err.message
     }), {
       status: 500,

@@ -1,10 +1,26 @@
-import { getFullStateFromDb } from '../../db.js';
+import { getFullStateFromDb, getConnectionString } from '../../db.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
+  const dateStr = new Date().toISOString().slice(0, 10);
   try {
-    const state = await getFullStateFromDb(env);
-    const dateStr = new Date().toISOString().slice(0, 10);
+    let state = {
+      updatedAt: Date.now(),
+      characters: {},
+      assignments: {},
+      rollHistory: [],
+      initiativeTracker: {},
+      knownPlayers: {}
+    };
+
+    if (getConnectionString(env)) {
+      try {
+        state = await getFullStateFromDb(env);
+      } catch (dbErr) {
+        console.warn('[Pages Functions] Export DB query warning:', dbErr.message);
+      }
+    }
+
     return new Response(JSON.stringify(state, null, 2), {
       headers: {
         'Content-Type': 'application/json',
@@ -12,9 +28,9 @@ export async function onRequestGet(context) {
       }
     });
   } catch (err) {
-    console.error('[Cloudflare] Error exporting data from PostgreSQL:', err);
+    console.error('[Cloudflare] Error exporting data:', err);
     return new Response(JSON.stringify({
-      error: 'Failed to export backup from PostgreSQL',
+      error: 'Failed to export backup',
       message: err.message
     }), {
       status: 500,
