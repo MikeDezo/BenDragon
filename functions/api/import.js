@@ -1,4 +1,4 @@
-import { saveFullStateToDb, getConnectionString } from '../../db.js';
+import { saveFullStateToDb, getD1Binding, getConnectionString } from '../../db.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -11,7 +11,7 @@ export async function onRequestPost(context) {
       });
     }
 
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       try {
         const saved = await saveFullStateToDb(imported, env);
         return new Response(JSON.stringify({
@@ -44,3 +44,4 @@ export async function onRequestPost(context) {
     });
   }
 }
+

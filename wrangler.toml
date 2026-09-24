@@ -1,13 +1,19 @@
-name = "bendragon-sheets"
-compatibility_date = "2024-09-23"
+name = "bendragon"
+compatibility_date = "2025-10-08"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
-# Optional: Cloudflare Hyperdrive binding for PostgreSQL connection pooling & caching acceleration
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<your-hyperdrive-id>"
+# Cloudflare D1 Database binding for Ben & Dragon! Character Sheets
+[[d1_databases]]
+binding = "DB"
+database_name = "bendragonDB"
+database_id = "bendragonDB"
 
-# Environment Variables (can also be set in Cloudflare Dashboard -> Settings -> Environment Variables)
+[[d1_databases]]
+binding = "bendragonDB"
+database_name = "bendragonDB"
+database_id = "bendragonDB"
+
 [vars]
+
 # DATABASE_URL = "postgres://user:password@hostname:5432/dbname?sslmode=require"

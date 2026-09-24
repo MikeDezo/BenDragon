@@ -1,4 +1,4 @@
-import { syncStateWithDb, getConnectionString } from '../../db.js';
+import { syncStateWithDb, getD1Binding, getConnectionString } from '../../db.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -6,7 +6,7 @@ export async function onRequestPost(context) {
     const body = await request.json();
     const { deletedCharacterIds, ...incomingState } = body || {};
 
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       try {
         const merged = await syncStateWithDb(incomingState, deletedCharacterIds || [], env);
         return new Response(JSON.stringify({
@@ -17,7 +17,7 @@ export async function onRequestPost(context) {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (dbErr) {
-        console.warn('[Pages Functions] PostgreSQL sync error, returning accepted payload:', dbErr.message);
+        console.warn('[Pages Functions] Database sync error, returning accepted payload:', dbErr.message);
       }
     }
 
@@ -40,3 +40,4 @@ export async function onRequestPost(context) {
     });
   }
 }
+

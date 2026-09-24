@@ -4,10 +4,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import {
   initDb,
-  getConnectionString,
+  isD1Configured,
+  getD1Binding,
   saveFullStateToDb,
   getFullStateFromDb,
-  query
+  getConnectionString
 } from '../db.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -15,32 +16,30 @@ const __dirname = path.dirname(__filename);
 
 async function runMigration() {
   console.log('====================================================');
-  console.log('🚀 Ben & Dragon! PostgreSQL Migration & Seed Tool');
+  console.log('🚀 Ben & Dragon! Cloudflare D1 (bendragonDB) Migration Tool');
   console.log('====================================================\n');
 
-  const connectionString = getConnectionString();
+  const d1 = getD1Binding();
+  const isPostgres = Boolean(getConnectionString());
 
-  if (!connectionString) {
-    console.error('❌ Error: DATABASE_URL or POSTGRES_URL is not configured.');
-    console.error('Please set DATABASE_URL in your environment or in a .env file:');
-    console.error('Example: DATABASE_URL="postgres://username:password@hostname:5432/dbname?sslmode=require"\n');
-    process.exit(1);
+  if (d1) {
+    console.log('📡 Engine: Cloudflare D1 / SQLite (bendragonDB)');
+  } else if (isPostgres) {
+    console.log('📡 Engine: PostgreSQL');
+  } else {
+    console.log('📡 Engine: Local SQLite Database');
   }
-
-  // Mask credentials for display
-  const masked = connectionString.replace(/:([^:@]+)@/, ':****@');
-  console.log(`📡 Connecting to PostgreSQL: ${masked}`);
 
   try {
     // 1. Initialize schema
     console.log('⏳ Initializing database tables and indexes...');
     await initDb();
-    console.log('✅ PostgreSQL schema initialized successfully.');
+    console.log('✅ Database schema initialized successfully.');
 
     // 2. Check if database already has characters
     const currentState = await getFullStateFromDb();
     const existingCount = Object.keys(currentState.characters || {}).length;
-    console.log(`📊 Existing characters in PostgreSQL: ${existingCount}`);
+    console.log(`📊 Existing characters in database: ${existingCount}`);
 
     // 3. Check for local data/character-sheets.json to migrate
     const jsonPath = path.join(__dirname, '..', 'data', 'character-sheets.json');
@@ -52,13 +51,13 @@ async function runMigration() {
 
         if (localCharCount > 0) {
           console.log(`\n📦 Found ${localCharCount} character(s) in data/character-sheets.json.`);
-          console.log('⏳ Migrating local character sheets into PostgreSQL...');
+          console.log('⏳ Migrating character sheets into database...');
 
           await saveFullStateToDb(localData);
 
           const updatedState = await getFullStateFromDb();
           const newCount = Object.keys(updatedState.characters || {}).length;
-          console.log(`✅ Successfully migrated! PostgreSQL now has ${newCount} character sheets.`);
+          console.log(`✅ Successfully migrated! Database now has ${newCount} character sheets.`);
         }
       } catch (err) {
         console.warn('⚠️ Could not parse local character-sheets.json:', err.message);
@@ -66,7 +65,8 @@ async function runMigration() {
     }
 
     console.log('\n🎉 Database setup & migration complete!');
-    console.log('You can now deploy to Cloudflare Pages or run locally with PostgreSQL.\n');
+    console.log('Cloudflare D1 binding: bendragonDB (Worker: bendragon)');
+    console.log('To apply remote D1 migrations: npx wrangler d1 migrations apply bendragonDB --remote\n');
     process.exit(0);
   } catch (err) {
     console.error('❌ Migration failed:', err);
@@ -75,3 +75,4 @@ async function runMigration() {
 }
 
 runMigration();
+

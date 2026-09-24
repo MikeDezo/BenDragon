@@ -1,5 +1,5 @@
 {
-  "name": "bendragon-sheets",
+  "name": "bendragon",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,10 @@
     "pages:deploy": "npm run build && wrangler pages deploy dist",
     "start": "node server.js",
     "db:migrate": "node scripts/migrate.js",
-    "test": "node test/cloud-storage-test.js",
+    "d1:migrate": "wrangler d1 migrations apply bendragonDB --remote",
+    "d1:migrate:local": "wrangler d1 migrations apply bendragonDB --local",
+    "test": "node test/cloud-storage-test.js && node test/d1-db-test.js",
+    "test:d1": "node test/d1-db-test.js",
     "test:db": "node test/postgres-db-test.js"
   },
   "devDependencies": {

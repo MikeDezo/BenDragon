@@ -1,9 +1,9 @@
-import { getFullStateFromDb, saveFullStateToDb, getConnectionString } from '../../db.js';
+import { getFullStateFromDb, saveFullStateToDb, getD1Binding, getConnectionString } from '../../db.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
   try {
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       const state = await getFullStateFromDb(env);
       return new Response(JSON.stringify(state), {
         headers: { 'Content-Type': 'application/json' }
@@ -45,7 +45,7 @@ export async function onRequestPost(context) {
       });
     }
 
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       try {
         const saved = await saveFullStateToDb(incoming, env);
         return new Response(JSON.stringify({
@@ -56,7 +56,7 @@ export async function onRequestPost(context) {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (dbErr) {
-        console.warn('[Pages Functions] PostgreSQL save error:', dbErr.message);
+        console.warn('[Pages Functions] Database save error:', dbErr.message);
       }
     }
 
@@ -78,3 +78,4 @@ export async function onRequestPost(context) {
     });
   }
 }
+

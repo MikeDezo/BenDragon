@@ -1,12 +1,12 @@
 {
-  "updatedAt": 1790293034845,
+  "updatedAt": 1790293023146,
   "characters": {
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
-      "name": "Wendigo",
+      "name": "Character 8",
       "ownerId": null,
       "ownerName": null,
-      "updatedAt": 1790293033533,
+      "updatedAt": 1790293023146,
       "data": {
         "info": {},
         "stats": {
@@ -399,8 +399,7 @@
         "imageSettings": {
           "width": 320,
           "height": 480
-        },
-        "image": "https://images.owlbear.rodeo/584a7c89-c370-4b19-a767-7655648c678d/items/4b5e973f-eda4-4325-ae74-f837a9eb9a58.webp"
+        }
       }
     },
     "7d9474f7-d9fe-4a3c-baf9-330dc96dccee": {

@@ -1,4 +1,4 @@
-import { getFullStateFromDb, getConnectionString } from '../../db.js';
+import { getFullStateFromDb, getD1Binding, getConnectionString } from '../../db.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
@@ -13,7 +13,7 @@ export async function onRequestGet(context) {
       knownPlayers: {}
     };
 
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       try {
         state = await getFullStateFromDb(env);
       } catch (dbErr) {
@@ -38,3 +38,4 @@ export async function onRequestGet(context) {
     });
   }
 }
+

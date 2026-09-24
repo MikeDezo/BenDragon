@@ -1,17 +1,20 @@
-import { getFullStateFromDb, getConnectionString } from '../../db.js';
+import { getFullStateFromDb, getD1Binding, getConnectionString } from '../../db.js';
 
 export async function onRequestGet(context) {
   const { env } = context;
+  const hasD1 = Boolean(getD1Binding(env));
   const isPostgres = Boolean(getConnectionString(env));
   let charCount = 0;
   let updatedAt = null;
-  let dbStatus = isPostgres ? 'connected' : 'unconfigured';
+  let dbStatus = hasD1 ? 'connected' : (isPostgres ? 'connected' : 'unconfigured');
+  let storageMode = hasD1 ? 'Cloudflare D1 (bendragonDB)' : (isPostgres ? 'PostgreSQL' : 'None');
 
-  if (isPostgres) {
+  if (hasD1 || isPostgres) {
     try {
       const state = await getFullStateFromDb(env);
       charCount = Object.keys(state.characters || {}).length;
       updatedAt = state.updatedAt;
+      dbStatus = 'connected';
     } catch (err) {
       dbStatus = `error: ${err.message}`;
     }
@@ -20,7 +23,8 @@ export async function onRequestGet(context) {
   return new Response(JSON.stringify({
     status: 'ok',
     runtime: 'cloudflare-pages-functions',
-    database: 'PostgreSQL',
+    database: 'bendragonDB',
+    storageMode,
     dbStatus,
     characterCount: charCount,
     updatedAt,
@@ -29,3 +33,4 @@ export async function onRequestGet(context) {
     headers: { 'Content-Type': 'application/json' }
   });
 }
+

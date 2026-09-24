@@ -2,6 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
+  getD1Binding,
+  isD1Configured,
   getConnectionString,
   getFullStateFromDb,
   saveFullStateToDb,
@@ -46,9 +48,14 @@ function getDefaultState() {
 let cachedState = null;
 let saveQueue = Promise.resolve();
 
+export function isDbConfigured(env = {}) {
+  return Boolean(getD1Binding(env) || getConnectionString(env));
+}
+
 export function isPostgresConfigured(env = {}) {
   return Boolean(getConnectionString(env));
 }
+
 
 function createBackup(data) {
   try {
@@ -129,13 +136,13 @@ export function loadStateFromDisk() {
 }
 
 export async function fetchState(env = {}) {
-  if (isPostgresConfigured(env)) {
+  if (isDbConfigured(env)) {
     try {
-      const pgState = await getFullStateFromDb(env);
-      cachedState = pgState;
-      return pgState;
+      const dbState = await getFullStateFromDb(env);
+      cachedState = dbState;
+      return dbState;
     } catch (err) {
-      console.warn('[Storage] PostgreSQL query failed, falling back to local state:', err.message);
+      console.warn('[Storage] Database query failed, falling back to local state:', err.message);
     }
   }
   return getState();
@@ -161,11 +168,11 @@ export async function saveStateToDisk(state, env = {}) {
 
   cachedState = payload;
 
-  if (isPostgresConfigured(env)) {
+  if (isDbConfigured(env)) {
     try {
       await saveFullStateToDb(payload, env);
     } catch (err) {
-      console.warn('[Storage] PostgreSQL save error:', err.message);
+      console.warn('[Storage] Database save error:', err.message);
     }
   }
 
@@ -187,14 +194,14 @@ export async function saveStateToDisk(state, env = {}) {
 }
 
 export async function syncState(incomingState, deletedCharacterIds = [], env = {}) {
-  if (isPostgresConfigured(env)) {
+  if (isDbConfigured(env)) {
     try {
-      const pgMerged = await syncStateWithDb(incomingState, deletedCharacterIds, env);
-      cachedState = pgMerged;
-      saveStateToDisk(pgMerged).catch(() => {});
-      return pgMerged;
+      const dbMerged = await syncStateWithDb(incomingState, deletedCharacterIds, env);
+      cachedState = dbMerged;
+      saveStateToDisk(dbMerged).catch(() => {});
+      return dbMerged;
     } catch (err) {
-      console.warn('[Storage] PostgreSQL sync failed, using in-memory / disk sync:', err.message);
+      console.warn('[Storage] Database sync failed, using in-memory / disk sync:', err.message);
     }
   }
 
@@ -268,7 +275,7 @@ export async function syncState(incomingState, deletedCharacterIds = [], env = {
 }
 
 export async function deleteCharacter(characterId, env = {}) {
-  if (isPostgresConfigured(env)) {
+  if (isDbConfigured(env)) {
     try {
       const deleted = await deleteCharacterFromDb(characterId, env);
       if (deleted && cachedState?.characters) {
@@ -276,7 +283,7 @@ export async function deleteCharacter(characterId, env = {}) {
       }
       return deleted;
     } catch (err) {
-      console.warn('[Storage] PostgreSQL delete failed, using disk delete:', err.message);
+      console.warn('[Storage] Database delete failed, using disk delete:', err.message);
     }
   }
 
@@ -304,7 +311,7 @@ export async function deleteCharacter(characterId, env = {}) {
 }
 
 export async function upsertCharacter(characterId, characterData, env = {}) {
-  if (isPostgresConfigured(env)) {
+  if (isDbConfigured(env)) {
     try {
       const saved = await upsertCharacterInDb(characterId, characterData, env);
       if (cachedState?.characters) {
@@ -312,7 +319,7 @@ export async function upsertCharacter(characterId, characterData, env = {}) {
       }
       return saved;
     } catch (err) {
-      console.warn('[Storage] PostgreSQL upsert failed, using disk upsert:', err.message);
+      console.warn('[Storage] Database upsert failed, using disk upsert:', err.message);
     }
   }
 
@@ -333,3 +340,4 @@ export async function upsertCharacter(characterId, characterData, env = {}) {
   await saveStateToDisk(current);
   return current.characters[characterId];
 }
+

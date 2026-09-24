@@ -4219,11 +4219,11 @@ function updateCloudStatus(customText = null) {
     return;
   }
   if (isCloudAvailable && lastCloudSyncSuccess) {
-    status.textContent = 'Cloud Database: Synced';
+    status.textContent = 'D1 Database: Synced';
   } else if (isCloudAvailable) {
-    status.textContent = 'Cloud Database ready';
+    status.textContent = 'D1 Database ready';
   } else {
-    status.textContent = 'Connecting to Cloud Database...';
+    status.textContent = 'Connecting to D1 Database...';
   }
 }
 

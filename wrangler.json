@@ -1,6 +1,18 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "bendragon-sheets",
+	"name": "bendragon",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "bendragonDB",
+			"database_id": "bendragonDB"
+		},
+		{
+			"binding": "bendragonDB",
+			"database_name": "bendragonDB",
+			"database_id": "bendragonDB"
+		}
+	],
 	"main": "./src/worker/index.js",
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": ["nodejs_compat"],

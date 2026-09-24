@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import {
+  getD1Binding,
+  isD1Configured,
   getFullStateFromDb,
   saveFullStateToDb,
   syncStateWithDb,
   upsertCharacterInDb,
   deleteCharacterFromDb,
-  getConnectionString,
-  query
+  getConnectionString
 } from '../../db.js';
 
 const app = new Hono();
@@ -27,8 +28,21 @@ function getKvBinding(env) {
   return env?.BENDRAGON_KV || env?.KV || env?.STORAGE || env?.BENDRAGON_STORE || null;
 }
 
-// Fetch current state from PostgreSQL -> KV -> Memory
+// Fetch current state from Cloudflare D1 (bendragonDB) -> PostgreSQL -> KV -> Memory
 async function getEffectiveState(env) {
+  const hasD1 = Boolean(getD1Binding(env));
+  if (hasD1) {
+    try {
+      const d1State = await getFullStateFromDb(env);
+      if (d1State && typeof d1State === 'object') {
+        edgeMemoryState = d1State;
+        return d1State;
+      }
+    } catch (err) {
+      console.warn('[Worker] Cloudflare D1 getFullState failed, checking fallbacks:', err.message);
+    }
+  }
+
   const isPostgres = Boolean(getConnectionString(env));
   if (isPostgres) {
     try {
@@ -58,18 +72,30 @@ async function getEffectiveState(env) {
   return edgeMemoryState;
 }
 
-// Persist state to PostgreSQL -> KV -> Memory
+// Persist state to Cloudflare D1 (bendragonDB) -> PostgreSQL -> KV -> Memory
 async function saveEffectiveState(state, env) {
   edgeMemoryState = state;
   let savedToDb = false;
 
-  const isPostgres = Boolean(getConnectionString(env));
-  if (isPostgres) {
+  const hasD1 = Boolean(getD1Binding(env));
+  if (hasD1) {
     try {
       await saveFullStateToDb(state, env);
       savedToDb = true;
     } catch (err) {
-      console.warn('[Worker] PostgreSQL save failed, falling back to KV/memory:', err.message);
+      console.warn('[Worker] Cloudflare D1 save failed, checking fallbacks:', err.message);
+    }
+  }
+
+  if (!savedToDb) {
+    const isPostgres = Boolean(getConnectionString(env));
+    if (isPostgres) {
+      try {
+        await saveFullStateToDb(state, env);
+        savedToDb = true;
+      } catch (err) {
+        console.warn('[Worker] PostgreSQL save failed, falling back to KV/memory:', err.message);
+      }
     }
   }
 
@@ -85,8 +111,25 @@ async function saveEffectiveState(state, env) {
   return savedToDb;
 }
 
-// Synchronize state across PostgreSQL / KV / Memory
+// Synchronize state across Cloudflare D1 (bendragonDB) / PostgreSQL / KV / Memory
 async function syncEffectiveState(incomingState, deletedCharacterIds = [], env) {
+  const hasD1 = Boolean(getD1Binding(env));
+  if (hasD1) {
+    try {
+      const mergedD1 = await syncStateWithDb(incomingState, deletedCharacterIds, env);
+      if (mergedD1) {
+        edgeMemoryState = mergedD1;
+        const kv = getKvBinding(env);
+        if (kv) {
+          kv.put('terranova_state', JSON.stringify(mergedD1)).catch(() => {});
+        }
+        return mergedD1;
+      }
+    } catch (err) {
+      console.warn('[Worker] Cloudflare D1 sync failed, checking fallbacks:', err.message);
+    }
+  }
+
   const isPostgres = Boolean(getConnectionString(env));
   if (isPostgres) {
     try {
@@ -198,20 +241,37 @@ app.onError((err, c) => {
 // Health check endpoint
 app.get('/api/health', async (c) => {
   const env = c.env || {};
+  const hasD1 = Boolean(getD1Binding(env));
   const connStr = getConnectionString(env);
   const isPostgres = Boolean(connStr);
   const hasKv = Boolean(getKvBinding(env));
+
   let charCount = 0;
   let updatedAt = null;
-  let dbStatus = isPostgres ? 'configured' : (hasKv ? 'kv-bound' : 'memory-fallback');
+  let dbStatus = hasD1 ? 'd1-configured' : (isPostgres ? 'postgres-configured' : (hasKv ? 'kv-bound' : 'memory-fallback'));
+  let storageMode = hasD1 ? 'Cloudflare D1 (bendragonDB)' : (isPostgres ? 'PostgreSQL' : (hasKv ? 'Cloudflare KV' : 'Edge Memory'));
   let isConnected = false;
 
-  if (isPostgres) {
+  if (hasD1) {
     try {
       const state = await getFullStateFromDb(env);
       charCount = Object.keys(state.characters || {}).length;
       updatedAt = state.updatedAt;
       dbStatus = 'connected';
+      storageMode = 'Cloudflare D1 (bendragonDB)';
+      isConnected = true;
+    } catch (err) {
+      dbStatus = `d1-error: ${err.message}`;
+    }
+  }
+
+  if (!isConnected && isPostgres) {
+    try {
+      const state = await getFullStateFromDb(env);
+      charCount = Object.keys(state.characters || {}).length;
+      updatedAt = state.updatedAt;
+      dbStatus = 'connected';
+      storageMode = 'PostgreSQL';
       isConnected = true;
     } catch (err) {
       dbStatus = `postgres-error: ${err.message}`;
@@ -227,7 +287,9 @@ app.get('/api/health', async (c) => {
   return c.json({
     status: 'ok',
     runtime: 'cloudflare-worker',
-    storageMode: isConnected ? 'PostgreSQL' : (hasKv ? 'Cloudflare KV' : 'Edge Memory'),
+    worker: 'bendragon',
+    database: 'bendragonDB',
+    storageMode,
     dbStatus,
     characterCount: charCount,
     updatedAt,
@@ -305,6 +367,16 @@ app.put('/api/characters/:id', async (c) => {
     return c.json({ error: 'Invalid character data payload' }, 400);
   }
 
+  const hasD1 = Boolean(getD1Binding(c.env));
+  if (hasD1) {
+    try {
+      const saved = await upsertCharacterInDb(id, characterData, c.env);
+      return c.json({ success: true, character: saved });
+    } catch (err) {
+      console.warn('[Worker] Cloudflare D1 upsert failed, saving to local state:', err.message);
+    }
+  }
+
   const isPostgres = Boolean(getConnectionString(c.env));
   if (isPostgres) {
     try {
@@ -338,6 +410,16 @@ app.post('/api/characters/:id', async (c) => {
     return c.json({ error: 'Invalid character data payload' }, 400);
   }
 
+  const hasD1 = Boolean(getD1Binding(c.env));
+  if (hasD1) {
+    try {
+      const saved = await upsertCharacterInDb(id, characterData, c.env);
+      return c.json({ success: true, character: saved });
+    } catch (err) {
+      console.warn('[Worker] Cloudflare D1 upsert failed, saving to local state:', err.message);
+    }
+  }
+
   const isPostgres = Boolean(getConnectionString(c.env));
   if (isPostgres) {
     try {
@@ -366,6 +448,16 @@ app.post('/api/characters/:id', async (c) => {
 
 app.delete('/api/characters/:id', async (c) => {
   const id = c.req.param('id');
+  const hasD1 = Boolean(getD1Binding(c.env));
+  if (hasD1) {
+    try {
+      const deleted = await deleteCharacterFromDb(id, c.env);
+      return c.json({ success: true, deleted, id });
+    } catch (err) {
+      console.warn('[Worker] Cloudflare D1 delete failed, updating local state:', err.message);
+    }
+  }
+
   const isPostgres = Boolean(getConnectionString(c.env));
   if (isPostgres) {
     try {

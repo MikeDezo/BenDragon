@@ -1,4 +1,4 @@
--- Cloudflare D1 SQLite Schema for Ben & Dragon! (bendragonDB)
+-- Cloudflare D1 Migration for Ben & Dragon! (bendragonDB)
 -- Character Sheet Database
 
 -- Characters Table
@@ -32,4 +32,3 @@ CREATE TABLE IF NOT EXISTS roll_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC);
-

@@ -2,6 +2,7 @@ import {
   getFullStateFromDb,
   upsertCharacterInDb,
   deleteCharacterFromDb,
+  getD1Binding,
   getConnectionString,
   query
 } from '../../../db.js';
@@ -10,7 +11,7 @@ export async function onRequestGet(context) {
   const { env, params } = context;
   const id = params.id;
 
-  if (!getConnectionString(env)) {
+  if (!getD1Binding(env) && !getConnectionString(env)) {
     return new Response(JSON.stringify({ error: 'Character not found' }), {
       status: 404,
       headers: { 'Content-Type': 'application/json' }
@@ -25,7 +26,7 @@ export async function onRequestGet(context) {
       env
     );
 
-    if (res.rows.length === 0) {
+    if (!res.rows || res.rows.length === 0) {
       return new Response(JSON.stringify({ error: 'Character not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
@@ -41,9 +42,9 @@ export async function onRequestGet(context) {
     const character = {
       id: row.id,
       name: row.name,
-      ownerId: row.ownerId,
-      ownerName: row.ownerName,
-      updatedAt: Number(row.updatedAt) || Date.now(),
+      ownerId: row.ownerId || row.owner_id,
+      ownerName: row.ownerName || row.owner_name,
+      updatedAt: Number(row.updatedAt || row.updated_at) || Date.now(),
       data: charData || {}
     };
 
@@ -53,7 +54,7 @@ export async function onRequestGet(context) {
   } catch (err) {
     console.error(`[Cloudflare] Error getting character ${id}:`, err);
     return new Response(JSON.stringify({
-      error: 'Failed to retrieve character from PostgreSQL',
+      error: 'Failed to retrieve character from database',
       message: err.message
     }), {
       status: 500,
@@ -83,7 +84,7 @@ async function handleUpsert(context) {
       });
     }
 
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       const saved = await upsertCharacterInDb(id, characterData, env);
       return new Response(JSON.stringify({ success: true, character: saved }), {
         headers: { 'Content-Type': 'application/json' }
@@ -120,7 +121,7 @@ export async function onRequestDelete(context) {
   const id = params.id;
 
   try {
-    if (getConnectionString(env)) {
+    if (getD1Binding(env) || getConnectionString(env)) {
       const deleted = await deleteCharacterFromDb(id, env);
       return new Response(JSON.stringify({ success: true, deleted, id }), {
         headers: { 'Content-Type': 'application/json' }
@@ -133,19 +134,6 @@ export async function onRequestDelete(context) {
     console.error(`[Cloudflare] Error deleting character ${id}:`, err);
     return new Response(JSON.stringify({
       error: 'Failed to delete character',
-      message: err.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (err) {
-    console.error(`[Cloudflare] Error deleting character ${id}:`, err);
-    return new Response(JSON.stringify({
-      error: 'Failed to delete character from PostgreSQL',
       message: err.message
     }), {
       status: 500,
