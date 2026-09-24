@@ -1,15 +1,15 @@
 {
-  "updatedAt": 1790214884415,
+  "updatedAt": 1790215073852,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
       "ownerId": null,
       "ownerName": "",
-      "updatedAt": 1790214777269,
+      "updatedAt": 1790214978243,
       "data": {
         "info": {
-          "xpToSpend": "",
-          "xpTotal": ""
+          "xpToSpend": "200",
+          "xpTotal": "250"
         },
         "stats": {
           "Fighting": "6",
@@ -797,7 +797,7 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790214876293
+      "lastSeen": 1790214750594
     },
     "a2837d97-6362-4568-a189-139e0d21ed36": {
       "id": "a2837d97-6362-4568-a189-139e0d21ed36",
@@ -809,13 +809,13 @@
       "id": "local-player",
       "name": "Local Player",
       "role": "GM",
-      "lastSeen": 1790214863391
+      "lastSeen": 1790214915693
     },
     "player-1": {
       "id": "player-1",
       "name": "Alice",
       "role": "PLAYER",
-      "lastSeen": 1790214876294
+      "lastSeen": 1790214915693
     }
   }
 }
