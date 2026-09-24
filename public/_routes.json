@@ -3,14 +3,5 @@
   "include": [
     "/api/*"
   ],
-  "exclude": [
-    "/assets/*",
-    "/sounds/*",
-    "/icons/*",
-    "/manifest.json",
-    "/favicon.svg",
-    "/icon.svg",
-    "/icon-alt.svg",
-    "/icon.png"
-  ]
+  "exclude": []
 }

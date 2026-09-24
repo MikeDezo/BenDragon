@@ -140,16 +140,4 @@ export async function onRequestDelete(context) {
     });
   }
 }
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (err) {
-    console.error(`[Cloudflare] Error deleting character ${id}:`, err);
-    return new Response(JSON.stringify({
-      error: 'Failed to delete character from PostgreSQL',
-      message: err.message
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
+
