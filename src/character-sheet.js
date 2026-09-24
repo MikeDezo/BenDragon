@@ -198,7 +198,7 @@ const blankCharacter = (name = 'New Character') => ({
           'Normal',
           '10',
           '2 x Spirit',
-          'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
+          'Counter Spell est un sort de défense universel contre les éléments matériels de Boréalis.',
           'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
           'Fail',
           '(Fgt/10)D6 + (MP/4) Vs Energy',
@@ -1385,10 +1385,10 @@ function monturePage(character) {
         const imgSettings = row.imageSettings || { width: 320, height: 380 };
         const widthVal = imgSettings.width || 320;
         const heightVal = imgSettings.height || 380;
-        const mountName = row[0] || (rows.length > 1 ? `Monture ${mountIndex + 1}` : 'Monture');
+        const mountName = row[0] || (rows.length > 1 ? `Monture ${mountIndex + 1}` : 'Monture & Compagnon');
 
         return `<div class="mount-card" data-mount-card="${mountIndex}">
-          ${rows.length > 1 ? `<div class="mount-header"><span>${esc(mountName)}</span></div>` : ''}
+          <div class="mount-header"><span class="mount-header-icon">✦</span><span>${esc(mountName)}</span></div>
           <div class="grid-sheet info-layout mount-layout" style="--portrait-width: ${widthVal}px; --portrait-height: ${heightVal}px;">
             <div class="portrait-column">
               <div class="character-image mount-image ${image ? 'has-image' : ''}" data-mount-image-container="${mountIndex}" tabindex="0" role="button" aria-label="Mount image">
@@ -1397,32 +1397,35 @@ function monturePage(character) {
                   <div class="image-overlay">
                     <div class="image-overlay-actions">
                       ${OBR.isAvailable ? `<button type="button" class="img-btn" data-mount-owlbear-btn="${mountIndex}">Owlbear Cloud</button>` : ''}
-                      <button type="button" class="img-btn" data-mount-url-btn="${mountIndex}">Set URL</button>
+                      <button type="button" class="img-btn" data-mount-url-btn="${mountIndex}">Lien URL</button>
                     </div>
-                    <button type="button" class="image-remove-btn" data-mount-remove-btn="${mountIndex}" title="Remove image">&times;</button>
+                    <button type="button" class="image-remove-btn" data-mount-remove-btn="${mountIndex}" title="Supprimer l'image">&times;</button>
                   </div>
                 ` : `
                   <div class="empty-image-placeholder">
-                    <span class="image-label">INSERT MOUNT IMAGE</span>
+                    <div class="placeholder-crest">
+                      <img src="/boreali-fleur-de-lys.svg" alt="Emblème de Boréalis" class="placeholder-crest-img" />
+                    </div>
+                    <span class="image-label">Portrait de Monture / Compagnon</span>
                     <div class="image-choice-buttons">
                       ${OBR.isAvailable ? `<button type="button" class="img-choice-btn" data-mount-owlbear-btn="${mountIndex}">Owlbear Cloud</button>` : ''}
-                      <button type="button" class="img-choice-btn" data-mount-url-btn="${mountIndex}">Image URL</button>
+                      <button type="button" class="img-choice-btn" data-mount-url-btn="${mountIndex}">Lien URL</button>
                     </div>
                   </div>
                 `}
-                <div class="image-corner-handle" data-mount-corner-handle="${mountIndex}" title="Drag corner to resize mount box"></div>
+                <div class="image-corner-handle" data-mount-corner-handle="${mountIndex}" title="Redimensionner le cadre"></div>
               </div>
               <div class="mount-actions">
-                <button type="button" class="add-row mount-action-btn" data-add-mount title="Add a new mount">+ Add Mount</button>
-                <button type="button" class="delete-row mount-action-btn" data-delete-mount="${mountIndex}" title="Delete this mount">Delete Mount</button>
+                <button type="button" class="add-row mount-action-btn" data-add-mount title="Ajouter une nouvelle monture">+ Ajouter Monture</button>
+                <button type="button" class="delete-row mount-action-btn" data-delete-mount="${mountIndex}" title="Supprimer cette monture">Supprimer Monture</button>
               </div>
             </div>
             <div class="info-fields">
-              <label class="field-row"><span class="field-label">Name</span>${editable(`tables.Monture.${mountIndex}.0`, row[0] || '', 'field-input', 'Name')}</label>
-              <label class="field-row"><span class="field-label">Type</span>${editable(`tables.Monture.${mountIndex}.1`, row[1] || '', 'field-input', 'Type')}</label>
-              <label class="field-row"><span class="field-label">Speed</span>${editable(`tables.Monture.${mountIndex}.2`, row[2] || '', 'field-input', 'Speed')}</label>
-              <label class="field-row"><span class="field-label">Armor</span>${editable(`tables.Monture.${mountIndex}.3`, row[3] || '', 'field-input', 'Armor')}</label>
-              <label class="field-row tall"><span class="field-label">Notes</span>${editable(`tables.Monture.${mountIndex}.4`, row[4] || '', 'field-input', 'Notes')}</label>
+              <label class="field-row"><span class="field-label">Nom</span>${editable(`tables.Monture.${mountIndex}.0`, row[0] || '', 'field-input', 'Nom de la monture')}</label>
+              <label class="field-row"><span class="field-label">Type / Espèce</span>${editable(`tables.Monture.${mountIndex}.1`, row[1] || '', 'field-input', 'Type (ex: Cheval Boréalien, Loup Blanc...)')}</label>
+              <label class="field-row"><span class="field-label">Vitesse</span>${editable(`tables.Monture.${mountIndex}.2`, row[2] || '', 'field-input', 'Vitesse de déplacement')}</label>
+              <label class="field-row"><span class="field-label">Armure</span>${editable(`tables.Monture.${mountIndex}.3`, row[3] || '', 'field-input', 'Valeur d\'armure')}</label>
+              <label class="field-row tall"><span class="field-label">Notes & Capacités</span>${editable(`tables.Monture.${mountIndex}.4`, row[4] || '', 'field-input', 'Notes, harnachement, capacités spéciales...')}</label>
             </div>
           </div>
         </div>`;
@@ -1574,8 +1577,8 @@ function uniquePowerPage(character) {
 
   return `<section class="unique-power-page">
     <div class="unique-power-top-bar">
-      <h2 class="section-title" style="margin: 0;">Unique Powers</h2>
-      <button type="button" class="toolbar-button add-theme-top-btn" data-add-power-theme title="Add a new Power Theme">+ Add Power Theme</button>
+      <h2 class="section-title" style="margin: 0;">Pouvoirs Uniques &amp; Flux Arcaniques</h2>
+      <button type="button" class="toolbar-button add-theme-top-btn" data-add-power-theme title="Ajouter un nouveau Thème de Pouvoir">+ Nouveau Thème</button>
     </div>
     ${rollResultBannerHtml()}
     <div class="power-themes-list">
@@ -1585,16 +1588,16 @@ function uniquePowerPage(character) {
         const widthVal = imgSettings.width || 320;
         const heightVal = imgSettings.height || 420;
         const powers = Array.isArray(theme.powers) ? theme.powers : [];
-        const themeTitle = theme.title || (themes.length > 1 ? `Power Theme ${themeIdx + 1}` : 'Power Theme');
+        const themeTitle = theme.title || (themes.length > 1 ? `Thème de Pouvoir ${themeIdx + 1}` : 'Thème de Pouvoir');
         const currentPowerSort = powerThemeSortState[themeIdx];
         const renderPowerTh = (colKey, label, className) => {
           const isSorted = currentPowerSort && currentPowerSort.colKey === colKey;
           const sortDir = isSorted ? currentPowerSort.direction : null;
           const sortClass = isSorted ? ` sort-active sort-${sortDir}` : '';
           const sortIcon = isSorted
-            ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Sorted ascending">▲</span>' : '<span class="sort-icon sort-desc" title="Sorted descending">▼</span>')
-            : '<span class="sort-icon sort-none" title="Click to sort">⇅</span>';
-          return `<th class="${className} sortable-header${sortClass}" data-sort-power-theme="${themeIdx}" data-power-col="${colKey}" title="Click to sort by ${esc(label)}"><span class="th-content">${esc(label)}${sortIcon}</span></th>`;
+            ? (sortDir === 'asc' ? '<span class="sort-icon sort-asc" title="Tri croissant">▲</span>' : '<span class="sort-icon sort-desc" title="Tri décroissant">▼</span>')
+            : '<span class="sort-icon sort-none" title="Cliquer pour trier">⇅</span>';
+          return `<th class="${className} sortable-header${sortClass}" data-sort-power-theme="${themeIdx}" data-power-col="${colKey}" title="Cliquer pour trier par ${esc(label)}"><span class="th-content">${esc(label)}${sortIcon}</span></th>`;
         };
 
         return `<div class="power-theme-card" data-theme-card="${themeIdx}">
@@ -1606,47 +1609,50 @@ function uniquePowerPage(character) {
                   <div class="image-overlay">
                     <div class="image-overlay-actions">
                       ${OBR.isAvailable ? `<button type="button" class="img-btn" data-theme-owlbear-btn="${themeIdx}">Owlbear Cloud</button>` : ''}
-                      <button type="button" class="img-btn" data-theme-url-btn="${themeIdx}">Set URL</button>
+                      <button type="button" class="img-btn" data-theme-url-btn="${themeIdx}">Lien URL</button>
                     </div>
-                    <button type="button" class="image-remove-btn" data-theme-remove-btn="${themeIdx}" title="Remove image">&times;</button>
+                    <button type="button" class="image-remove-btn" data-theme-remove-btn="${themeIdx}" title="Supprimer l'illustration">&times;</button>
                   </div>
                 ` : `
                   <div class="empty-image-placeholder">
-                    <span class="image-label">INSERT POWER IMAGE</span>
+                    <div class="placeholder-crest">
+                      <img src="/boreali-fleur-de-lys.svg" alt="Emblème de Boréalis" class="placeholder-crest-img" />
+                    </div>
+                    <span class="image-label">Illustration du Flux Arcanique</span>
                     <div class="image-choice-buttons">
                       ${OBR.isAvailable ? `<button type="button" class="img-choice-btn" data-theme-owlbear-btn="${themeIdx}">Owlbear Cloud</button>` : ''}
-                      <button type="button" class="img-choice-btn" data-theme-url-btn="${themeIdx}">Image URL</button>
+                      <button type="button" class="img-choice-btn" data-theme-url-btn="${themeIdx}">Lien URL</button>
                     </div>
                   </div>
                 `}
-                <div class="image-corner-handle" data-theme-corner-handle="${themeIdx}" title="Drag corner to resize power theme box"></div>
+                <div class="image-corner-handle" data-theme-corner-handle="${themeIdx}" title="Redimensionner le cadre"></div>
               </div>
             </div>
             <div class="power-theme-details">
               <div class="power-theme-header">
                 <div class="power-theme-title-container">
-                  <span class="power-theme-title-tag">THEME TITLE</span>
-                  <input type="text" class="power-theme-title-input" data-path="powerThemes.${themeIdx}.title" value="${esc(theme.title || '')}" placeholder="Power Theme Title (e.g. Pyromancy, Telekinesis...)" />
+                  <span class="power-theme-title-tag">TITRE DU FLUX / THÈME</span>
+                  <input type="text" class="power-theme-title-input" data-path="powerThemes.${themeIdx}.title" value="${esc(theme.title || '')}" placeholder="Titre du Pouvoir (ex: Électromancie, Cryomancie, Flux d'Air...)" />
                 </div>
-                <button type="button" class="delete-row power-theme-delete-btn" data-delete-power-theme="${themeIdx}" title="Delete this Power Theme">Delete Theme</button>
+                <button type="button" class="delete-row power-theme-delete-btn" data-delete-power-theme="${themeIdx}" title="Supprimer ce Thème">Supprimer Thème</button>
               </div>
 
               <div class="power-theme-desc-wrap">
-                <span class="power-theme-desc-tag">Theme Description / Subtitle</span>
-                <textarea class="field-input power-theme-desc-input" data-path="powerThemes.${themeIdx}.description" rows="2" placeholder="Enter description, lore, or notes for this power theme...">${esc(theme.description || '')}</textarea>
+                <span class="power-theme-desc-tag">Description &amp; Principes du Flux Arcanique</span>
+                <textarea class="field-input power-theme-desc-input" data-path="powerThemes.${themeIdx}.description" rows="2" placeholder="Saisir la description, l'histoire ou les lois arcaniques de ce pouvoir...">${esc(theme.description || '')}</textarea>
               </div>
 
               <div class="table-wrap power-table-wrap">
                 <table class="sheet-table sheet-table-unique-powers">
                   <thead>
                     <tr>
-                      ${renderPowerTh('name', 'Power Name', 'col-p-name')}
+                      ${renderPowerTh('name', 'Nom du Pouvoir', 'col-p-name')}
                       ${renderPowerTh('description', 'Description', 'col-p-desc')}
-                      ${renderPowerTh('roll', 'Roll', 'col-p-roll')}
-                      ${renderPowerTh('cost', 'Cost', 'col-p-cost')}
-                      ${renderPowerTh('charges', 'Daily Use / Charge', 'col-p-charges')}
-                      <th class="col-p-rollbtn" style="text-align: center;">Roll</th>
-                      <th class="row-actions col-p-delete" style="text-align: center;">Delete</th>
+                      ${renderPowerTh('roll', 'Jet Universel', 'col-p-roll')}
+                      ${renderPowerTh('cost', 'Coût Mana/Focus', 'col-p-cost')}
+                      ${renderPowerTh('charges', 'Charges / Utilisation', 'col-p-charges')}
+                      <th class="col-p-rollbtn" style="text-align: center;">Lancer</th>
+                      <th class="row-actions col-p-delete" style="text-align: center;">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1660,10 +1666,10 @@ function uniquePowerPage(character) {
 
                       return `<tr>
                         <td class="col-p-name">
-                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.name" rows="1" placeholder="Power Name">${esc(power.name || '')}</textarea>
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.name" rows="1" placeholder="Nom du Pouvoir">${esc(power.name || '')}</textarea>
                         </td>
                         <td class="col-p-desc">
-                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.description" rows="1" placeholder="Power Description">${esc(power.description || '')}</textarea>
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.description" rows="1" placeholder="Effet & description du sort/capacité">${esc(power.description || '')}</textarea>
                         </td>
                         <td class="col-p-roll">
                           <select class="cell-input cell-select power-roll-select" data-path="powerThemes.${themeIdx}.powers.${pIdx}.roll" data-theme-idx="${themeIdx}" data-power-idx="${pIdx}">
@@ -1671,20 +1677,20 @@ function uniquePowerPage(character) {
                           </select>
                         </td>
                         <td class="col-p-cost">
-                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.cost" rows="1" placeholder="Cost">${esc(power.cost || '')}</textarea>
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.cost" rows="1" placeholder="Coût (Mana / Focus)">${esc(power.cost || '')}</textarea>
                         </td>
                         <td class="col-p-charges">
-                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.charges" rows="1" placeholder="Daily / Charges">${esc(power.charges || '')}</textarea>
+                          <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.charges" rows="1" placeholder="Charges / Jour">${esc(power.charges || '')}</textarea>
                         </td>
                         <td class="col-p-rollbtn" style="text-align: center;">
                           ${isRollActive ? `
-                            <button type="button" class="power-roll-btn power-roll-btn-active" data-roll-power-theme="${themeIdx}" data-roll-power-idx="${pIdx}" title="Roll ${esc(power.name || 'Power')} (${esc(rollVal)}) on Universal Chart">🎲 Roll</button>
+                            <button type="button" class="power-roll-btn power-roll-btn-active" data-roll-power-theme="${themeIdx}" data-roll-power-idx="${pIdx}" title="Lancer ${esc(power.name || 'Pouvoir')} (${esc(rollVal)}) sur la Table Universelle">🎲 Lancer</button>
                           ` : `
-                            <button type="button" class="power-roll-btn power-roll-btn-disabled" disabled title="Select a Universal Chart rank in the Roll column to enable roll">🎲 Roll</button>
+                            <button type="button" class="power-roll-btn power-roll-btn-disabled" disabled title="Sélectionnez un rang dans la colonne Jet Universel pour activer le lancer">🎲 Lancer</button>
                           `}
                         </td>
                         <td class="row-actions col-p-delete" style="text-align: center;">
-                          <button type="button" class="delete-row" data-delete-power-row="${themeIdx}.${pIdx}" title="Delete this power line">Delete</button>
+                          <button type="button" class="delete-row" data-delete-power-row="${themeIdx}.${pIdx}" title="Supprimer cette ligne">Supprimer</button>
                         </td>
                       </tr>`;
                     }).join('')}
@@ -1693,7 +1699,7 @@ function uniquePowerPage(character) {
               </div>
 
               <div class="power-theme-actions">
-                <button type="button" class="add-row add-power-btn" data-add-power-row="${themeIdx}">+ Add Power</button>
+                <button type="button" class="add-row add-power-btn" data-add-power-row="${themeIdx}">+ Ajouter un Pouvoir</button>
               </div>
             </div>
           </div>
@@ -1731,20 +1737,23 @@ function infoPage(character) {
           <div class="image-overlay">
             <div class="image-overlay-actions">
               ${OBR.isAvailable ? '<button type="button" class="img-btn" id="owlbear-asset-btn">Owlbear Cloud</button>' : ''}
-              <button type="button" class="img-btn" id="image-url-btn">Set URL</button>
+              <button type="button" class="img-btn" id="image-url-btn">Lien URL</button>
             </div>
-            <button type="button" class="image-remove-btn" id="remove-image-btn" title="Remove image">&times;</button>
+            <button type="button" class="image-remove-btn" id="remove-image-btn" title="Supprimer l'image">&times;</button>
           </div>
         ` : `
           <div class="empty-image-placeholder">
-            <span class="image-label">INSERT CHARACTER IMAGE</span>
+            <div class="placeholder-crest">
+              <img src="/boreali-fleur-de-lys.svg" alt="Emblème de Boréalis" class="placeholder-crest-img" />
+            </div>
+            <span class="image-label">Portrait du Personnage</span>
             <div class="image-choice-buttons">
               ${OBR.isAvailable ? '<button type="button" class="img-choice-btn" id="owlbear-asset-btn">Owlbear Cloud</button>' : ''}
-              <button type="button" class="img-choice-btn" id="image-url-btn">Image URL</button>
+              <button type="button" class="img-choice-btn" id="image-url-btn">Lien URL</button>
             </div>
           </div>
         `}
-        <div class="image-corner-handle" id="image-corner-handle" title="Drag corner to resize portrait box"></div>
+        <div class="image-corner-handle" id="image-corner-handle" title="Redimensionner le cadre"></div>
       </div>
     </div>
     <div class="info-fields">
@@ -1753,9 +1762,9 @@ function infoPage(character) {
           return `<div class="field-row xp-split-row">
             <span class="field-label">${label}</span>
             <div class="xp-split-inputs">
-              <button type="button" class="add-xp-btn" id="add-xp-btn" title="Add experience to spend and total" ${!canEditCurrent() ? 'disabled' : ''}>+ XP</button>
+              <button type="button" class="add-xp-btn" id="add-xp-btn" title="Attribuer de l'expérience" ${!canEditCurrent() ? 'disabled' : ''}>+ XP</button>
               <div class="xp-cell">
-                <span class="xp-cell-tag">To spend</span>
+                <span class="xp-cell-tag">À dépenser</span>
                 ${editable('info.xpToSpend', xpToSpend || '', 'field-input xp-input', '0')}
               </div>
               <div class="xp-cell">
@@ -3515,29 +3524,29 @@ function rollsAndIniPage() {
     <div class="tracker-card">
       <div class="tracker-card-header">
         <div class="tracker-title-wrap">
-          <h2 class="tracker-card-title">⚔️ Initiative Tracker</h2>
-          <span class="tracker-count-badge">${inCombatRolled.length}/${inCombatEntries.length} Combatants Rolled &bull; ${inCombatNpcs.length} In-Combat NPCs</span>
+          <h2 class="tracker-card-title">⚔️ Ordre d'Initiative &amp; Tableau de Bataille</h2>
+          <span class="tracker-count-badge">${inCombatRolled.length}/${inCombatEntries.length} Combattants Prêts &bull; ${inCombatNpcs.length} PNJs Actifs</span>
         </div>
         <div class="tracker-btn-group">
-          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Roll 1st Round Initiative for all in-combat NPCs">🎲 Roll NPCs (1st Round)</button>
-          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-next-ini-btn" title="Roll Next Rounds Initiative for all in-combat NPCs">🎲 Roll NPCs (Next Rounds)</button>
-          <button type="button" class="tracker-btn" id="all-npcs-enter-combat-btn" title="Bring all NPC characters into combat">⚔️ All NPCs Enter</button>
-          <button type="button" class="tracker-btn" id="all-npcs-leave-combat-btn" title="Remove all NPC characters from combat">🚪 All NPCs Leave</button>
-          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-initiative-btn" title="Clear all initiative scores">🗑️ Clear Initiative</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-ini-btn" title="Lancer l'Initiative du 1er Tour pour tous les PNJs en combat">🎲 Lancer PNJs (1er Tour)</button>
+          <button type="button" class="tracker-btn tracker-btn-primary" id="roll-unassigned-next-ini-btn" title="Lancer l'Initiative des Tours Suivants pour tous les PNJs en combat">🎲 Lancer PNJs (Tours Suiv.)</button>
+          <button type="button" class="tracker-btn" id="all-npcs-enter-combat-btn" title="Engager tous les PNJs dans le combat">⚔️ Tous en Combat</button>
+          <button type="button" class="tracker-btn" id="all-npcs-leave-combat-btn" title="Désengager tous les PNJs du combat">🚪 Sortir tous les PNJs</button>
+          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-initiative-btn" title="Réinitialiser tous les scores d'initiative">🗑️ Réinitialiser</button>
         </div>
       </div>
       <div class="tracker-table-wrap">
         ${sortedIniList.length === 0 ? `
-          <div class="tracker-empty-state">No characters created yet. Create characters in the top toolbar to track their initiative.</div>
+          <div class="tracker-empty-state">Aucun personnage dans le registre. Créez des dossiers de personnages pour suivre leur initiative.</div>
         ` : `
           <table class="tracker-table">
             <thead>
               <tr>
-                ${renderIniTh('order', 'Order', 'width: 60px;', 'center')}
-                ${renderIniTh('charName', 'Character')}
-                ${renderIniTh('status', 'Status / Assignment')}
-                ${renderIniTh('mods', 'Initiative Mods')}
-                ${renderIniTh('result', 'Rolled Result')}
+                ${renderIniTh('order', 'Rang', 'width: 60px;', 'center')}
+                ${renderIniTh('charName', 'Personnage')}
+                ${renderIniTh('status', 'Statut / Attribution')}
+                ${renderIniTh('mods', 'Modificateurs d\'Ini')}
+                ${renderIniTh('result', 'Score Obtenu')}
                 <th style="text-align: right;">Actions</th>
               </tr>
             </thead>
@@ -3555,40 +3564,40 @@ function rollsAndIniPage() {
                   <td>
                     <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap;">
                       <span class="tracker-tag ${item.isAssigned ? 'tag-player' : 'tag-npc'}">
-                        ${item.isAssigned ? `👤 ${esc(item.ownerName)}` : '🤖 NPC'}
+                        ${item.isAssigned ? `👤 ${esc(item.ownerName)}` : '🤖 PNJ'}
                       </span>
                       ${!item.isAssigned ? `
-                        <button type="button" class="tracker-tag ${item.inCombat ? 'tag-in-combat' : 'tag-out-combat'}" data-ini-toggle-combat="${esc(item.characterId)}" style="cursor: pointer;" title="Click to toggle combat status (${item.inCombat ? 'In Combat' : 'Out of Combat'})">
-                          ${item.inCombat ? '⚔️ In Combat' : '💤 Out of Combat'}
+                        <button type="button" class="tracker-tag ${item.inCombat ? 'tag-in-combat' : 'tag-out-combat'}" data-ini-toggle-combat="${esc(item.characterId)}" style="cursor: pointer;" title="Basculer l'état de combat (${item.inCombat ? 'En Combat' : 'Hors Combat'})">
+                          ${item.inCombat ? '⚔️ En Combat' : '💤 Hors Combat'}
                         </button>
                       ` : ''}
                     </div>
                   </td>
                   <td>
-                    <span class="tracker-mod-tag" title="First round bonus (Intuition / 10)">1st: <strong>+${item.firstRoundBonus}</strong></span>
-                    <span class="tracker-mod-tag" title="Next rounds bonus (Speed / 10)">Next: <strong>+${item.nextRoundsBonus}</strong></span>
+                    <span class="tracker-mod-tag" title="Bonus 1er Tour (Intuition / 10)">1er: <strong>+${item.firstRoundBonus}</strong></span>
+                    <span class="tracker-mod-tag" title="Bonus Tours Suivants (Vitesse / 10)">Suiv: <strong>+${item.nextRoundsBonus}</strong></span>
                   </td>
                   <td>
                     ${!item.inCombat ? `
-                      <span class="ini-unrolled-note out-of-combat-note">Out of combat (skipped in Roll All)</span>
+                      <span class="ini-unrolled-note out-of-combat-note">Hors combat (ignoré lors des lancers groupés)</span>
                     ` : item.hasRolled ? `
                       <div class="ini-score-box">
                         <span class="ini-score-number">${item.total}</span>
-                        <span class="ini-score-detail">(1D12: ${item.d12} ${item.bonus >= 0 ? `+ ${item.bonus}` : `- ${Math.abs(item.bonus)}`}) &bull; <em>${esc(item.label || '1st round')}</em></span>
+                        <span class="ini-score-detail">(1D12: ${item.d12} ${item.bonus >= 0 ? `+ ${item.bonus}` : `- ${Math.abs(item.bonus)}`}) &bull; <em>${esc(item.label || '1er tour')}</em></span>
                       </div>
                     ` : `
-                      <span class="ini-unrolled-note">Waiting for roll...</span>
+                      <span class="ini-unrolled-note">En attente de jet...</span>
                     `}
                   </td>
                   <td style="text-align: right;">
                     <div class="tracker-btn-group" style="justify-content: flex-end;">
                       ${!item.isAssigned ? `
-                        <button type="button" class="tracker-btn-mini combat-toggle-btn ${item.inCombat ? 'combat-leave-btn' : 'combat-enter-btn'}" data-ini-toggle-combat="${esc(item.characterId)}" title="${item.inCombat ? 'Leave combat (NPC will not be rolled by Roll All buttons)' : 'Enter combat (NPC will be rolled by Roll All buttons)'}">${item.inCombat ? 'Leave' : '⚔️ Enter'}</button>
+                        <button type="button" class="tracker-btn-mini combat-toggle-btn ${item.inCombat ? 'combat-leave-btn' : 'combat-enter-btn'}" data-ini-toggle-combat="${esc(item.characterId)}" title="${item.inCombat ? 'Quitter le combat' : 'Entrer en combat'}">${item.inCombat ? 'Quitter' : '⚔️ Entrer'}</button>
                       ` : ''}
-                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="First round" data-ini-bonus="${item.firstRoundBonus}" title="Roll 1st Round: 1D12 + ${item.firstRoundBonus}">Roll 1st</button>
-                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="Next Rounds" data-ini-bonus="${item.nextRoundsBonus}" title="Roll Next Rounds: 1D12 + ${item.nextRoundsBonus}">Roll Next</button>
-                      <button type="button" class="tracker-btn-mini" data-ini-set-score="${esc(item.characterId)}" data-char-name="${esc(item.charName)}" title="Manually set initiative score">Set</button>
-                      ${item.hasRolled ? `<button type="button" class="tracker-btn-mini remove-btn" data-ini-clear-char="${esc(item.characterId)}" title="Clear this character's initiative">&times;</button>` : ''}
+                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="1er tour" data-ini-bonus="${item.firstRoundBonus}" title="Lancer 1er Tour: 1D12 + ${item.firstRoundBonus}">Jet 1er</button>
+                      <button type="button" class="tracker-btn-mini" data-ini-roll-char="${esc(item.characterId)}" data-ini-label="Tours suivants" data-ini-bonus="${item.nextRoundsBonus}" title="Lancer Tours Suivants: 1D12 + ${item.nextRoundsBonus}">Jet Suiv</button>
+                      <button type="button" class="tracker-btn-mini" data-ini-set-score="${esc(item.characterId)}" data-char-name="${esc(item.charName)}" title="Définir manuellement le score d'initiative">Fixer</button>
+                      ${item.hasRolled ? `<button type="button" class="tracker-btn-mini remove-btn" data-ini-clear-char="${esc(item.characterId)}" title="Effacer l'initiative de ce personnage">&times;</button>` : ''}
                     </div>
                   </td>
                 </tr>`;
@@ -3603,17 +3612,70 @@ function rollsAndIniPage() {
     <div class="tracker-card">
       <div class="tracker-card-header">
         <div class="tracker-title-wrap">
-          <h2 class="tracker-card-title">📜 All Rolls History</h2>
-          <span class="tracker-count-badge">${allRolls.length} Recorded</span>
+          <h2 class="tracker-card-title">📜 Registre &amp; Historique des Jets</h2>
+          <span class="tracker-count-badge">${allRolls.length} Enregistrés</span>
           <div class="tracker-filter-pills">
-            <button type="button" class="tracker-filter-btn ${rollFilter === 'all' ? 'active' : ''}" data-roll-filter="all">All (${allRolls.length})</button>
-            <button type="button" class="tracker-filter-btn ${rollFilter === 'stats' ? 'active' : ''}" data-roll-filter="stats">D100 Stats</button>
-            <button type="button" class="tracker-filter-btn ${rollFilter === 'initiative' ? 'active' : ''}" data-roll-filter="initiative">Initiative</button>
-            <button type="button" class="tracker-filter-btn ${rollFilter === 'crits' ? 'active' : ''}" data-roll-filter="crits">Crits (1/100)</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'all' ? 'active' : ''}" data-roll-filter="all">Tous (${allRolls.length})</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'stats' ? 'active' : ''}" data-roll-filter="stats">Stats D100</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'initiative' ? 'active' : ''}" data-roll-filter="initiative">Initiative D12</button>
+            <button type="button" class="tracker-filter-btn ${rollFilter === 'crits' ? 'active' : ''}" data-roll-filter="crits">Critiques (1/100)</button>
           </div>
         </div>
         <div class="tracker-btn-group">
-          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-rolls-btn" title="Clear all rolls from history">🗑️ Clear Rolls</button>
+          <button type="button" class="tracker-btn tracker-btn-danger" id="clear-rolls-btn" title="Effacer tout l'historique des jets">🗑️ Effacer l'Historique</button>
+        </div>
+      </div>
+      <div class="tracker-table-wrap roll-history-scroll-wrap">
+        ${filteredRolls.length === 0 ? `
+          <div class="tracker-empty-state">${allRolls.length === 0 ? 'Aucun jet enregistré pour le moment. Les jets de statistiques, d\'initiative et de dés apparaîtront ici en direct.' : 'Aucun jet ne correspond au filtre sélectionné.'}</div>
+        ` : `
+          <table class="tracker-table">
+            <thead>
+              <tr>
+                ${renderRollHistoryTh('time', 'Heure', 'width: 85px;')}
+                ${renderRollHistoryTh('charName', 'Personnage / Joueur')}
+                ${renderRollHistoryTh('stat', 'Jet / Statistique')}
+                ${renderRollHistoryTh('formula', 'Formule &amp; Détails')}
+                ${renderRollHistoryTh('outcome', 'Résultat', '', 'right')}
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredRolls.map((roll) => {
+                const timeStr = roll.timestamp ? new Date(roll.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+                let outcomeClass = 'outcome-white';
+                if (roll.outcomeType === 'crit-fail' || roll.outcomeType === 'crit-success') outcomeClass = 'outcome-crit';
+                else if (roll.outcomeType === 'red') outcomeClass = 'outcome-red';
+                else if (roll.outcomeType === 'yellow') outcomeClass = 'outcome-yellow';
+                else if (roll.outcomeType === 'green' || roll.outcomeType === 'initiative') outcomeClass = 'outcome-green';
+
+                let badgeText = roll.outcomeLabel || 'Jet';
+                if (roll.outcomeType === 'crit-fail') badgeText = '💥 ÉCHEC CRITIQUE (1)';
+                if (roll.outcomeType === 'crit-success') badgeText = '🌟 SUCCÈS CRITIQUE (100)';
+
+                return `<tr>
+                  <td class="log-cell-time">${timeStr}</td>
+                  <td>
+                    <div class="log-cell-char">
+                      <strong class="tracker-char-name">${esc(roll.charName || 'Personnage')}</strong>
+                      <span class="log-player-sub">${esc(roll.playerName || 'Joueur')}</span>
+                    </div>
+                  </td>
+                  <td class="log-cell-stat">
+                    ${esc(roll.statName || 'Jet')}
+                  </td>
+                  <td class="log-cell-detail">
+                    <code>${esc(roll.detail || `Jet: ${roll.roll}`)}</code>
+                  </td>
+                  <td style="text-align: right;">
+                    <span class="roll-log-badge ${outcomeClass}">${esc(badgeText)}</span>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        `}
+      </div>
+    </div>
         </div>
       </div>
       <div class="tracker-table-wrap roll-history-scroll-wrap">
@@ -3682,7 +3744,7 @@ function tablePage(name, character) {
       'Normal',
       '10',
       '2 x Spirit',
-      'Counter Spell est un sort de défense universel contre les éléments matériels de Terranova.',
+      'Counter Spell est un sort de défense universel contre les éléments matériels de Boréalis.',
       'Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort',
       'Fail',
       '(Fgt/10)D6 + (MP/4) Vs Energy',
@@ -4038,7 +4100,15 @@ function render(focusPath = null, selectAll = false) {
       <div class="page-resize-handle page-resize-br" data-direction="br" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
       <div class="page-resize-handle page-resize-bl" data-direction="bl" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
       <div class="unassigned-container">
-        <div class="unassigned-message">Waiting for DM to assign a character</div>
+        <div class="unassigned-card">
+          <div class="unassigned-logo-wrap">
+            <img src="/boreali-fleur-de-lys.svg" alt="Emblème de Boréalis" class="unassigned-logo-img" />
+          </div>
+          <h2 class="unassigned-realm">Royaume de Boréalis</h2>
+          <p class="unassigned-motto">« Honneur · Force · Devoir et discernement »</p>
+          <div class="unassigned-divider"></div>
+          <div class="unassigned-message">En attente de l'attribution d'un dossier par le Maître de Jeu</div>
+        </div>
       </div>
     </main>
   </div>`;
@@ -4055,13 +4125,28 @@ function render(focusPath = null, selectAll = false) {
       <div class="page-resize-handle page-resize-br" data-direction="br" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
       <div class="page-resize-handle page-resize-bl" data-direction="bl" title="Drag corner to resize page (Double-click to reset to 50% width)"></div>
       <header class="sheet-header">
-        <div>
-          <p class="sheet-kicker">Terranova / Fiche de personnage ${character?.name ? `— ${esc(character.name)}` : ''}</p>
-          <h1 class="sheet-title">${esc(activeTab)}</h1>
+        <div class="sheet-brand">
+          <div class="sheet-logo-container" title="Emblème officiel de Boréalis">
+            <img src="/boreali-fleur-de-lys.svg" alt="Boréalis Fleur de Lys" class="sheet-logo-img" />
+          </div>
+          <div class="sheet-brand-titles">
+            <div class="sheet-kicker-row">
+              <span class="sheet-realm-badge">ROYAUME DE BORÉALIS</span>
+              <span class="sheet-kicker-sep">✦</span>
+              <span class="sheet-kicker-motto">Honneur · Force · Devoir et discernement</span>
+            </div>
+            <div class="sheet-character-header-title">
+              <h1 class="sheet-title">${esc(activeTab)}</h1>
+              ${character?.name ? `<span class="sheet-char-name-badge"><span class="sheet-char-badge-label">Dossier:</span> <strong class="sheet-char-badge-name">${esc(character.name)}</strong></span>` : ''}
+            </div>
+          </div>
         </div>
         <div class="sheet-meta">
-          <div class="sheet-meta-workspace">${user.role === 'GM' ? 'DM workspace' : 'Player workspace'}<br>${esc(user.name)}</div>
-          <span class="cloud-status" id="cloud-status">Cloud ready</span>
+          <div class="sheet-meta-workspace">
+            <span class="sheet-workspace-role">${user.role === 'GM' ? 'Commandement MJ' : 'Registre Citoyen'}</span>
+            <span class="sheet-workspace-user">${esc(user.name)}</span>
+          </div>
+          <span class="cloud-status" id="cloud-status"><span class="cloud-status-pulse"></span>Registre synchronisé</span>
         </div>
       </header>
       ${controls(character)}
@@ -4070,8 +4155,8 @@ function render(focusPath = null, selectAll = false) {
       </nav>
       <div class="sheet-body">
         <div class="sheet-status">
-          <span>WORKSHEET <strong>${esc(activeTab)}</strong></span>
-          <span>${character || activeTab === 'Rolls & Ini' ? 'INSTANT SAVE ENABLED' : 'WAITING FOR DM ASSIGNMENT'}</span>
+          <span>REGISTRE OFFICIEL <strong>${esc(activeTab)}</strong></span>
+          <span>${character || activeTab === 'Rolls & Ini' ? '✦ SAUVEGARDE EN TEMPS RÉEL' : 'EN ATTENTE D\'ATTRIBUTION'}</span>
         </div>
         ${(character || activeTab === 'Rolls & Ini') ? pageFor(character) : '<div class="empty-note">The DM has not assigned a character sheet to this player yet.</div>'}
       </div>
