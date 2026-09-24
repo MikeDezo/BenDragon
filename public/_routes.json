@@ -8,6 +8,9 @@
     "/sounds/*",
     "/icons/*",
     "/manifest.json",
-    "/favicon.svg"
+    "/favicon.svg",
+    "/icon.svg",
+    "/icon-alt.svg",
+    "/icon.png"
   ]
 }
