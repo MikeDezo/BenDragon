@@ -1180,6 +1180,123 @@ async function promptImageUrl() {
   }
 }
 
+let isAddXpModalOpen = false;
+
+function openAddXpModal() {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  isAddXpModalOpen = true;
+  render();
+}
+
+function closeAddXpModal() {
+  if (!isAddXpModalOpen) return;
+  isAddXpModalOpen = false;
+  render();
+}
+
+async function applyAddExperience(amount) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+
+  amount = Math.round(amount);
+  if (isNaN(amount) || !isFinite(amount) || amount === 0) {
+    closeAddXpModal();
+    return;
+  }
+
+  character.data.info ??= {};
+  const info = character.data.info;
+
+  let currentToSpend = 0;
+  let currentTotal = 0;
+
+  if (info.xpToSpend !== undefined && String(info.xpToSpend).trim() !== '') {
+    currentToSpend = parseInt(String(info.xpToSpend).trim(), 10) || 0;
+  } else if (info.xp !== undefined && String(info.xp).trim() !== '') {
+    const parts = String(info.xp).split('/');
+    currentToSpend = parseInt(parts[0].trim(), 10) || 0;
+  }
+
+  if (info.xpTotal !== undefined && String(info.xpTotal).trim() !== '') {
+    currentTotal = parseInt(String(info.xpTotal).trim(), 10) || 0;
+  } else if (info.xp !== undefined && String(info.xp).trim() !== '') {
+    const parts = String(info.xp).split('/');
+    if (parts.length === 2) {
+      currentTotal = parseInt(parts[1].trim(), 10) || 0;
+    }
+  }
+
+  const newToSpend = Math.max(0, currentToSpend + amount);
+  const newTotal = Math.max(0, currentTotal + amount);
+
+  info.xpToSpend = String(newToSpend);
+  info.xpTotal = String(newTotal);
+
+  isAddXpModalOpen = false;
+  await save();
+  render();
+}
+
+function addXpModalHtml(character) {
+  if (!isAddXpModalOpen || !character) return '';
+  const info = character.data?.info || {};
+
+  let currentToSpend = 0;
+  let currentTotal = 0;
+
+  if (info.xpToSpend !== undefined && String(info.xpToSpend).trim() !== '') {
+    currentToSpend = parseInt(String(info.xpToSpend).trim(), 10) || 0;
+  } else if (info.xp !== undefined && String(info.xp).trim() !== '') {
+    const parts = String(info.xp).split('/');
+    currentToSpend = parseInt(parts[0].trim(), 10) || 0;
+  }
+
+  if (info.xpTotal !== undefined && String(info.xpTotal).trim() !== '') {
+    currentTotal = parseInt(String(info.xpTotal).trim(), 10) || 0;
+  } else if (info.xp !== undefined && String(info.xp).trim() !== '') {
+    const parts = String(info.xp).split('/');
+    if (parts.length === 2) {
+      currentTotal = parseInt(parts[1].trim(), 10) || 0;
+    }
+  }
+
+  return `<div class="modal-backdrop" id="xp-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="xp-modal-title">
+    <div class="xp-modal" id="xp-modal-dialog">
+      <div class="xp-modal-header">
+        <h2 class="xp-modal-title" id="xp-modal-title">Add Experience (XP)</h2>
+        <button type="button" class="xp-modal-close" id="xp-modal-close-btn" title="Close dialog">&times;</button>
+      </div>
+      <div class="xp-modal-body">
+        <div class="xp-modal-current">
+          <div class="xp-modal-current-item">
+            <span class="xp-modal-current-label">Current To Spend</span>
+            <span class="xp-modal-current-val">${currentToSpend}</span>
+          </div>
+          <div class="xp-modal-current-item">
+            <span class="xp-modal-current-label">Current Total</span>
+            <span class="xp-modal-current-val">${currentTotal}</span>
+          </div>
+        </div>
+        <div class="xp-modal-info">Amount will be added to both "To spend" and "Total".</div>
+        <div class="xp-modal-presets">
+          <button type="button" class="xp-preset-btn" data-xp-preset="10">+10</button>
+          <button type="button" class="xp-preset-btn" data-xp-preset="25">+25</button>
+          <button type="button" class="xp-preset-btn" data-xp-preset="50">+50</button>
+          <button type="button" class="xp-preset-btn" data-xp-preset="100">+100</button>
+          <button type="button" class="xp-preset-btn" data-xp-preset="250">+250</button>
+          <button type="button" class="xp-preset-btn" data-xp-preset="500">+500</button>
+        </div>
+        <input type="number" id="xp-modal-amount-input" class="xp-modal-input" placeholder="Enter amount of XP (e.g. 50)" step="1" inputmode="numeric" />
+      </div>
+      <div class="xp-modal-footer">
+        <button type="button" class="toolbar-button secondary" id="xp-modal-cancel-btn">Cancel</button>
+        <button type="button" class="toolbar-button" id="xp-modal-submit-btn">Add XP</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function ensureMountRow(character, mountIndex) {
   if (!character.data.tables) character.data.tables = {};
   if (!Array.isArray(character.data.tables.Monture)) {
@@ -1636,6 +1753,7 @@ function infoPage(character) {
           return `<div class="field-row xp-split-row">
             <span class="field-label">${label}</span>
             <div class="xp-split-inputs">
+              <button type="button" class="add-xp-btn" id="add-xp-btn" title="Add experience to spend and total" ${!canEditCurrent() ? 'disabled' : ''}>+ XP</button>
               <div class="xp-cell">
                 <span class="xp-cell-tag">To spend</span>
                 ${editable('info.xpToSpend', xpToSpend || '', 'field-input xp-input', '0')}
@@ -3957,6 +4075,7 @@ function render(focusPath = null, selectAll = false) {
         ${(character || activeTab === 'Rolls & Ini') ? pageFor(character) : '<div class="empty-note">The DM has not assigned a character sheet to this player yet.</div>'}
       </div>
     </main>
+    ${addXpModalHtml(character)}
   </div>`;
   bindEvents();
   autoResizeAllTextareas(app);
@@ -5506,6 +5625,69 @@ function bindEvents() {
     e.stopPropagation();
     promptImageUrl();
   });
+  app.querySelector('#add-xp-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openAddXpModal();
+  });
+
+  if (isAddXpModalOpen) {
+    const input = app.querySelector('#xp-modal-amount-input');
+    const submitBtn = app.querySelector('#xp-modal-submit-btn');
+    const cancelBtn = app.querySelector('#xp-modal-cancel-btn');
+    const closeBtn = app.querySelector('#xp-modal-close-btn');
+    const backdrop = app.querySelector('#xp-modal-backdrop');
+
+    const handleModalSubmit = () => {
+      const valStr = input?.value?.trim() || '';
+      let val = evaluateSafeMath(valStr);
+      if (val === null) {
+        const parsed = parseInt(valStr.replace(/^\+/, ''), 10);
+        if (!isNaN(parsed)) val = parsed;
+      }
+      if (val === null || isNaN(val) || !isFinite(val)) {
+        input?.focus();
+        return;
+      }
+      applyAddExperience(val);
+    };
+
+    submitBtn?.addEventListener('click', handleModalSubmit);
+    cancelBtn?.addEventListener('click', closeAddXpModal);
+    closeBtn?.addEventListener('click', closeAddXpModal);
+
+    backdrop?.addEventListener('click', (e) => {
+      if (e.target === backdrop) {
+        closeAddXpModal();
+      }
+    });
+
+    app.querySelectorAll('[data-xp-preset]').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const presetVal = parseInt(btn.dataset.xpPreset, 10);
+        if (!isNaN(presetVal) && input) {
+          const currentInputVal = parseInt(input.value, 10) || 0;
+          input.value = currentInputVal ? currentInputVal + presetVal : presetVal;
+          input.focus();
+        }
+      });
+    });
+
+    input?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleModalSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeAddXpModal();
+      }
+    });
+
+    requestAnimationFrame(() => {
+      input?.focus();
+      input?.select?.();
+    });
+  }
 
   if (imgContainer) {
     imgContainer.addEventListener('click', (e) => {

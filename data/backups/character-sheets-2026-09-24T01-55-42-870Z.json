@@ -1,13 +1,16 @@
 {
-  "updatedAt": 1790207752335,
+  "updatedAt": 1790214944926,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
       "ownerId": null,
       "ownerName": "",
-      "updatedAt": 1790041866718,
+      "updatedAt": 1790214777269,
       "data": {
-        "info": {},
+        "info": {
+          "xpToSpend": "75",
+          "xpTotal": "75"
+        },
         "stats": {
           "Fighting": "6",
           "Strength": "6",
@@ -405,11 +408,300 @@
       "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790207753331,
+      "updatedAt": 1790210002478,
       "data": {
         "stats": {
           "Fighting": "15",
           "Strength": "16"
+        },
+        "tables": {
+          "Skills": [
+            [
+              "Acrobaties",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Garder l'équilibre, faire une roulade, franchir un obstacle difficile, marcher sur une surface étroite",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Arcanes",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Comprendre la magie, identifier un phénomène magique, reconnaître un sort ou une théorie magique",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Athlétisme",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Grimper, sauter, nager, pousser, tirer, accomplir un effort physique",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Crochetage",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Ouvrir une serrure, désamorcer un mécanisme simple, manipuler un verrou",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Discrétion",
+              "Hors-Combat",
+              "Agility",
+              "",
+              "",
+              "",
+              "Se cacher, avancer silencieusement, éviter d'être repéré",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Étiquette",
+              "Hors-Combat",
+              "Wisdom",
+              "",
+              "",
+              "",
+              "Connaître les règles de politesse, les usages sociaux, les bonnes manières et le comportement attendu selon le milieu, le rang ou la culture.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Intimidation",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Menacer, imposer sa présence ou forcer quelqu'un à céder",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Investigation",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Fouiller une pièce, rechercher un indice, comprendre une scène, déduire ce qui s'est passé",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Lecture des Runes Auroriennes",
+              "Hors-Combat",
+              "Intelligence",
+              "",
+              "",
+              "",
+              "Lire, reconnaître et interpréter les runes auroriennes utilisées dans les enchantements, artefacts, mécanismes magitek, sceaux et inscriptions anciennes ou techniques.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Orientation",
+              "Hors-Combat",
+              "Wisdom",
+              "",
+              "",
+              "",
+              "Lire une carte, utiliser des repères, retrouver son chemin, déterminer une direction",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Perception",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Remarquer un bruit, une silhouette, une odeur, un mouvement ou un détail inhabituel",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Performance",
+              "Hors-Combat",
+              "Psyche",
+              "",
+              "",
+              "",
+              "Jouer de la musique, chanter, danser, raconter une histoire ou captiver un public",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Perspicacité",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Comprendre l'attitude, les intentions ou l'état émotionnel d'une personne",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Persuasion",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Convaincre quelqu'un par des arguments sincères ou une négociation",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Pistage",
+              "Hors-Combat",
+              "Intuition",
+              "",
+              "",
+              "",
+              "Suivre des traces, reconnaître le passage d'une créature, déterminer une direction ou l'âge approximatif d'une piste",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Premier Soins",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Examiner une blessure, identifier une maladie, stabiliser quelqu'un, déterminer une cause de mort",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Survie",
+              "Hors-Combat",
+              "Endurance",
+              "",
+              "",
+              "",
+              "Trouver de la nourriture, installer un camp, éviter les dangers naturels, survivre dans un environnement hostile",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Tromperie",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Mentir, cacher ses intentions, inventer une histoire crédible, maintenir une fausse identité",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ],
+            [
+              "Protocole",
+              "Hors-Combat",
+              "Depend",
+              "",
+              "",
+              "",
+              "Connaître et appliquer les procédures officielles, militaires, diplomatiques, administratives ou cérémonielles propres à une institution ou à une autorité.",
+              "",
+              "",
+              "",
+              "",
+              "",
+              ""
+            ]
+          ]
         }
       }
     }
@@ -417,8 +709,7 @@
   "assignments": {
     "player-1": [
       "test-char-1"
-    ],
-    "player-2": []
+    ]
   },
   "rollHistory": [
     {
@@ -506,13 +797,25 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790041860006
+      "lastSeen": 1790214750594
     },
     "a2837d97-6362-4568-a189-139e0d21ed36": {
       "id": "a2837d97-6362-4568-a189-139e0d21ed36",
       "name": "MikeExplorer",
       "role": "PLAYER",
       "lastSeen": 1790041290609
+    },
+    "local-player": {
+      "id": "local-player",
+      "name": "Local Player",
+      "role": "GM",
+      "lastSeen": 1790214915693
+    },
+    "player-1": {
+      "id": "player-1",
+      "name": "Alice",
+      "role": "PLAYER",
+      "lastSeen": 1790214915693
     }
   }
 }

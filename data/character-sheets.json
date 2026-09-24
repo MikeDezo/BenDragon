@@ -1,13 +1,16 @@
 {
-  "updatedAt": 1790210001480,
+  "updatedAt": 1790214994872,
   "characters": {
     "ecbc18d2-4c20-4afb-ba0c-46cd2b0f2ce0": {
       "name": "Character 1",
       "ownerId": null,
       "ownerName": "",
-      "updatedAt": 1790041866718,
+      "updatedAt": 1790214978243,
       "data": {
-        "info": {},
+        "info": {
+          "xpToSpend": "200",
+          "xpTotal": "250"
+        },
         "stats": {
           "Fighting": "6",
           "Strength": "6",
@@ -405,7 +408,7 @@
       "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790210002478,
+      "updatedAt": 1790214995865,
       "data": {
         "stats": {
           "Fighting": "15",
@@ -506,13 +509,25 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790041860006
+      "lastSeen": 1790214750594
     },
     "a2837d97-6362-4568-a189-139e0d21ed36": {
       "id": "a2837d97-6362-4568-a189-139e0d21ed36",
       "name": "MikeExplorer",
       "role": "PLAYER",
       "lastSeen": 1790041290609
+    },
+    "local-player": {
+      "id": "local-player",
+      "name": "Local Player",
+      "role": "GM",
+      "lastSeen": 1790214915693
+    },
+    "player-1": {
+      "id": "player-1",
+      "name": "Alice",
+      "role": "PLAYER",
+      "lastSeen": 1790214915693
     }
   }
 }
