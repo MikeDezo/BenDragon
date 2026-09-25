@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import { neon } from '@neondatabase/serverless';
 import { createRequire } from 'node:module';
+import seedData from './seed-data.js';
 
 // Cache client pools across warm worker / server invocations
 const poolCache = new Map();
@@ -294,7 +295,98 @@ export async function query(sqlText, params = [], env = {}) {
 }
 
 /**
+ * Resolves default seed data from local disk (if running in Node) or bundled seedData module
+ */
+export function getSeedState() {
+  if (typeof process !== 'undefined' && process.versions?.node) {
+    try {
+      const req = getLazyNodeRequire();
+      const fs = nodeFs || (req ? req('node:fs') : null);
+      const path = nodePath || (req ? req('node:path') : null);
+      if (fs && path) {
+        const dataDir = process.env?.DATA_DIR || path.join(process.cwd(), 'data');
+        const jsonPath = process.env?.DATA_PATH || path.join(dataDir, 'character-sheets.json');
+        if (fs.existsSync(jsonPath)) {
+          const raw = fs.readFileSync(jsonPath, 'utf8');
+          if (raw && raw.trim()) {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && parsed.characters && Object.keys(parsed.characters).length > 0) {
+              return parsed;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // Fallback to bundled seedData
+    }
+  }
+  return seedData;
+}
+
+/**
+ * Automatically transfers / seeds all characters and state from character-sheets.json
+ * into Cloudflare D1 (or PostgreSQL) if database is empty or has missing characters.
+ */
+export async function autoSeedD1IfNeeded(env = {}, forceCheck = false) {
+  const d1 = getD1Binding(env);
+  const seedState = getSeedState();
+  if (!seedState || !seedState.characters || Object.keys(seedState.characters).length === 0) {
+    return false;
+  }
+
+  if (d1) {
+    try {
+      const countRes = await d1.prepare(`SELECT COUNT(*) AS count FROM characters`).first();
+      const count = Number(countRes?.count ?? 0);
+
+      if (count === 0 || forceCheck) {
+        console.log(`[DB] Automatically transferring ${Object.keys(seedState.characters).length} character(s) from character-sheets.json into D1 database...`);
+        await saveFullStateToDb(seedState, env);
+        console.log('[DB] Automatic D1 transfer complete.');
+        return true;
+      } else {
+        // Check for any missing character sheets from character-sheets.json
+        const existingRes = await d1.prepare(`SELECT id FROM characters`).all();
+        const existingIds = new Set((existingRes?.results || []).map((r) => r.id));
+        const missingChars = {};
+        for (const [id, char] of Object.entries(seedState.characters)) {
+          if (!existingIds.has(id)) {
+            missingChars[id] = char;
+          }
+        }
+        if (Object.keys(missingChars).length > 0) {
+          console.log(`[DB] Automatically transferring ${Object.keys(missingChars).length} missing character(s) into D1 database...`);
+          await syncStateWithDb({ ...seedState, characters: missingChars }, [], env);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('[DB] Auto-seed check failed:', err.message);
+    }
+    return false;
+  }
+
+  const isPostgres = Boolean(getConnectionString(env));
+  if (isPostgres) {
+    try {
+      const countRes = await query(`SELECT COUNT(*) AS count FROM characters`, [], env);
+      const count = Number(countRes?.rows?.[0]?.count ?? 0);
+      if (count === 0 || forceCheck) {
+        console.log(`[DB] Automatically transferring ${Object.keys(seedState.characters).length} character(s) from character-sheets.json into PostgreSQL database...`);
+        await saveFullStateToDb(seedState, env);
+        return true;
+      }
+    } catch (err) {
+      console.warn('[DB] PostgreSQL auto-seed check failed:', err.message);
+    }
+  }
+
+  return false;
+}
+
+/**
  * Initializes the database schema automatically (D1 SQLite or PostgreSQL)
+ * and automatically transfers character-sheets.json into the database.
  */
 export async function initDb(env = {}) {
   const d1 = getD1Binding(env);
@@ -331,6 +423,7 @@ export async function initDb(env = {}) {
         CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC);
       `);
       schemaInitialized = true;
+      await autoSeedD1IfNeeded(env);
       return true;
     } catch (err) {
       console.error('[DB] D1 schema initialization error:', err.message);
@@ -373,6 +466,7 @@ export async function initDb(env = {}) {
       await query(stmt, [], env);
     }
     schemaInitialized = true;
+    await autoSeedD1IfNeeded(env);
     return true;
   } catch (err) {
     console.error('[DB] Error initializing PostgreSQL schema:', err.message);
@@ -398,14 +492,26 @@ export async function getFullStateFromDb(env = {}) {
 
   if (d1) {
     // 1. Fetch all characters
-    const charRes = await d1.prepare(`
+    let charRes = await d1.prepare(`
       SELECT id, name, owner_id AS ownerId, owner_name AS ownerName, data, updated_at AS updatedAt
       FROM characters
       ORDER BY updated_at DESC
     `).all();
 
+    let charRows = charRes?.results || [];
+    if (charRows.length === 0) {
+      const seeded = await autoSeedD1IfNeeded(env, true);
+      if (seeded) {
+        charRes = await d1.prepare(`
+          SELECT id, name, owner_id AS ownerId, owner_name AS ownerName, data, updated_at AS updatedAt
+          FROM characters
+          ORDER BY updated_at DESC
+        `).all();
+        charRows = charRes?.results || [];
+      }
+    }
+
     const characters = {};
-    const charRows = charRes?.results || [];
     for (const row of charRows) {
       let charData = row.data;
       if (typeof charData === 'string') {
@@ -499,14 +605,25 @@ export async function getFullStateFromDb(env = {}) {
   }
 
   // PostgreSQL fallback
-  const charRes = await query(`
+  let charRes = await query(`
     SELECT id, name, owner_id AS "ownerId", owner_name AS "ownerName", data, updated_at AS "updatedAt"
     FROM characters
     ORDER BY updated_at DESC
   `, [], env);
 
+  if (!charRes.rows || charRes.rows.length === 0) {
+    const seeded = await autoSeedD1IfNeeded(env, true);
+    if (seeded) {
+      charRes = await query(`
+        SELECT id, name, owner_id AS "ownerId", owner_name AS "ownerName", data, updated_at AS "updatedAt"
+        FROM characters
+        ORDER BY updated_at DESC
+      `, [], env);
+    }
+  }
+
   const characters = {};
-  for (const row of charRes.rows) {
+  for (const row of (charRes.rows || [])) {
     let charData = row.data;
     if (typeof charData === 'string') {
       try { charData = JSON.parse(charData); } catch (e) {}

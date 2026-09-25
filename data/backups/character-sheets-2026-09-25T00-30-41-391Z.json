@@ -1,6 +1,36 @@
 {
-  "updatedAt": 1790293116242,
+  "updatedAt": 1790296208003,
   "characters": {
+    "test-char-1": {
+      "id": "test-char-1",
+      "name": "Grommash the Brave",
+      "ownerId": "player-1",
+      "ownerName": "Alice",
+      "data": {
+        "stats": {
+          "Fighting": "12",
+          "Strength": "14"
+        },
+        "info": {
+          "playerName": "Alice",
+          "origins": "Dwarf"
+        }
+      },
+      "updatedAt": 1790296241374
+    },
+    "backup-char-1": {
+      "id": "backup-char-1",
+      "name": "Mage Aurorien",
+      "ownerId": "player-mage",
+      "ownerName": "Merlin",
+      "updatedAt": 1790293997441,
+      "data": {
+        "stats": {
+          "Psyche": "20",
+          "Intelligence": "18"
+        }
+      }
+    },
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
       "name": "Wendigo",
@@ -3218,9 +3248,47 @@
     }
   },
   "assignments": {
-    "player-mage": []
+    "player-mage": [
+      "backup-char-1"
+    ],
+    "player-1": [
+      "test-char-1"
+    ],
+    "player-2": []
   },
   "rollHistory": [
+    {
+      "id": "roll-1790296036040",
+      "characterId": "test-d1-1790296036025",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296036540,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790294873471",
+      "characterId": "test-d1-1790294873454",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294873971,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790294005557",
+      "characterId": "test-d1-1790294005543",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294006057,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790293997425",
+      "characterId": "test-d1-1790293997398",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790293997925,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790292595892",
       "characterId": "test-d1-1790292595879",
@@ -3451,7 +3519,7 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790293116200
+      "lastSeen": 1790293120551
     },
     "player-1": {
       "id": "player-1",

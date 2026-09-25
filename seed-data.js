@@ -1,16 +1,29 @@
-{
-  "updatedAt": 1790293998273,
+export const seedData = {
+  "updatedAt": 1790296036901,
   "characters": {
     "test-char-1": {
       "id": "test-char-1",
       "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790293998273,
+      "updatedAt": 1790296036901,
       "data": {
         "stats": {
           "Fighting": "15",
           "Strength": "16"
+        }
+      }
+    },
+    "backup-char-1": {
+      "id": "backup-char-1",
+      "name": "Mage Aurorien",
+      "ownerId": "player-mage",
+      "ownerName": "Merlin",
+      "updatedAt": 1790293997441,
+      "data": {
+        "stats": {
+          "Psyche": "20",
+          "Intelligence": "18"
         }
       }
     },
@@ -3231,13 +3244,39 @@
     }
   },
   "assignments": {
-    "player-mage": [],
+    "player-mage": [
+      "backup-char-1"
+    ],
     "player-1": [
       "test-char-1"
     ],
     "player-2": []
   },
   "rollHistory": [
+    {
+      "id": "roll-1790294873471",
+      "characterId": "test-d1-1790294873454",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294873971,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790294005557",
+      "characterId": "test-d1-1790294005543",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294006057,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790293997425",
+      "characterId": "test-d1-1790293997398",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790293997925,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790292595892",
       "characterId": "test-d1-1790292595879",
@@ -3483,4 +3522,6 @@
       "lastSeen": 1790292854338
     }
   }
-}
+};
+
+export default seedData;

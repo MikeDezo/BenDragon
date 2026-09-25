@@ -11,8 +11,10 @@ import {
   syncState,
   deleteCharacter,
   upsertCharacter,
-  isPostgresConfigured
+  isPostgresConfigured,
+  isDbConfigured
 } from './storage.js';
+import { initDb, saveFullStateToDb } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,8 +22,19 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Load persisted state from disk at startup
-loadStateFromDisk();
+// Load persisted state from disk at startup and automatically sync all data into D1 SQL database
+const startupState = loadStateFromDisk();
+(async () => {
+  try {
+    await initDb();
+    if (startupState && Object.keys(startupState.characters || {}).length > 0) {
+      await saveFullStateToDb(startupState);
+      console.log(`[Server] Automatically transferred ${Object.keys(startupState.characters).length} character(s) from character-sheets.json into D1 database.`);
+    }
+  } catch (err) {
+    console.warn('[Server] Automatic D1 synchronization notice:', err.message);
+  }
+})();
 
 // Enable CORS for Owlbear Rodeo and all clients
 app.use(cors({

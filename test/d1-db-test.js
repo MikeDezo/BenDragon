@@ -124,6 +124,15 @@ async function runD1Tests() {
   assert.strictEqual(restored.characters['backup-char-1'].name, 'Mage Aurorien');
   console.log('✓ Test 6: saveFullStateToDb passed (full backup save)');
 
+  // 7. Test automatic transfer / seeding of character-sheets.json into D1
+  const d1State = await getFullStateFromDb();
+  assert(d1State.characters['58a4ce8f-fcd3-4535-b35d-a62e2deb3624'], 'Wendigo should be auto-transferred into D1');
+  assert.strictEqual(d1State.characters['58a4ce8f-fcd3-4535-b35d-a62e2deb3624'].name, 'Wendigo');
+  assert(d1State.characters['58a4ce8f-fcd3-4535-b35d-a62e2deb3624'].data?.tables?.Skills?.length > 0, 'Skills table should be preserved');
+  assert(d1State.characters['7d9474f7-d9fe-4a3c-baf9-330dc96dccee'], 'Lancelot Dupont should be auto-transferred into D1');
+  assert(d1State.characters['89a1a365-c9ac-48c5-95ce-a0150b6f72c4'], 'Octavius Du-Grand-Sault should be auto-transferred into D1');
+  console.log(`✓ Test 7: Automatic transfer of character-sheets.json into D1 verified (${Object.keys(d1State.characters).length} characters stored in D1)`);
+
   console.log('\n🎉 ALL CLOUDFLARE D1 / SQLITE TESTS PASSED SUCCESSFULLY! 🎉\n');
 }
 

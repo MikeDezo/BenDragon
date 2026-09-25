@@ -116,6 +116,12 @@ export function loadStateFromDisk() {
           knownPlayers: parsed.knownPlayers || {},
           updatedAt: parsed.updatedAt || Date.now()
         };
+        // Automatically transfer all loaded character sheets to D1 database
+        if (isDbConfigured()) {
+          saveFullStateToDb(cachedState).catch((err) => {
+            console.warn('[Storage] Auto-sync to D1 failed:', err.message);
+          });
+        }
         return cachedState;
       }
     } catch (err) {
@@ -138,7 +144,14 @@ export function loadStateFromDisk() {
 export async function fetchState(env = {}) {
   if (isDbConfigured(env)) {
     try {
-      const dbState = await getFullStateFromDb(env);
+      let dbState = await getFullStateFromDb(env);
+      if (!dbState.characters || Object.keys(dbState.characters).length === 0) {
+        const diskState = getState();
+        if (diskState?.characters && Object.keys(diskState.characters).length > 0) {
+          await saveFullStateToDb(diskState, env);
+          dbState = await getFullStateFromDb(env);
+        }
+      }
       cachedState = dbState;
       return dbState;
     } catch (err) {

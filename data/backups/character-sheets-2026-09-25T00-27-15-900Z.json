@@ -1,18 +1,22 @@
 {
-  "updatedAt": 1790296242393,
+  "updatedAt": 1790294874325,
   "characters": {
     "test-char-1": {
       "id": "test-char-1",
-      "name": "Grommash the Legendary",
+      "name": "Grommash the Brave",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790296242393,
       "data": {
         "stats": {
-          "Fighting": "15",
-          "Strength": "16"
+          "Fighting": "12",
+          "Strength": "14"
+        },
+        "info": {
+          "playerName": "Alice",
+          "origins": "Dwarf"
         }
-      }
+      },
+      "updatedAt": 1790296035871
     },
     "backup-char-1": {
       "id": "backup-char-1",
@@ -3253,30 +3257,6 @@
     "player-2": []
   },
   "rollHistory": [
-    {
-      "id": "roll-1790296207151",
-      "characterId": "test-d1-1790296207140",
-      "characterName": "Borealis Grand Champion",
-      "timestamp": 1790296207651,
-      "statName": "Fighting",
-      "diceResult": 85
-    },
-    {
-      "id": "roll-1790296036040",
-      "characterId": "test-d1-1790296036025",
-      "characterName": "Borealis Grand Champion",
-      "timestamp": 1790296036540,
-      "statName": "Fighting",
-      "diceResult": 85
-    },
-    {
-      "id": "roll-1790294873471",
-      "characterId": "test-d1-1790294873454",
-      "characterName": "Borealis Grand Champion",
-      "timestamp": 1790294873971,
-      "statName": "Fighting",
-      "diceResult": 85
-    },
     {
       "id": "roll-1790294005557",
       "characterId": "test-d1-1790294005543",
