@@ -1,27 +1,51 @@
 import { Pool } from 'pg';
 import { neon } from '@neondatabase/serverless';
 import { createRequire } from 'node:module';
-import fs from 'node:fs';
-import path from 'node:path';
 
 // Cache client pools across warm worker / server invocations
 const poolCache = new Map();
 let schemaInitialized = false;
 let localSqliteD1 = null;
-
-const require = createRequire(import.meta.url);
+let nodeSqliteInitialized = false;
 let NodeDatabaseSync = null;
-try {
-  if (typeof process !== 'undefined' && process.versions?.node) {
-    NodeDatabaseSync = require('node:sqlite').DatabaseSync;
-  }
-} catch (e) {}
+let nodeFs = null;
+let nodePath = null;
+
+function getLazyNodeRequire() {
+  try {
+    const urlOrPath =
+      (typeof import.meta !== 'undefined' && import.meta?.url)
+        ? import.meta.url
+        : (typeof process !== 'undefined' && typeof process.cwd === 'function' ? `${process.cwd()}/package.json` : null);
+
+    if (urlOrPath && typeof createRequire === 'function') {
+      return createRequire(urlOrPath);
+    }
+  } catch (e) {}
+  return null;
+}
 
 /**
  * Creates a D1-compatible API wrapper around Node.js DatabaseSync (node:sqlite)
  * for local development and offline/testing environments.
  */
 function createNodeSqliteD1() {
+  if (!nodeSqliteInitialized) {
+    nodeSqliteInitialized = true;
+    try {
+      if (typeof process !== 'undefined' && process.versions?.node) {
+        const req = getLazyNodeRequire();
+        if (req) {
+          NodeDatabaseSync = req('node:sqlite')?.DatabaseSync || null;
+          nodeFs = req('node:fs') || null;
+          nodePath = req('node:path') || null;
+        }
+      }
+    } catch (e) {
+      NodeDatabaseSync = null;
+    }
+  }
+
   if (!NodeDatabaseSync) {
     return null;
   }
@@ -29,11 +53,11 @@ function createNodeSqliteD1() {
   try {
     let dbPath = ':memory:';
     try {
-      const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+      const dataDir = (typeof process !== 'undefined' && process.env?.DATA_DIR) || (nodePath ? nodePath.join(process.cwd(), 'data') : './data');
+      if (nodeFs && !nodeFs.existsSync(dataDir)) {
+        nodeFs.mkdirSync(dataDir, { recursive: true });
       }
-      dbPath = path.join(dataDir, 'bendragon.sqlite');
+      dbPath = nodePath ? nodePath.join(dataDir, 'bendragon.sqlite') : `${dataDir}/bendragon.sqlite`;
     } catch (e) {
       dbPath = ':memory:';
     }
