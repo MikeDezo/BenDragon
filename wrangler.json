@@ -6,11 +6,6 @@
 			"binding": "DB",
 			"database_name": "bendragonDB",
 			"database_id": "bendragonDB"
-		},
-		{
-			"binding": "bendragonDB",
-			"database_name": "bendragonDB",
-			"database_id": "bendragonDB"
 		}
 	],
 	"main": "./src/worker/index.js",

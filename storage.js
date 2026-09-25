@@ -280,7 +280,16 @@ export async function deleteCharacter(characterId, env = {}) {
       const deleted = await deleteCharacterFromDb(characterId, env);
       if (deleted && cachedState?.characters) {
         delete cachedState.characters[characterId];
+        Object.keys(cachedState.assignments || {}).forEach((ownerId) => {
+          if (Array.isArray(cachedState.assignments[ownerId])) {
+            cachedState.assignments[ownerId] = cachedState.assignments[ownerId].filter((id) => id !== characterId);
+          }
+        });
+        if (cachedState.initiativeTracker && cachedState.initiativeTracker[characterId]) {
+          delete cachedState.initiativeTracker[characterId];
+        }
       }
+      await saveStateToDisk(cachedState || getState());
       return deleted;
     } catch (err) {
       console.warn('[Storage] Database delete failed, using disk delete:', err.message);
@@ -316,7 +325,15 @@ export async function upsertCharacter(characterId, characterData, env = {}) {
       const saved = await upsertCharacterInDb(characterId, characterData, env);
       if (cachedState?.characters) {
         cachedState.characters[characterId] = saved;
+        if (characterData.ownerId) {
+          cachedState.assignments ??= {};
+          cachedState.assignments[characterData.ownerId] ??= [];
+          if (!cachedState.assignments[characterData.ownerId].includes(characterId)) {
+            cachedState.assignments[characterData.ownerId].push(characterId);
+          }
+        }
       }
+      await saveStateToDisk(cachedState || getState());
       return saved;
     } catch (err) {
       console.warn('[Storage] Database upsert failed, using disk upsert:', err.message);
@@ -331,6 +348,7 @@ export async function upsertCharacter(characterId, characterData, env = {}) {
   current.updatedAt = Date.now();
 
   if (characterData.ownerId) {
+    current.assignments ??= {};
     current.assignments[characterData.ownerId] ??= [];
     if (!current.assignments[characterData.ownerId].includes(characterId)) {
       current.assignments[characterData.ownerId].push(characterId);

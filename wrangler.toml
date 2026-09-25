@@ -7,12 +7,7 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "bendragonDB"
-database_id = "bendragonDB"
-
-[[d1_databases]]
-binding = "bendragonDB"
-database_name = "bendragonDB"
-database_id = "bendragonDB"
+database_id = "d696089b-549a-4791-a8d7-d3176cd31cca"
 
 [vars]
 

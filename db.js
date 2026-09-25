@@ -104,17 +104,26 @@ function createNodeSqliteD1() {
       },
       async batch(statements) {
         if (!statements || statements.length === 0) return [];
-        const spName = `d1_batch_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        sqliteDb.exec(`SAVEPOINT ${spName}`);
+        let inTransaction = false;
+        try {
+          sqliteDb.exec('BEGIN IMMEDIATE');
+          inTransaction = true;
+        } catch (e) {
+          // Already within a transaction or lock, execute sequentially
+        }
         const results = [];
         try {
           for (const stmt of statements) {
             results.push(await stmt.run());
           }
-          sqliteDb.exec(`RELEASE SAVEPOINT ${spName}`);
+          if (inTransaction) {
+            sqliteDb.exec('COMMIT');
+          }
           return results;
         } catch (err) {
-          try { sqliteDb.exec(`ROLLBACK TO SAVEPOINT ${spName}`); } catch (e) {}
+          if (inTransaction) {
+            try { sqliteDb.exec('ROLLBACK'); } catch (e) {}
+          }
           throw err;
         }
       },
