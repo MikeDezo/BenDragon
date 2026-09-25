@@ -1,32 +1,6 @@
 export const seedData = {
   "updatedAt": 1790296036901,
   "characters": {
-    "test-char-1": {
-      "id": "test-char-1",
-      "name": "Grommash the Legendary",
-      "ownerId": "player-1",
-      "ownerName": "Alice",
-      "updatedAt": 1790296036901,
-      "data": {
-        "stats": {
-          "Fighting": "15",
-          "Strength": "16"
-        }
-      }
-    },
-    "backup-char-1": {
-      "id": "backup-char-1",
-      "name": "Mage Aurorien",
-      "ownerId": "player-mage",
-      "ownerName": "Merlin",
-      "updatedAt": 1790293997441,
-      "data": {
-        "stats": {
-          "Psyche": "20",
-          "Intelligence": "18"
-        }
-      }
-    },
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
       "name": "Wendigo",
@@ -3243,15 +3217,7 @@ export const seedData = {
       }
     }
   },
-  "assignments": {
-    "player-mage": [
-      "backup-char-1"
-    ],
-    "player-1": [
-      "test-char-1"
-    ],
-    "player-2": []
-  },
+  "assignments": {},
   "rollHistory": [
     {
       "id": "roll-1790294873471",
@@ -3508,18 +3474,6 @@ export const seedData = {
       "name": "Mike",
       "role": "GM",
       "lastSeen": 1790293120551
-    },
-    "player-1": {
-      "id": "player-1",
-      "name": "Alice",
-      "role": "PLAYER",
-      "lastSeen": 1790292854338
-    },
-    "player-mage": {
-      "id": "player-mage",
-      "name": "Merlin",
-      "role": "PLAYER",
-      "lastSeen": 1790292854338
     }
   }
 };

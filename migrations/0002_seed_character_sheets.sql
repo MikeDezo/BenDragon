@@ -1,24 +1,6 @@
 -- Seed character sheets from character-sheets.json into Cloudflare D1 (bendragonDB)
 
 INSERT INTO characters (id, name, owner_id, owner_name, data, updated_at)
-VALUES ('test-char-1', 'Grommash the Legendary', 'player-1', 'Alice', '{"stats":{"Fighting":"15","Strength":"16"}}', 1790296036901)
-ON CONFLICT(id) DO UPDATE SET
-  name = excluded.name,
-  owner_id = excluded.owner_id,
-  owner_name = excluded.owner_name,
-  data = excluded.data,
-  updated_at = excluded.updated_at;
-
-INSERT INTO characters (id, name, owner_id, owner_name, data, updated_at)
-VALUES ('backup-char-1', 'Mage Aurorien', 'player-mage', 'Merlin', '{"stats":{"Psyche":"20","Intelligence":"18"}}', 1790293997441)
-ON CONFLICT(id) DO UPDATE SET
-  name = excluded.name,
-  owner_id = excluded.owner_id,
-  owner_name = excluded.owner_name,
-  data = excluded.data,
-  updated_at = excluded.updated_at;
-
-INSERT INTO characters (id, name, owner_id, owner_name, data, updated_at)
 VALUES ('58a4ce8f-fcd3-4535-b35d-a62e2deb3624', 'Wendigo', NULL, NULL, '{"info":{},"stats":{"Fighting":"6","Strength":"6","Agility":"6","Endurance":"6","Speed":"6","Intelligence":"6","Wisdom":"6","Intuition":"6","Psyche":"6","Luck":"0","Karma":"0","CombatCapacityBonus":"0","ManaPoolBonus":"0","Focus":"0","FullRestante":"0","FreeRestante":"0"},"tables":{"Weapons":[{},{}],"Armor":[{},{}],"Inventory":[{},{}],"Relations":[{},{}],"Skills":[["Acrobaties","Hors-Combat","Agility","","","","Garder l''équilibre, faire une roulade, franchir un obstacle difficile, marcher sur une surface étroite","","","","","",""],["Arcanes","Hors-Combat","Intelligence","","","","Comprendre la magie, identifier un phénomène magique, reconnaître un sort ou une théorie magique","","","","","",""],["Athlétisme","Hors-Combat","Depend","","","","Grimper, sauter, nager, pousser, tirer, accomplir un effort physique","","","","","",""],["Crochetage","Hors-Combat","Agility","","","","Ouvrir une serrure, désamorcer un mécanisme simple, manipuler un verrou","","","","","",""],["Discrétion","Hors-Combat","Agility","","","","Se cacher, avancer silencieusement, éviter d''être repéré","","","","","",""],["Étiquette","Hors-Combat","Wisdom","","","","Connaître les règles de politesse, les usages sociaux, les bonnes manières et le comportement attendu selon le milieu, le rang ou la culture.","","","","","",""],["Intimidation","Hors-Combat","Depend","","","","Menacer, imposer sa présence ou forcer quelqu''un à céder","","","","","",""],["Investigation","Hors-Combat","Intelligence","","","","Fouiller une pièce, rechercher un indice, comprendre une scène, déduire ce qui s''est passé","","","","","",""],["Lecture des Runes Auroriennes","Hors-Combat","Intelligence","","","","Lire, reconnaître et interpréter les runes auroriennes utilisées dans les enchantements, artefacts, mécanismes magitek, sceaux et inscriptions anciennes ou techniques.","","","","","",""],["Orientation","Hors-Combat","Wisdom","","","","Lire une carte, utiliser des repères, retrouver son chemin, déterminer une direction","","","","","",""],["Perception","Hors-Combat","Intuition","","","","Remarquer un bruit, une silhouette, une odeur, un mouvement ou un détail inhabituel","","","","","",""],["Performance","Hors-Combat","Psyche","","","","Jouer de la musique, chanter, danser, raconter une histoire ou captiver un public","","","","","",""],["Perspicacité","Hors-Combat","Intuition","","","","Comprendre l''attitude, les intentions ou l''état émotionnel d''une personne","","","","","",""],["Persuasion","Hors-Combat","Depend","","","","Convaincre quelqu''un par des arguments sincères ou une négociation","","","","","",""],["Pistage","Hors-Combat","Intuition","","","","Suivre des traces, reconnaître le passage d''une créature, déterminer une direction ou l''âge approximatif d''une piste","","","","","",""],["Premier Soins","Hors-Combat","Depend","","","","Examiner une blessure, identifier une maladie, stabiliser quelqu''un, déterminer une cause de mort","","","","","",""],["Survie","Hors-Combat","Endurance","","","","Trouver de la nourriture, installer un camp, éviter les dangers naturels, survivre dans un environnement hostile","","","","","",""],["Tromperie","Hors-Combat","Depend","","","","Mentir, cacher ses intentions, inventer une histoire crédible, maintenir une fausse identité","","","","","",""],["Protocole","Hors-Combat","Depend","","","","Connaître et appliquer les procédures officielles, militaires, diplomatiques, administratives ou cérémonielles propres à une institution ou à une autorité.","","","","","",""]],"Specialisations":[{"1":"Unspecialised","2":"0","3":"0","4":[],"5":"0"},{"1":"Unspecialised","2":"0","3":"0","4":[],"5":"0"}],"Spell":[["Counter Spell","2","Normal","10","2 x Spirit","Counter Spell est un sort de défense universel contre les éléments matériels de Boréalis.","Sceaux 1 - Rassemble la mana vers la main\nSceaux 2 - En position compresser la mana pour amortir le sort","Fail","(Fgt/10)D6 + (MP/4) Vs Energy","(Fgt/10)D6 + ((MP/4)*1.25) Vs Energy","(Fgt/10)D6 + ((MP/4)*1.5) Vs Energy","(Fgt/10)D6 + ((MP/4)*2) Vs Energy","(Fgt/10)D6 + ((MP/4)*3) Vs Energy"],{}],"Note du joueur":[{}]},"powerThemes":[{"title":"Power Theme 1","description":"","image":"","imageSettings":{"width":320,"height":420},"powers":[{"name":"","description":"","roll":"No Roll","cost":"","charges":""},{"name":"","description":"","roll":"No Roll","cost":"","charges":""}]}],"imageSettings":{"width":320,"height":480},"image":"https://images.owlbear.rodeo/584a7c89-c370-4b19-a767-7655648c678d/items/4b5e973f-eda4-4325-ae74-f837a9eb9a58.webp"}', 1790293033533)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -91,7 +73,7 @@ ON CONFLICT(id) DO UPDATE SET
   updated_at = excluded.updated_at;
 
 INSERT INTO app_state (key, value, updated_at)
-VALUES ('assignments', '{"player-mage":["backup-char-1"],"player-1":["test-char-1"],"player-2":[]}', 1790296036901)
+VALUES ('assignments', '{}', 1790296036901)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
 
 INSERT INTO app_state (key, value, updated_at)
@@ -99,7 +81,7 @@ VALUES ('initiativeTracker', '{}', 1790296036901)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
 
 INSERT INTO app_state (key, value, updated_at)
-VALUES ('knownPlayers', '{"584a7c89-c370-4b19-a767-7655648c678d":{"id":"584a7c89-c370-4b19-a767-7655648c678d","name":"Mike","role":"GM","lastSeen":1790293120551},"player-1":{"id":"player-1","name":"Alice","role":"PLAYER","lastSeen":1790292854338},"player-mage":{"id":"player-mage","name":"Merlin","role":"PLAYER","lastSeen":1790292854338}}', 1790296036901)
+VALUES ('knownPlayers', '{"584a7c89-c370-4b19-a767-7655648c678d":{"id":"584a7c89-c370-4b19-a767-7655648c678d","name":"Mike","role":"GM","lastSeen":1790293120551}}', 1790296036901)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at;
 
 INSERT INTO roll_history (id, character_id, character_name, data, timestamp)

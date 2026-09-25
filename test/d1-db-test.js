@@ -8,7 +8,8 @@ import {
   saveFullStateToDb,
   syncStateWithDb,
   upsertCharacterInDb,
-  deleteCharacterFromDb
+  deleteCharacterFromDb,
+  autoSeedD1IfNeeded
 } from '../db.js';
 
 async function runD1Tests() {
@@ -96,15 +97,16 @@ async function runD1Tests() {
   assert(!stateAfterDelete.initiativeTracker[testId], 'Character should be removed from initiative tracker');
   console.log('✓ Test 5: deleteCharacterFromDb passed (cascade cleaned assignments & tracker)');
 
-  // 6. Test full backup state save
+  // 6. Test full backup state save and restore
+  const testBackupId = 'test-backup-char-1';
   const backupState = {
     updatedAt: Date.now(),
     characters: {
-      'backup-char-1': {
-        id: 'backup-char-1',
-        name: 'Mage Aurorien',
-        ownerId: 'player-mage',
-        ownerName: 'Merlin',
+      [testBackupId]: {
+        id: testBackupId,
+        name: 'Ephemeral Test Hero',
+        ownerId: 'player-test-backup',
+        ownerName: 'Tester',
         updatedAt: Date.now(),
         data: {
           stats: { Psyche: '20', Intelligence: '18' }
@@ -112,7 +114,7 @@ async function runD1Tests() {
       }
     },
     assignments: {
-      'player-mage': ['backup-char-1']
+      'player-test-backup': [testBackupId]
     },
     initiativeTracker: {},
     knownPlayers: {},
@@ -120,11 +122,13 @@ async function runD1Tests() {
   };
 
   const restored = await saveFullStateToDb(backupState);
-  assert(restored.characters['backup-char-1'], 'Backup character should exist');
-  assert.strictEqual(restored.characters['backup-char-1'].name, 'Mage Aurorien');
+  assert(restored.characters[testBackupId], 'Backup character should exist');
+  assert.strictEqual(restored.characters[testBackupId].name, 'Ephemeral Test Hero');
   console.log('✓ Test 6: saveFullStateToDb passed (full backup save)');
 
-  // 7. Test automatic transfer / seeding of character-sheets.json into D1
+  // 7. Clean up test character and test automatic transfer / seeding of character-sheets.json into D1
+  await deleteCharacterFromDb(testBackupId);
+  const seeded = await autoSeedD1IfNeeded({}, true);
   const d1State = await getFullStateFromDb();
   assert(d1State.characters['58a4ce8f-fcd3-4535-b35d-a62e2deb3624'], 'Wendigo should be auto-transferred into D1');
   assert.strictEqual(d1State.characters['58a4ce8f-fcd3-4535-b35d-a62e2deb3624'].name, 'Wendigo');
