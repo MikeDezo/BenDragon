@@ -98,7 +98,7 @@ async function runD1Tests() {
   console.log('✓ Test 5: deleteCharacterFromDb passed (cascade cleaned assignments & tracker)');
 
   // 6. Test full backup state save and restore
-  const testBackupId = 'test-backup-char-1';
+  const testBackupId = `test-d1-backup-${Date.now()}`;
   const backupState = {
     updatedAt: Date.now(),
     characters: {
