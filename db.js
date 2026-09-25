@@ -391,37 +391,37 @@ export async function autoSeedD1IfNeeded(env = {}, forceCheck = false) {
 export async function initDb(env = {}) {
   const d1 = getD1Binding(env);
   if (d1) {
+    const d1Statements = [
+      `CREATE TABLE IF NOT EXISTS characters (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL DEFAULT '',
+        owner_id TEXT,
+        owner_name TEXT,
+        data TEXT NOT NULL DEFAULT '{}',
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_characters_updated_at ON characters(updated_at)`,
+      `CREATE TABLE IF NOT EXISTS app_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT '{}',
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
+      )`,
+      `CREATE TABLE IF NOT EXISTS roll_history (
+        id TEXT PRIMARY KEY,
+        character_id TEXT,
+        character_name TEXT,
+        data TEXT NOT NULL DEFAULT '{}',
+        timestamp INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC)`
+    ];
+
     try {
-      await d1.exec(`
-        CREATE TABLE IF NOT EXISTS characters (
-          id TEXT PRIMARY KEY,
-          name TEXT NOT NULL DEFAULT '',
-          owner_id TEXT,
-          owner_name TEXT,
-          data TEXT NOT NULL DEFAULT '{}',
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000),
-          created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_characters_owner_id ON characters(owner_id);
-        CREATE INDEX IF NOT EXISTS idx_characters_updated_at ON characters(updated_at);
-
-        CREATE TABLE IF NOT EXISTS app_state (
-          key TEXT PRIMARY KEY,
-          value TEXT NOT NULL DEFAULT '{}',
-          updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now') * 1000)
-        );
-
-        CREATE TABLE IF NOT EXISTS roll_history (
-          id TEXT PRIMARY KEY,
-          character_id TEXT,
-          character_name TEXT,
-          data TEXT NOT NULL DEFAULT '{}',
-          timestamp INTEGER NOT NULL
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_roll_history_timestamp ON roll_history(timestamp DESC);
-      `);
+      for (const stmt of d1Statements) {
+        await d1.prepare(stmt).run();
+      }
       schemaInitialized = true;
       await autoSeedD1IfNeeded(env);
       return true;

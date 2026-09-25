@@ -1,12 +1,12 @@
 {
-  "updatedAt": 1790296242393,
+  "updatedAt": 1790296916537,
   "characters": {
     "test-char-1": {
       "id": "test-char-1",
       "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
-      "updatedAt": 1790296242393,
+      "updatedAt": 1790296916537,
       "data": {
         "stats": {
           "Fighting": "15",
@@ -3253,6 +3253,22 @@
     "player-2": []
   },
   "rollHistory": [
+    {
+      "id": "roll-1790296888125",
+      "characterId": "test-d1-1790296888116",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296888625,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790296241546",
+      "characterId": "test-d1-1790296241523",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296242046,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790296207151",
       "characterId": "test-d1-1790296207140",

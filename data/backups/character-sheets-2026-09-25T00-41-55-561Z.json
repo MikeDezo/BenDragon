@@ -1,22 +1,18 @@
 {
-  "updatedAt": 1790294006418,
+  "updatedAt": 1790296916537,
   "characters": {
     "test-char-1": {
       "id": "test-char-1",
-      "name": "Grommash the Brave",
+      "name": "Grommash the Legendary",
       "ownerId": "player-1",
       "ownerName": "Alice",
+      "updatedAt": 1790296916537,
       "data": {
         "stats": {
-          "Fighting": "12",
-          "Strength": "14"
-        },
-        "info": {
-          "playerName": "Alice",
-          "origins": "Dwarf"
+          "Fighting": "15",
+          "Strength": "16"
         }
-      },
-      "updatedAt": 1790294873302
+      }
     },
     "backup-char-1": {
       "id": "backup-char-1",
@@ -3257,6 +3253,54 @@
     "player-2": []
   },
   "rollHistory": [
+    {
+      "id": "roll-1790296888125",
+      "characterId": "test-d1-1790296888116",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296888625,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790296241546",
+      "characterId": "test-d1-1790296241523",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296242046,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790296207151",
+      "characterId": "test-d1-1790296207140",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296207651,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790296036040",
+      "characterId": "test-d1-1790296036025",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790296036540,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790294873471",
+      "characterId": "test-d1-1790294873454",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294873971,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790294005557",
+      "characterId": "test-d1-1790294005543",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790294006057,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790293997425",
       "characterId": "test-d1-1790293997398",
