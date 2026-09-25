@@ -5,7 +5,7 @@
 		{
 			"binding": "DB",
 			"database_name": "bendragonDB",
-			"database_id": "bendragonDB"
+			"database_id": "d696089b-549a-4791-a8d7-d3176cd31cca"
 		}
 	],
 	"main": "./src/worker/index.js",
