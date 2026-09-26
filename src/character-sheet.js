@@ -40,7 +40,7 @@ const tables = {
   Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
   Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
   Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'],
-  Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Runes Slots', 'Runes', 'Description'],
+  Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Rune Slots', 'Runes', 'Description'],
   Inventory: ['Qte', 'Name', 'Description', 'Localisation'],
   Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'],
   Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'],
@@ -3815,7 +3815,8 @@ function tablePage(name, character) {
         }
         row._v3 = true;
       }
-      if (row[4] === undefined) row[4] = '0';
+      const qualityVal = parseInt(row[3], 10) || 0;
+      row[4] = String(Math.max(0, Math.floor(qualityVal / 10)));
       if (!Array.isArray(row[5])) {
         row[5] = typeof row[5] === 'string' && row[5] ? [row[5]] : [];
       }
@@ -3949,14 +3950,19 @@ function tablePage(name, character) {
     if (name === 'Weapons' && header === 'Two handed?') {
       return `<td>${editableCheckbox(path, val)}</td>`;
     }
-    if (name === 'Armor' && (header === 'Physical Protection' || header === 'Energy Protection' || header === 'Quality')) {
+    if (name === 'Armor' && (header === 'Physical Protection' || header === 'Energy Protection')) {
       return `<td>${editableInteger(path, val)}</td>`;
     }
-    if (name === 'Armor' && header === 'Runes Slots') {
-      return `<td>${editableInteger(path, val, 'cell-input', 'data-armor-runes-slots="true" min="0"')}</td>`;
+    if (name === 'Armor' && header === 'Quality') {
+      return `<td>${editableInteger(path, val, 'cell-input', `data-armor-quality="${rowIndex}" min="0"`)}</td>`;
+    }
+    if (name === 'Armor' && (header === 'Rune Slots' || header === 'Runes Slots')) {
+      const calculatedSlots = Math.max(0, Math.floor((parseInt(row[3], 10) || 0) / 10));
+      return `<td><span class="cell-readonly" data-armor-runes-slots-display="${rowIndex}">${calculatedSlots}</span></td>`;
     }
     if (name === 'Armor' && header === 'Runes') {
-      return `<td>${armorRunesInputs(path, val, row[4], rowIndex)}</td>`;
+      const calculatedSlots = Math.max(0, Math.floor((parseInt(row[3], 10) || 0) / 10));
+      return `<td>${armorRunesInputs(path, val, calculatedSlots, rowIndex)}</td>`;
     }
     if (name === 'Inventory' && header === 'Qte') {
       return `<td>${editableInteger(path, val)}</td>`;
@@ -5342,21 +5348,21 @@ function bindEvents() {
     input.addEventListener('blur', updateEffect);
   });
   bindArmorRuneInputs(app);
-  app.querySelectorAll('[data-armor-runes-slots]').forEach((input) => {
-    const handleSlotsChange = () => {
-      const pathParts = input.dataset.path.split('.');
-      const rowIndex = pathParts[2];
-      const rowPath = pathParts.slice(0, -1).join('.');
-      const row = getPath(rowPath);
+  app.querySelectorAll('[data-armor-quality]').forEach((input) => {
+    const handleQualityChange = () => {
+      const rowIndex = input.dataset.armorQuality;
+      const row = getPath(`tables.Armor.${rowIndex}`);
       if (!row) return;
-      const slotsCount = Math.max(0, parseInt(input.value) || 0);
+      const qualityVal = parseInt(input.value, 10) || 0;
+      const slotsCount = Math.max(0, Math.floor(qualityVal / 10));
       row[4] = String(slotsCount);
       if (!Array.isArray(row[5])) {
         row[5] = typeof row[5] === 'string' && row[5] ? [row[5]] : [];
       }
-      const character = currentCharacter();
-      if (character) character.updatedAt = Date.now();
-      state.updatedAt = Date.now();
+      const slotsDisplay = app.querySelector(`[data-armor-runes-slots-display="${rowIndex}"]`);
+      if (slotsDisplay) {
+        slotsDisplay.textContent = String(slotsCount);
+      }
       const container = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
       if (container) {
         const runePath = `tables.Armor.${rowIndex}.5`;
@@ -5366,10 +5372,13 @@ function bindEvents() {
           bindArmorRuneInputs(newContainer);
         }
       }
+      const character = currentCharacter();
+      if (character) character.updatedAt = Date.now();
+      state.updatedAt = Date.now();
       queueSave(200);
     };
-    input.addEventListener('input', handleSlotsChange);
-    input.addEventListener('change', handleSlotsChange);
+    input.addEventListener('input', handleQualityChange);
+    input.addEventListener('change', handleQualityChange);
   });
   const nameInput = app.querySelector('#sheet-name-input');
   if (nameInput) {
