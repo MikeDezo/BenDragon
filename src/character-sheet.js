@@ -40,7 +40,7 @@ const tables = {
   Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
   Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
   Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'],
-  Armor: ['Name', 'Base Armor', 'Quality', 'Runes Slots', 'Runes', 'Description'],
+  Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Runes Slots', 'Runes', 'Description'],
   Inventory: ['Qte', 'Name', 'Description', 'Localisation'],
   Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'],
   Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'],
@@ -1100,11 +1100,11 @@ function bindArmorRuneInputs(container = app) {
       const rowPath = runePath.split('.').slice(0, -1).join('.');
       const row = getPath(rowPath);
       if (!row) return;
-      if (!Array.isArray(row[4])) {
-        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      if (!Array.isArray(row[5])) {
+        row[5] = typeof row[5] === 'string' && row[5] ? [row[5]] : [];
       }
       const idx = Number(input.dataset.armorRuneIndex);
-      row[4][idx] = input.value;
+      row[5][idx] = input.value;
       queueSave();
     };
     input.addEventListener('input', updateRune);
@@ -3797,9 +3797,27 @@ function tablePage(name, character) {
         }
         row._v2 = true;
       }
-      if (row[3] === undefined) row[3] = '0';
-      if (!Array.isArray(row[4])) {
-        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      if (row && !row._v3) {
+        if (row[2] !== undefined || row[3] !== undefined || row[4] !== undefined || row[5] !== undefined) {
+          const oldName = row[0] || '';
+          const oldBaseArmor = row[1] || '';
+          const oldQuality = row[2] || '';
+          const oldSlots = row[3] || '0';
+          const oldRunes = row[4] || [];
+          const oldDesc = row[5] || '';
+          row[0] = oldName;
+          row[1] = oldBaseArmor;
+          row[2] = '';
+          row[3] = oldQuality;
+          row[4] = oldSlots;
+          row[5] = Array.isArray(oldRunes) ? oldRunes : (oldRunes ? [oldRunes] : []);
+          row[6] = oldDesc;
+        }
+        row._v3 = true;
+      }
+      if (row[4] === undefined) row[4] = '0';
+      if (!Array.isArray(row[5])) {
+        row[5] = typeof row[5] === 'string' && row[5] ? [row[5]] : [];
       }
     });
     if (!character.data.tables[name]) character.data.tables[name] = rows;
@@ -3840,7 +3858,6 @@ function tablePage(name, character) {
   }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
   const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
-  const armorQualityOptions = ['10', '20', '30', '40', '50', '75', '100'];
   const skillTypeOptions = ['Combat', 'Hors-Combat', 'Passive'];
   const skillStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Depend'];
   const actionTypeOptions = ['Normal', 'Free'];
@@ -3932,17 +3949,14 @@ function tablePage(name, character) {
     if (name === 'Weapons' && header === 'Two handed?') {
       return `<td>${editableCheckbox(path, val)}</td>`;
     }
-    if (name === 'Armor' && header === 'Base Armor') {
+    if (name === 'Armor' && (header === 'Physical Protection' || header === 'Energy Protection' || header === 'Quality')) {
       return `<td>${editableInteger(path, val)}</td>`;
-    }
-    if (name === 'Armor' && header === 'Quality') {
-      return `<td>${editableSelect(path, val, armorQualityOptions, 'cell-input cell-select')}</td>`;
     }
     if (name === 'Armor' && header === 'Runes Slots') {
       return `<td>${editableInteger(path, val, 'cell-input', 'data-armor-runes-slots="true" min="0"')}</td>`;
     }
     if (name === 'Armor' && header === 'Runes') {
-      return `<td>${armorRunesInputs(path, val, row[3], rowIndex)}</td>`;
+      return `<td>${armorRunesInputs(path, val, row[4], rowIndex)}</td>`;
     }
     if (name === 'Inventory' && header === 'Qte') {
       return `<td>${editableInteger(path, val)}</td>`;
@@ -5336,17 +5350,17 @@ function bindEvents() {
       const row = getPath(rowPath);
       if (!row) return;
       const slotsCount = Math.max(0, parseInt(input.value) || 0);
-      row[3] = String(slotsCount);
-      if (!Array.isArray(row[4])) {
-        row[4] = typeof row[4] === 'string' && row[4] ? [row[4]] : [];
+      row[4] = String(slotsCount);
+      if (!Array.isArray(row[5])) {
+        row[5] = typeof row[5] === 'string' && row[5] ? [row[5]] : [];
       }
       const character = currentCharacter();
       if (character) character.updatedAt = Date.now();
       state.updatedAt = Date.now();
       const container = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
       if (container) {
-        const runePath = `tables.Armor.${rowIndex}.4`;
-        container.outerHTML = armorRunesInputs(runePath, row[4], slotsCount, rowIndex);
+        const runePath = `tables.Armor.${rowIndex}.5`;
+        container.outerHTML = armorRunesInputs(runePath, row[5], slotsCount, rowIndex);
         const newContainer = app.querySelector(`[data-armor-runes-container="${rowIndex}"]`);
         if (newContainer) {
           bindArmorRuneInputs(newContainer);

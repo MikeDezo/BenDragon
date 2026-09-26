@@ -1098,11 +1098,12 @@ body.col-resizing * {
 .sheet-table-weapons .cell-input { min-width: 0; }
 .sheet-table-armor { table-layout: fixed; }
 .sheet-table-armor th:nth-child(1), .sheet-table-armor td:nth-child(1) { width: 170px; }
-.sheet-table-armor th:nth-child(2), .sheet-table-armor td:nth-child(2) { width: 95px; }
-.sheet-table-armor th:nth-child(3), .sheet-table-armor td:nth-child(3) { width: 105px; }
-.sheet-table-armor th:nth-child(4), .sheet-table-armor td:nth-child(4) { width: 95px; }
-.sheet-table-armor th:nth-child(5), .sheet-table-armor td:nth-child(5) { width: 220px; }
-.sheet-table-armor th:nth-child(6), .sheet-table-armor td:nth-child(6) { width: 260px; }
+.sheet-table-armor th:nth-child(2), .sheet-table-armor td:nth-child(2) { width: 110px; }
+.sheet-table-armor th:nth-child(3), .sheet-table-armor td:nth-child(3) { width: 110px; }
+.sheet-table-armor th:nth-child(4), .sheet-table-armor td:nth-child(4) { width: 105px; }
+.sheet-table-armor th:nth-child(5), .sheet-table-armor td:nth-child(5) { width: 95px; }
+.sheet-table-armor th:nth-child(6), .sheet-table-armor td:nth-child(6) { width: 220px; }
+.sheet-table-armor th:nth-child(7), .sheet-table-armor td:nth-child(7) { width: 260px; }
 .sheet-table-armor .cell-input { min-width: 0; }
 .sheet-table-inventory { table-layout: fixed; }
 .sheet-table-inventory th:nth-child(1), .sheet-table-inventory td:nth-child(1) { width: 85px; }
