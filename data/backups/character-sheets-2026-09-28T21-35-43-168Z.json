@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1790300037352,
+  "updatedAt": 1790300037426,
   "characters": {
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
@@ -3218,9 +3218,30 @@
           "height": 480
         }
       }
+    },
+    "test-temp-char-1": {
+      "id": "test-temp-char-1",
+      "name": "Temporary Test Hero",
+      "ownerId": "player-test-1",
+      "ownerName": "Tester",
+      "data": {
+        "stats": {
+          "Fighting": "12",
+          "Strength": "14"
+        },
+        "info": {
+          "playerName": "Tester",
+          "origins": "Human"
+        }
+      },
+      "updatedAt": 1790631343145
     }
   },
-  "assignments": {},
+  "assignments": {
+    "player-test-1": [
+      "test-temp-char-1"
+    ]
+  },
   "rollHistory": [
     {
       "id": "roll-1790299758670",

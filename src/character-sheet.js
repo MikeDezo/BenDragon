@@ -725,6 +725,7 @@ function getCharacterStatsMap(character) {
   const psy = parseFloat(st.Psyche ?? '6') || 0;
   const cc = str + agi + end + spd;
   const mp = intVal + wis + intu + psy;
+  const movement = 4 + Math.floor(spd / 10);
 
   const map = {
     Fighting: fgt,
@@ -752,7 +753,17 @@ function getCharacterStatsMap(character) {
     'Combat Capacity': cc,
     CC: cc,
     'Mana Pool': mp,
-    MP: mp
+    MP: mp,
+    Movement: movement,
+    movement: movement,
+    Mov: movement,
+    mov: movement,
+    Mvt: movement,
+    mvt: movement,
+    MV: movement,
+    mv: movement,
+    Mouvement: movement,
+    mouvement: movement
   };
 
   const storedSpecs = character?.data?.tables?.Specialisations;
@@ -918,6 +929,11 @@ function translateFormula(formula, stats) {
     'combat capacity': 'Combat Capacity',
     mp: 'Mana Pool',
     'mana pool': 'Mana Pool',
+    movement: 'Movement',
+    mov: 'Movement',
+    mvt: 'Movement',
+    mv: 'Movement',
+    mouvement: 'Movement',
     weapondamage: 'WeaponDamage',
     'weapon damage': 'WeaponDamage',
     weapon_damage: 'WeaponDamage',
@@ -938,6 +954,11 @@ function translateFormula(formula, stats) {
     result = result.replace(/"([^"]*)"/g, '$1');
   }
 
+  // Handle Movement() function call syntax
+  result = result.replace(/\b(Movement|movement|mov|mvt|mv|mouvement)\s*\(\s*\)/gi, () => {
+    return stats?.Movement !== undefined ? String(stats.Movement) : '4';
+  });
+
   // Handle WeaponDamage() or WeaponDamage(param) function call syntax
   result = result.replace(/\b(WeaponDamage|Weapon\s*Damage|Weapon_Damage|weapondamage|weapondmg|WeaponDmg)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
     const arg = (rawArgs || '').trim();
@@ -953,7 +974,7 @@ function translateFormula(formula, stats) {
 
   const allKeys = Object.keys(stats).sort((a, b) => b.length - a.length);
   const escapedKeys = allKeys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
-  const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP|WeaponDamage|Weapon Damage|Weapon_Damage|weapondamage|weapondmg';
+  const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP|Movement|Mov|Mvt|MV|Mv|Mouvement|WeaponDamage|Weapon Damage|Weapon_Damage|weapondamage|weapondmg';
   const fullPattern = escapedKeys ? `(?:${escapedKeys}|${baseStatPattern})` : baseStatPattern;
   const tokenRegex = new RegExp(`\\b(${fullPattern})\\b`, 'gi');
 
