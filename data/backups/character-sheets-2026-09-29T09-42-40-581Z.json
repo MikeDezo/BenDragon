@@ -1,5 +1,5 @@
 {
-  "updatedAt": 1790631344170,
+  "updatedAt": 1790674960561,
   "characters": {
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
@@ -3220,11 +3220,24 @@
       }
     }
   },
-  "assignments": {
-    "player-test-1": [],
-    "player-test-2": []
-  },
+  "assignments": {},
   "rollHistory": [
+    {
+      "id": "roll-1790674623929",
+      "characterId": "test-d1-1790674623907",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790674624428,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790631343356",
+      "characterId": "test-d1-1790631343340",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790631343856,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790428585968",
       "characterId": "test-d1-1790428585951",
@@ -3511,7 +3524,7 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790299973686
+      "lastSeen": 1790674606329
     }
   }
 }

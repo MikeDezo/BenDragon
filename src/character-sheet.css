@@ -2993,6 +2993,179 @@ body.col-resizing * {
   border-top: 1px solid var(--line-soft);
 }
 
+/* Sheet Importer Modal Styles */
+.import-sheet-modal {
+  max-width: 540px;
+}
+
+.import-modal-body {
+  padding: 16px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import-modal-target {
+  background: var(--paper-deep);
+  border-left: 3px solid var(--accent);
+  padding: 8px 12px;
+  font: 500 calc(12px * var(--font-scale, 1)) 'DM Mono', monospace;
+  color: var(--ink);
+}
+
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-section-title {
+  font: 700 calc(11.5px * var(--font-scale, 1)) 'Cinzel', serif;
+  text-transform: uppercase;
+  color: #163b72;
+  letter-spacing: 0.04em;
+}
+
+.import-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.gsheet-url-input {
+  flex: 1;
+  font-size: calc(12px * var(--font-scale, 1));
+}
+
+.import-tip {
+  font: 400 calc(10.5px * var(--font-scale, 1)) 'DM Mono', monospace;
+  color: #636b63;
+  line-height: 1.35;
+}
+
+.import-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--muted);
+  font: 700 calc(10px * var(--font-scale, 1)) 'DM Mono', monospace;
+  letter-spacing: 0.08em;
+  margin: 2px 0;
+}
+
+.import-divider::before,
+.import-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px dashed var(--line-soft);
+}
+
+.import-divider span {
+  padding: 0 10px;
+}
+
+.import-dropzone {
+  border: 2px dashed var(--line);
+  background: #fdfcf7;
+  padding: 18px 14px;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.import-dropzone:hover,
+.import-dropzone.dragover {
+  border-color: var(--accent);
+  background: #fbf6e2;
+}
+
+.dropzone-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.dropzone-text {
+  font: 500 calc(11.5px * var(--font-scale, 1)) 'DM Mono', monospace;
+  color: var(--muted);
+}
+
+.import-options-box {
+  background: #f9f7ef;
+  border: 1px solid var(--line-soft);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-option-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font: 400 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.import-option-label input[type="checkbox"] {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+.import-note {
+  font: 400 calc(10px * var(--font-scale, 1)) 'DM Mono', monospace;
+  color: #7b6f3c;
+  line-height: 1.35;
+  margin-top: 2px;
+}
+
+.import-sheet-status {
+  padding: 10px 14px;
+  border-radius: 3px;
+  font: 500 calc(11.5px * var(--font-scale, 1)) 'DM Mono', monospace;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: modalFadeIn 0.15s ease-out;
+}
+
+.import-sheet-status.status-loading {
+  background: #ebf5fb;
+  border: 1px solid #aed6f1;
+  color: #1b4f72;
+}
+
+.import-sheet-status.status-error {
+  background: #fdedec;
+  border: 1px solid #f5b7b1;
+  color: #922b21;
+}
+
+.import-sheet-status.status-success {
+  background: #eafaf1;
+  border: 1px solid #a9dfbf;
+  color: #196f3d;
+}
+
+.import-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #aed6f1;
+  border-top-color: #1b4f72;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 1100px) {
   .stats-page-layout {
     grid-template-columns: 1fr;

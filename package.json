@@ -16,7 +16,7 @@
     "db:migrate": "node scripts/migrate.js",
     "d1:migrate": "wrangler d1 migrations apply bendragonDB --remote",
     "d1:migrate:local": "wrangler d1 migrations apply bendragonDB --local",
-    "test": "node test/cloud-storage-test.js && node test/d1-db-test.js",
+    "test": "node test/cloud-storage-test.js && node test/d1-db-test.js && node test/sheet-importer-test.js",
     "test:d1": "node test/d1-db-test.js",
     "test:db": "node test/postgres-db-test.js"
   },
@@ -33,6 +33,7 @@
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "hono": "^4.11.1",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "xlsx": "^0.18.5"
   }
 }

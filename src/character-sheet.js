@@ -1,6 +1,7 @@
 import './character-sheet.css';
 import OBR from '@owlbear-rodeo/sdk';
 import { chartRankCodes, chartRankNames, chartRankValues, chartStatRanges, chartRows, resolveUniversalRoll } from './universal-chart-data.js';
+import { convertGoogleSheetUrlToXlsx, readWorkbookFromData, parseWorkbookToCharacterData, mergeCharacterData } from './sheet-importer.js';
 import sadhornUrl from '../sounds/sadhorn.mp3';
 import wowUrl from '../sounds/wow.mp3';
 
@@ -1313,6 +1314,166 @@ function addXpModalHtml(character) {
       <div class="xp-modal-footer">
         <button type="button" class="toolbar-button secondary" id="xp-modal-cancel-btn">Cancel</button>
         <button type="button" class="toolbar-button" id="xp-modal-submit-btn">Add XP</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+let isImportSheetModalOpen = false;
+let importSheetStatus = { type: '', message: '' };
+let isImportingSheet = false;
+
+function openImportSheetModal() {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  isImportSheetModalOpen = true;
+  importSheetStatus = { type: '', message: '' };
+  isImportingSheet = false;
+  render();
+}
+
+function closeImportSheetModal() {
+  if (!isImportSheetModalOpen) return;
+  isImportSheetModalOpen = false;
+  importSheetStatus = { type: '', message: '' };
+  isImportingSheet = false;
+  render();
+}
+
+async function fetchSheetDataFromUrl(url) {
+  const exportUrl = convertGoogleSheetUrlToXlsx(url);
+  // Try proxy endpoint first
+  try {
+    const proxyUrl = `${CLOUD_API_BASE}/api/fetch-sheet?url=${encodeURIComponent(exportUrl)}`;
+    const res = await fetch(proxyUrl);
+    if (res.ok) {
+      return await res.arrayBuffer();
+    }
+  } catch (e) {
+    console.warn('[Importer] Proxy fetch failed, attempting direct fetch...', e);
+  }
+
+  // Fallback to direct fetch
+  try {
+    const directRes = await fetch(exportUrl);
+    if (directRes.ok) {
+      return await directRes.arrayBuffer();
+    }
+    throw new Error(`HTTP ${directRes.status}: ${directRes.statusText}`);
+  } catch (err) {
+    throw new Error(`Impossible de télécharger la feuille (${err.message}). Assurez-vous que le document est partagé avec le lien (« Tous les utilisateurs disposant du lien peuvent consulter »), ou téléchargez-le en fichier .xlsx.`);
+  }
+}
+
+async function handleImportSpreadsheetData(dataBuffer, fillBlanksOnly = true) {
+  try {
+    isImportingSheet = true;
+    importSheetStatus = { type: 'loading', message: 'Analyse et importation du classeur en cours...' };
+    render();
+
+    const workbook = readWorkbookFromData(dataBuffer);
+    if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error('Le fichier ne contient aucune feuille de calcul valide.');
+    }
+
+    const importedData = parseWorkbookToCharacterData(workbook);
+    const character = currentCharacter();
+    if (!character) {
+      throw new Error('Aucune fiche de personnage active.');
+    }
+
+    // Merge character data (skipping images, completing blanks)
+    mergeCharacterData(character, importedData, { fillBlanksOnly, skipImages: true });
+    
+    // Save to storage and cloud
+    await save();
+
+    const skillsCount = importedData.tables?.Skills?.length || 0;
+    const spellsCount = importedData.tables?.Spell?.length || 0;
+    const statsCount = Object.keys(importedData.stats || {}).length;
+
+    importSheetStatus = {
+      type: 'success',
+      message: `Fiche mise à jour ! (${statsCount} stats, ${skillsCount} compétences, ${spellsCount} sorts traités).`
+    };
+    isImportingSheet = false;
+    render();
+
+    setTimeout(() => {
+      if (isImportSheetModalOpen && importSheetStatus.type === 'success') {
+        closeImportSheetModal();
+      }
+    }, 2000);
+  } catch (err) {
+    console.error('Import spreadsheet error:', err);
+    isImportingSheet = false;
+    importSheetStatus = {
+      type: 'error',
+      message: `Erreur : ${err.message}`
+    };
+    render();
+  }
+}
+
+function importSheetModalHtml(character) {
+  if (!isImportSheetModalOpen || !character) return '';
+
+  const statusHtml = importSheetStatus.message ? `
+    <div class="import-sheet-status status-${importSheetStatus.type}">
+      ${importSheetStatus.type === 'loading' ? '<span class="import-spinner"></span>' : ''}
+      <span class="import-status-text">${esc(importSheetStatus.message)}</span>
+    </div>
+  ` : '';
+
+  return `<div class="modal-backdrop" id="import-sheet-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="import-sheet-modal-title">
+    <div class="xp-modal import-sheet-modal" id="import-sheet-modal-dialog">
+      <div class="xp-modal-header">
+        <h2 class="xp-modal-title" id="import-sheet-modal-title">📊 Remplir la Fiche (Google Sheets / Excel)</h2>
+        <button type="button" class="xp-modal-close" id="import-sheet-close-btn" title="Fermer">&times;</button>
+      </div>
+      <div class="import-modal-body">
+        <div class="import-modal-target">
+          Fiche cible : <strong>${esc(character.name || 'Personnage actuel')}</strong>
+        </div>
+
+        <!-- Option 1: Google Sheets Link -->
+        <div class="import-section">
+          <label class="import-section-title" for="gsheet-url-input">1. Lien Google Sheets</label>
+          <div class="import-input-row">
+            <input type="url" id="gsheet-url-input" class="xp-modal-input gsheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/.../edit" ${isImportingSheet ? 'disabled' : ''} />
+            <button type="button" class="toolbar-button" id="gsheet-submit-btn" ${isImportingSheet ? 'disabled' : ''}>Importer Lien</button>
+          </div>
+          <div class="import-tip">💡 Le document doit être accessible en lecture (<em>« Tous les utilisateurs disposant du lien peuvent consulter »</em>).</div>
+        </div>
+
+        <div class="import-divider"><span>OU</span></div>
+
+        <!-- Option 2: XLSX File -->
+        <div class="import-section">
+          <label class="import-section-title">2. Fichier Excel (.xlsx / .xls)</label>
+          <div class="import-dropzone" id="xlsx-dropzone">
+            <input type="file" id="xlsx-file-input" accept=".xlsx, .xls" style="display: none;" />
+            <div class="dropzone-icon">📁</div>
+            <div class="dropzone-text">Glissez-déposez votre fichier Excel ici ou</div>
+            <button type="button" class="toolbar-button secondary" id="xlsx-browse-btn" ${isImportingSheet ? 'disabled' : ''}>Parcourir un fichier .xlsx</button>
+          </div>
+        </div>
+
+        <!-- Options -->
+        <div class="import-options-box">
+          <label class="import-option-label">
+            <input type="checkbox" id="fill-blanks-only-checkbox" checked />
+            <span><strong>Compléter les blancs</strong> (si une compétence ou un sort existe déjà, seuls les champs vides sont complétés)</span>
+          </label>
+          <div class="import-note">
+            ⚠️ <em>L'insertion d'images est ignorée afin de préserver ou ajouter vos portraits manuellement.</em>
+          </div>
+        </div>
+
+        ${statusHtml}
+      </div>
+      <div class="xp-modal-footer">
+        <button type="button" class="toolbar-button secondary" id="import-sheet-cancel-btn" ${isImportingSheet ? 'disabled' : ''}>Fermer</button>
       </div>
     </div>
   </div>`;
@@ -4079,16 +4240,19 @@ function controls(character) {
 
   if (user.role !== 'GM') {
     const myChars = getAssignedCharacters(user.id);
+    const importBtn = canEditCurrent() ? `<button class="toolbar-button secondary" id="import-sheet-btn" title="Remplir la fiche depuis Google Sheets ou un fichier Excel (.xlsx)">📊 Import Sheet / XLSX</button>` : '';
     if (myChars.length > 1) {
       const options = myChars.map(([id, item]) => `<option value="${esc(id)}" ${id === activeCharacterId ? 'selected' : ''}>${esc(item.name || id)}</option>`).join('');
       return `<div class="sheet-controls">
         <label>Character <select id="player-character-select">${options}</select></label>
         <span class="control-note">(${myChars.length} sheets assigned)</span>
+        ${importBtn}
         ${fontControl}
       </div>`;
     } else if (myChars.length === 1 || character) {
       return `<div class="sheet-controls">
         <span class="control-note">Assigned sheet: <strong>${esc(character?.name || 'Character')}</strong></span>
+        ${importBtn}
         ${fontControl}
       </div>`;
     }
@@ -4110,7 +4274,7 @@ function controls(character) {
     const isSelected = character?.ownerId === player.id;
     return `<option value="${esc(player.id)}" ${isSelected ? 'selected' : ''}>${esc(player.name)} (${esc(statusLabel)})</option>`;
   }).join('');
-  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label><button class="toolbar-button secondary" id="export-backup-btn" title="Export all character sheets to a JSON file">Export Backup</button><button class="toolbar-button secondary" id="import-backup-btn" title="Import character sheets from a JSON backup">Import Backup</button><input type="file" id="import-backup-input" accept=".json" style="display:none;" />${fontControl}</div>`;
+  return `<div class="sheet-controls"><label>Character <select id="character-select">${options || '<option>No sheets</option>'}</select></label><button class="toolbar-button" id="new-character">New sheet</button>${character ? `<button class="toolbar-button danger" id="delete-character" title="Delete current character sheet">Delete sheet</button>` : ''}${character ? `<label>Sheet Name <input type="text" id="sheet-name-input" class="sheet-name-input" value="${esc(character.name || '')}" placeholder="Sheet name" /></label>` : ''}<label>Assign to <select id="owner-select"><option value="">Unassigned</option>${playerOptions}</select></label><button class="toolbar-button secondary" id="export-backup-btn" title="Export all character sheets to a JSON file">Export Backup</button><button class="toolbar-button secondary" id="import-backup-btn" title="Import character sheets from a JSON backup">Import Backup</button><input type="file" id="import-backup-input" accept=".json" style="display:none;" /><button class="toolbar-button secondary" id="import-sheet-btn" title="Remplir la fiche depuis Google Sheets ou un fichier Excel (.xlsx)">📊 Import Sheet / XLSX</button>${fontControl}</div>`;
 }
 
 function render(focusPath = null, selectAll = false) {
@@ -4203,6 +4367,7 @@ function render(focusPath = null, selectAll = false) {
       </div>
     </main>
     ${addXpModalHtml(character)}
+    ${importSheetModalHtml(character)}
   </div>`;
   bindEvents();
   autoResizeAllTextareas(app);
@@ -5816,6 +5981,131 @@ function bindEvents() {
     requestAnimationFrame(() => {
       input?.focus();
       input?.select?.();
+    });
+  }
+
+  app.querySelector('#import-sheet-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openImportSheetModal();
+  });
+
+  if (isImportSheetModalOpen) {
+    const gsheetInput = app.querySelector('#gsheet-url-input');
+    const gsheetSubmitBtn = app.querySelector('#gsheet-submit-btn');
+    const xlsxBrowseBtn = app.querySelector('#xlsx-browse-btn');
+    const xlsxFileInput = app.querySelector('#xlsx-file-input');
+    const xlsxDropzone = app.querySelector('#xlsx-dropzone');
+    const closeBtn = app.querySelector('#import-sheet-close-btn');
+    const cancelBtn = app.querySelector('#import-sheet-cancel-btn');
+    const backdrop = app.querySelector('#import-sheet-modal-backdrop');
+
+    closeBtn?.addEventListener('click', closeImportSheetModal);
+    cancelBtn?.addEventListener('click', closeImportSheetModal);
+
+    backdrop?.addEventListener('click', (e) => {
+      if (e.target === backdrop && !isImportingSheet) {
+        closeImportSheetModal();
+      }
+    });
+
+    const triggerGSheetImport = async () => {
+      if (isImportingSheet) return;
+      const url = gsheetInput?.value?.trim();
+      if (!url) {
+        importSheetStatus = { type: 'error', message: 'Veuillez coller un lien Google Sheets valide.' };
+        render();
+        return;
+      }
+      const fillBlanksOnly = app.querySelector('#fill-blanks-only-checkbox')?.checked ?? true;
+      try {
+        isImportingSheet = true;
+        importSheetStatus = { type: 'loading', message: 'Téléchargement de la feuille Google Sheets...' };
+        render();
+
+        const buffer = await fetchSheetDataFromUrl(url);
+        await handleImportSpreadsheetData(buffer, fillBlanksOnly);
+      } catch (err) {
+        console.error('GSheet import error:', err);
+        isImportingSheet = false;
+        importSheetStatus = { type: 'error', message: err.message };
+        render();
+      }
+    };
+
+    gsheetSubmitBtn?.addEventListener('click', triggerGSheetImport);
+    gsheetInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        triggerGSheetImport();
+      } else if (e.key === 'Escape' && !isImportingSheet) {
+        e.preventDefault();
+        closeImportSheetModal();
+      }
+    });
+
+    xlsxBrowseBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      xlsxFileInput?.click();
+    });
+
+    xlsxFileInput?.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file || isImportingSheet) return;
+      const fillBlanksOnly = app.querySelector('#fill-blanks-only-checkbox')?.checked ?? true;
+      try {
+        isImportingSheet = true;
+        importSheetStatus = { type: 'loading', message: `Lecture du fichier ${file.name}...` };
+        render();
+
+        const buffer = await file.arrayBuffer();
+        await handleImportSpreadsheetData(buffer, fillBlanksOnly);
+      } catch (err) {
+        console.error('XLSX import error:', err);
+        isImportingSheet = false;
+        importSheetStatus = { type: 'error', message: err.message };
+        render();
+      }
+    });
+
+    if (xlsxDropzone) {
+      xlsxDropzone.addEventListener('click', (e) => {
+        if (e.target !== xlsxBrowseBtn && !isImportingSheet) {
+          xlsxFileInput?.click();
+        }
+      });
+      xlsxDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!isImportingSheet) xlsxDropzone.classList.add('dragover');
+      });
+      xlsxDropzone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        xlsxDropzone.classList.remove('dragover');
+      });
+      xlsxDropzone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        xlsxDropzone.classList.remove('dragover');
+        if (isImportingSheet) return;
+        const file = e.dataTransfer?.files?.[0];
+        if (!file) return;
+        const fillBlanksOnly = app.querySelector('#fill-blanks-only-checkbox')?.checked ?? true;
+        try {
+          isImportingSheet = true;
+          importSheetStatus = { type: 'loading', message: `Lecture du fichier ${file.name}...` };
+          render();
+
+          const buffer = await file.arrayBuffer();
+          await handleImportSpreadsheetData(buffer, fillBlanksOnly);
+        } catch (err) {
+          console.error('XLSX drop error:', err);
+          isImportingSheet = false;
+          importSheetStatus = { type: 'error', message: err.message };
+          render();
+        }
+      });
+    }
+
+    requestAnimationFrame(() => {
+      gsheetInput?.focus();
     });
   }
 

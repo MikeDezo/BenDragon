@@ -93,6 +93,35 @@ function cloudStorageDevPlugin() {
             }));
           }
 
+          if (pathname === '/api/fetch-sheet' && req.method === 'GET') {
+            const targetUrl = url.searchParams.get('url');
+            if (!targetUrl) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: 'Missing url parameter' }));
+            }
+            try {
+              const remoteRes = await fetch(targetUrl, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                },
+                redirect: 'follow'
+              });
+              if (!remoteRes.ok) {
+                res.statusCode = remoteRes.status;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({ error: `Remote error (${remoteRes.status}): ${remoteRes.statusText}` }));
+              }
+              const arrayBuffer = await remoteRes.arrayBuffer();
+              res.setHeader('Content-Type', remoteRes.headers.get('content-type') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+              return res.end(Buffer.from(arrayBuffer));
+            } catch (err) {
+              res.statusCode = 500;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ error: err.message }));
+            }
+          }
+
           if (pathname.startsWith('/api/characters/')) {
             const charId = pathname.replace('/api/characters/', '');
             if (req.method === 'GET') {

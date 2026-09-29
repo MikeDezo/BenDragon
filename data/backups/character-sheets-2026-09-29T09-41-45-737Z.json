@@ -1,19 +1,6 @@
 {
-  "updatedAt": 1790332533997,
+  "updatedAt": 1790674905723,
   "characters": {
-    "test-temp-char-1": {
-      "id": "test-temp-char-1",
-      "name": "Temporary Test Legend",
-      "ownerId": "player-test-1",
-      "ownerName": "Tester",
-      "updatedAt": 1790332533997,
-      "data": {
-        "stats": {
-          "Fighting": "15",
-          "Strength": "16"
-        }
-      }
-    },
     "58a4ce8f-fcd3-4535-b35d-a62e2deb3624": {
       "id": "58a4ce8f-fcd3-4535-b35d-a62e2deb3624",
       "name": "Wendigo",
@@ -3233,13 +3220,40 @@
       }
     }
   },
-  "assignments": {
-    "player-test-1": [
-      "test-temp-char-1"
-    ],
-    "player-test-2": []
-  },
+  "assignments": {},
   "rollHistory": [
+    {
+      "id": "roll-1790674623929",
+      "characterId": "test-d1-1790674623907",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790674624428,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790631343356",
+      "characterId": "test-d1-1790631343340",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790631343856,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790428585968",
+      "characterId": "test-d1-1790428585951",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790428586468,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
+    {
+      "id": "roll-1790332533148",
+      "characterId": "test-d1-1790332533135",
+      "characterName": "Borealis Grand Champion",
+      "timestamp": 1790332533648,
+      "statName": "Fighting",
+      "diceResult": 85
+    },
     {
       "id": "roll-1790299758670",
       "characterId": "test-d1-1790299758655",
@@ -3510,7 +3524,7 @@
       "id": "584a7c89-c370-4b19-a767-7655648c678d",
       "name": "Mike",
       "role": "GM",
-      "lastSeen": 1790299973686
+      "lastSeen": 1790674606329
     }
   }
 }

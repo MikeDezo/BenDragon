@@ -128,6 +128,35 @@ app.post('/api/sync', async (req, res) => {
   }
 });
 
+// Proxy endpoint to fetch Google Sheets or remote xlsx without CORS issues
+app.get('/api/fetch-sheet', async (req, res) => {
+  try {
+    const targetUrl = req.query.url;
+    if (!targetUrl || typeof targetUrl !== 'string') {
+      return res.status(400).json({ error: 'Missing url parameter' });
+    }
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      return res.status(400).json({ error: 'Invalid URL scheme' });
+    }
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      redirect: 'follow'
+    });
+    if (!response.ok) {
+      return res.status(response.status).json({ error: `Remote server responded with ${response.status}: ${response.statusText}` });
+    }
+    const contentType = response.headers.get('content-type') || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    res.setHeader('Content-Type', contentType);
+    const arrayBuffer = await response.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (err) {
+    console.error('[API] Error fetching sheet:', err);
+    res.status(500).json({ error: 'Failed to fetch spreadsheet: ' + err.message });
+  }
+});
+
 // Get a single character by ID
 app.get('/api/characters/:id', async (req, res) => {
   try {
