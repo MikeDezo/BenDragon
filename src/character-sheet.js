@@ -649,29 +649,118 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   }
 
   const weapon = (rawWeapons.length > 0 && rawWeapons[targetIdx]) ? rawWeapons[targetIdx] : [];
-  const weaponName = weapon[0] || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
-  const specName = (typeof weapon[2] === 'string' && weapon[2] && !/^\d+d\d+/i.test(weapon[2]) ? weapon[2] : weapon[9]) || '';
-  const touchStatName = (weapon[3] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[3]) ? weapon[3] : (weapon[1] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[1]) ? weapon[1] : 'Fighting'));
-  const weaponTouchBonus = parseInt(weapon[4] !== undefined && weapon[4] !== '' ? weapon[4] : weapon[11]) || 0;
-  const damageBonusStatName = (weapon[5] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[5]) ? weapon[5] : (weapon[2] && ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'].includes(weapon[2]) ? weapon[2] : 'Strength'));
-  const diceStr = weapon[9] || weapon[6] || '1D10';
-  const twoHanded = weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on' || weapon['10'] === true || weapon['10'] === 'true' || weapon['10'] === 'on' || weapon['Two handed?'] === true || weapon.twoHanded === true;
+  const rawWeaponName = Array.isArray(weapon) ? weapon[0] : (weapon[0] ?? weapon.Name ?? weapon.name);
+  const weaponName = rawWeaponName || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
 
-  const specRow = rawSpecs.find((s) => (s[0] || '').trim() === (specName || '').trim() && (specName || '').trim() !== '');
-  const specIniBonus = specRow ? (parseInt(specRow[5]) || 0) : 0;
-  const specTouchBonus = specRow ? (parseInt(specRow[2]) || 0) : 0;
-  const specPotentialBonus = specRow ? (parseInt(specRow[3]) || 0) : 0;
+  const validStats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
 
-  const total1stBonus = Math.floor(numIntuition / 10) + specIniBonus;
-  const totalNextBonus = Math.floor(numSpeed / 10) + specIniBonus;
+  // 1. Identify specialisation name (stored at index 9 in standard table layout)
+  let specName = '';
+  if (weapon.Specialisation !== undefined && String(weapon.Specialisation).trim()) {
+    specName = String(weapon.Specialisation).trim();
+  } else if (weapon.specialisation !== undefined && String(weapon.specialisation).trim()) {
+    specName = String(weapon.specialisation).trim();
+  } else {
+    const w9 = weapon[9] ?? weapon['9'];
+    const w2 = weapon[2] ?? weapon['2'];
+    const isDice9 = typeof w9 === 'string' && /^\d*\s*[dD]\s*\d+/i.test(w9.trim());
+    const isStat2 = typeof w2 === 'string' && validStats.includes(w2.trim());
+    const isDice2 = typeof w2 === 'string' && /^\d*\s*[dD]\s*\d+/i.test(w2.trim());
+
+    if (w9 !== undefined && String(w9).trim() && !isDice9) {
+      specName = String(w9).trim();
+    } else if (w2 !== undefined && String(w2).trim() && !isStat2 && !isDice2) {
+      specName = String(w2).trim();
+    } else if (w9 !== undefined && String(w9).trim()) {
+      specName = String(w9).trim();
+    } else if (w2 !== undefined && String(w2).trim() && !isStat2) {
+      specName = String(w2).trim();
+    }
+  }
+
+  // 2. Find matching specialization row in Specialisations table
+  const specRow = specName ? rawSpecs.find((s) => {
+    if (!s) return false;
+    const sName = String(Array.isArray(s) ? s[0] : (s[0] ?? s.Name ?? s.name ?? '')).trim();
+    return sName !== '' && sName.toLowerCase() === specName.toLowerCase();
+  }) : null;
+
+  let specIniBonus = 0;
+  let specTouchBonus = 0;
+  let specPotentialBonus = 0;
+
+  if (specRow) {
+    const lvl = String(Array.isArray(specRow) ? specRow[1] : (specRow[1] ?? specRow['Actual LVL'] ?? specRow.level ?? '')).trim();
+    const cfg = specialisationLevels[lvl] || specialisationLevels.Unspecialised || { touch: '0', potential: '0', ini: '0' };
+
+    const rawIni = Array.isArray(specRow) ? specRow[5] : (specRow[5] ?? specRow['Ini Bonus'] ?? specRow.iniBonus ?? specRow.ini);
+    const rawTouch = Array.isArray(specRow) ? specRow[2] : (specRow[2] ?? specRow['Touch Bonus'] ?? specRow.touchBonus ?? specRow.touch);
+    const rawPot = Array.isArray(specRow) ? specRow[3] : (specRow[3] ?? specRow['Potential Bonus'] ?? specRow.potentialBonus ?? specRow.potential);
+
+    specIniBonus = (rawIni !== undefined && rawIni !== '' && !isNaN(parseInt(rawIni, 10))) ? parseInt(rawIni, 10) : (parseInt(cfg.ini, 10) || 0);
+    specTouchBonus = (rawTouch !== undefined && rawTouch !== '' && !isNaN(parseInt(rawTouch, 10))) ? parseInt(rawTouch, 10) : (parseInt(cfg.touch, 10) || 0);
+    specPotentialBonus = (rawPot !== undefined && rawPot !== '' && !isNaN(parseInt(rawPot, 10))) ? parseInt(rawPot, 10) : (parseInt(cfg.potential, 10) || 0);
+  }
+
+  // 3. Touch Stat Name & Weapon Touch Bonus
+  const touchStatName = (
+    weapon['Touch Stat'] ||
+    weapon.touchStat ||
+    (weapon[1] && validStats.includes(String(weapon[1]).trim()) ? String(weapon[1]).trim() : null) ||
+    (weapon[3] && validStats.includes(String(weapon[3]).trim()) ? String(weapon[3]).trim() : null) ||
+    'Fighting'
+  );
+
+  const rawTouchBonus = weapon['Touch Bonus'] ?? weapon.touchBonus ?? weapon[11] ?? weapon['11'] ?? (weapon[4] !== undefined && !validStats.includes(String(weapon[4]).trim()) ? weapon[4] : '0');
+  const weaponTouchBonus = parseInt(rawTouchBonus, 10) || 0;
+
+  // 4. Damage Bonus Stat Name
+  const damageBonusStatName = (
+    weapon['Damage Bonus Stat'] ||
+    weapon.damageBonusStat ||
+    (weapon[2] && validStats.includes(String(weapon[2]).trim()) ? String(weapon[2]).trim() : null) ||
+    (weapon[5] && validStats.includes(String(weapon[5]).trim()) ? String(weapon[5]).trim() : null) ||
+    'Strength'
+  );
+
+  // 5. Dice string
+  let diceStr = '1D10';
+  if (weapon.Dice && String(weapon.Dice).trim()) {
+    diceStr = String(weapon.Dice).trim();
+  } else if (weapon.dice && String(weapon.dice).trim()) {
+    diceStr = String(weapon.dice).trim();
+  } else {
+    const w6 = weapon[6] ?? weapon['6'];
+    const w9 = weapon[9] ?? weapon['9'];
+    if (w6 && /^\d*\s*[dD]\s*\d+/i.test(String(w6).trim())) {
+      diceStr = String(w6).trim();
+    } else if (w9 && /^\d*\s*[dD]\s*\d+/i.test(String(w9).trim())) {
+      diceStr = String(w9).trim();
+    } else if (w6 && String(w6).trim()) {
+      diceStr = String(w6).trim();
+    }
+  }
+
+  const twoHanded = (
+    weapon['Two handed?'] === true || weapon['Two handed?'] === 'true' || weapon['Two handed?'] === 'on' ||
+    weapon.twoHanded === true || weapon.twoHanded === 'true' || weapon.twoHanded === 'on' ||
+    weapon[10] === true || weapon[10] === 'true' || weapon[10] === 'on' ||
+    weapon['10'] === true || weapon['10'] === 'true' || weapon['10'] === 'on'
+  );
+
+  // 6. Base and total Initiative bonuses (Intuition/10 + specIniBonus for 1st round, Speed/10 + specIniBonus for Next rounds)
+  const base1stBonus = Math.floor(numIntuition / 10);
+  const baseNextBonus = Math.floor(numSpeed / 10);
+  const total1stBonus = base1stBonus + specIniBonus;
+  const totalNextBonus = baseNextBonus + specIniBonus;
 
   const touchStatVal = parseFloat(st[touchStatName] ?? (touchStatName === 'Fighting' ? numFighting : (touchStatName === 'Agility' ? numAgility : '6'))) || 0;
   const totalTouchVal = touchStatVal + weaponTouchBonus + specTouchBonus;
 
   const fightMult = Math.max(1, Math.floor(numFighting / 10));
   const dMatch = diceStr.match(/^(\d*)\s*[dD]\s*(\d+)/);
-  const baseCount = dMatch ? (parseInt(dMatch[1]) || 1) : 1;
-  const dieSides = dMatch ? parseInt(dMatch[2]) : 10;
+  const baseCount = dMatch ? (parseInt(dMatch[1], 10) || 1) : 1;
+  const dieSides = dMatch ? parseInt(dMatch[2], 10) : 10;
   const totalDiceCount = fightMult * baseCount;
   const finalDiceStr = `${totalDiceCount}D${dieSides}`;
 
@@ -691,6 +780,10 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
     weapon,
     weaponName,
     specName,
+    specRow,
+    specIniBonus,
+    base1stBonus,
+    baseNextBonus,
     touchStatName,
     touchStatVal,
     weaponTouchBonus,
@@ -3523,6 +3616,19 @@ function updateStatsCalculations() {
       el.dataset.bonus = nextRoundsBonus;
       el.title = `Click to roll Initiative (Next Rounds): 1D12 + ${nextRoundsBonus}`;
     });
+  }
+
+  const selectedWIdx = character.data?.quickAccessWeaponSlot ?? (Array.isArray(character?.data?.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0);
+  const weaponInfo = getSelectedWeaponDamageInfo(character, selectedWIdx);
+  const qa1stIniBtn = app.querySelector('.rollable-qa-ini[data-roll-initiative$="(1st round)"]');
+  if (qa1stIniBtn) {
+    qa1stIniBtn.dataset.bonus = weaponInfo.total1stBonus;
+    qa1stIniBtn.title = `Roll Initiative (1st round): 1D12 + ${weaponInfo.total1stBonus}`;
+  }
+  const qaNextIniBtn = app.querySelector('.rollable-qa-ini[data-roll-initiative$="(Next rounds)"]');
+  if (qaNextIniBtn) {
+    qaNextIniBtn.dataset.bonus = weaponInfo.totalNextBonus;
+    qaNextIniBtn.title = `Roll Initiative (Next rounds): 1D12 + ${weaponInfo.totalNextBonus}`;
   }
 
   const statsMap = getCharacterStatsMap(character);

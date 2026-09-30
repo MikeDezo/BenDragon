@@ -16,7 +16,7 @@
     "db:migrate": "node scripts/migrate.js",
     "d1:migrate": "wrangler d1 migrations apply bendragonDB --remote",
     "d1:migrate:local": "wrangler d1 migrations apply bendragonDB --local",
-    "test": "node test/cloud-storage-test.js && node test/d1-db-test.js && node test/sheet-importer-test.js",
+    "test": "node test/cloud-storage-test.js && node test/d1-db-test.js && node test/sheet-importer-test.js && node test/weapon-quick-access-test.js",
     "test:d1": "node test/d1-db-test.js",
     "test:db": "node test/postgres-db-test.js"
   },
