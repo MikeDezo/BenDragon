@@ -1352,13 +1352,16 @@ body.col-resizing * {
 .pools-col {
   grid-column: 3 / span 2;
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   border-right: 1px solid #7a7e77;
+  height: 100%;
 }
 
 .pool-box {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
+  min-height: 0;
+  height: 100%;
 }
 .pool-box.cc-box {
   border-bottom: 1px solid #7a7e77;
@@ -1397,8 +1400,9 @@ body.col-resizing * {
 
 .pool-values-col {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   height: 100%;
+  min-height: 0;
 }
 .pool-val-top {
   border-bottom: 1px solid #7a7e77;
@@ -1407,6 +1411,10 @@ body.col-resizing * {
   align-items: center;
   justify-content: center;
   padding: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 .pool-val-top .stat-input-cell {
   height: 100%;
@@ -1419,6 +1427,18 @@ body.col-resizing * {
   align-items: center;
   justify-content: center;
   line-height: calc(56px * var(--font-scale, 1));
+}
+.pool-val-top .stat-input-cell.mana-pool-input,
+.mp-box .pool-val-top .stat-input-cell {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  resize: none;
+  line-height: 1.05 !important;
+  display: block;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .pool-val-bottom {
   border-right: 0;

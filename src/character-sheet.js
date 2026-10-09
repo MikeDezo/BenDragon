@@ -535,8 +535,90 @@ function canEditCurrent() {
   return myChars.some(([id]) => id === activeCharacterId);
 }
 
+let manaPoolMeasureDummy = null;
+function getManaPoolMeasureDummy() {
+  if (!manaPoolMeasureDummy || !manaPoolMeasureDummy.isConnected) {
+    manaPoolMeasureDummy = document.createElement('div');
+    manaPoolMeasureDummy.id = 'mana-pool-measure-dummy';
+    manaPoolMeasureDummy.style.position = 'fixed';
+    manaPoolMeasureDummy.style.top = '-9999px';
+    manaPoolMeasureDummy.style.left = '-9999px';
+    manaPoolMeasureDummy.style.visibility = 'hidden';
+    manaPoolMeasureDummy.style.pointerEvents = 'none';
+    manaPoolMeasureDummy.style.whiteSpace = 'pre-wrap';
+    manaPoolMeasureDummy.style.wordBreak = 'break-word';
+    manaPoolMeasureDummy.style.fontFamily = "'DM Mono', monospace";
+    manaPoolMeasureDummy.style.fontWeight = '700';
+    manaPoolMeasureDummy.style.letterSpacing = '-0.02em';
+    manaPoolMeasureDummy.style.lineHeight = '1.05';
+    manaPoolMeasureDummy.style.textAlign = 'center';
+    document.body.appendChild(manaPoolMeasureDummy);
+  }
+  return manaPoolMeasureDummy;
+}
+
+function autoFitManaPoolInput(el) {
+  if (!el || el.tagName !== 'TEXTAREA') return;
+  const cell = el.closest('.pool-val-top');
+  const cellH = cell ? cell.clientHeight : el.clientHeight;
+  const cellW = cell ? cell.clientWidth : el.clientWidth;
+  if (!cellH || !cellW) {
+    requestAnimationFrame(() => {
+      if (el.isConnected) autoFitManaPoolInput(el);
+    });
+    return;
+  }
+
+  const dummy = getManaPoolMeasureDummy();
+  const computed = window.getComputedStyle(el);
+  dummy.style.fontFamily = computed.fontFamily || "'DM Mono', monospace";
+  dummy.style.fontWeight = computed.fontWeight || '700';
+  dummy.style.letterSpacing = computed.letterSpacing || '-0.02em';
+  dummy.style.lineHeight = '1.05';
+
+  const availW = Math.max(20, cellW - 8);
+  const availH = Math.max(20, cellH - 4);
+  dummy.style.width = `${availW}px`;
+
+  let val = el.value || el.placeholder || '0';
+  if (val.endsWith('\n')) {
+    val += '\u200B';
+  }
+  dummy.textContent = val;
+
+  const fontScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1;
+  const maxFont = Math.max(12, Math.round(17 * fontScale));
+  const minFont = 8;
+
+  let chosenSize = minFont;
+  for (let size = maxFont; size >= minFont; size--) {
+    dummy.style.fontSize = `${size}px`;
+    if (dummy.offsetHeight <= availH && dummy.scrollWidth <= availW + 1) {
+      chosenSize = size;
+      break;
+    }
+  }
+
+  dummy.style.fontSize = `${chosenSize}px`;
+  const textH = dummy.offsetHeight;
+  const padTop = Math.max(0, Math.floor((cellH - textH) / 2));
+
+  el.style.boxSizing = 'border-box';
+  el.style.height = '100%';
+  el.style.maxHeight = '100%';
+  el.style.overflow = 'hidden';
+  el.style.lineHeight = '1.05';
+  el.style.fontSize = `${chosenSize}px`;
+  el.style.paddingTop = `${padTop}px`;
+  el.style.paddingBottom = `${padTop}px`;
+}
+
 function autoResizeTextarea(el) {
   if (!el || el.tagName !== 'TEXTAREA') return;
+  if (el.classList.contains('mana-pool-input')) {
+    autoFitManaPoolInput(el);
+    return;
+  }
   el.style.height = 'auto';
   const scrollH = el.scrollHeight;
   if (scrollH > 0) {
@@ -3481,7 +3563,7 @@ function statsPage(character) {
                 <span class="banner-icon">✨✨✨</span>
               </div>
               <div class="pool-values-col">
-                <div class="excel-cell bg-light input-cell pool-val-top">${editable('stats.ManaPoolBonus', manaPoolBonus, 'stat-input-cell', '0')}</div>
+                <div class="excel-cell bg-light input-cell pool-val-top">${editable('stats.ManaPoolBonus', manaPoolBonus, 'stat-input-cell mana-pool-input', '0')}</div>
                 <div class="excel-cell bg-blue calc-cell pool-val-bottom text-bold"><span class="auto-big-value" id="calc-mana-pool">${manaPoolTotal}</span></div>
               </div>
             </div>
