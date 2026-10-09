@@ -1566,6 +1566,37 @@ body.col-resizing * {
   border-right: 1px solid #7a7e77;
 }
 
+/* Mana Emergency / Overload Blinking Effect */
+@keyframes manaEmergencyBlink {
+  0%, 100% {
+    background-color: #dc2626;
+    color: #ffffff;
+    border-color: #991b1b;
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.4), 0 0 10px rgba(220, 38, 38, 0.7);
+  }
+  50% {
+    background-color: #7f1d1d;
+    color: #fecaca;
+    border-color: #450a0a;
+    box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.2), 0 0 4px rgba(185, 28, 28, 0.3);
+  }
+}
+
+.excel-cell.mana-emergency {
+  animation: manaEmergencyBlink 0.8s ease-in-out infinite !important;
+}
+
+.mana-emergency textarea,
+.mana-emergency input,
+.mana-emergency span {
+  color: inherit !important;
+}
+
+.mana-emergency .stat-input-cell:focus {
+  background: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 0 0 0 2px #ffffff !important;
+}
+
 /* Initiative Block */
 .excel-initiative-block {
   display: grid;

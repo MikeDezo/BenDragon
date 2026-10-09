@@ -1248,8 +1248,10 @@ function formulaCellHtml(path, value, character) {
   </div>`;
 }
 
-function editable(path, value, className = 'field-input', placeholder = '') {
-  return `<textarea class="${className}" data-path="${path}" rows="1"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea>`;
+function editable(path, value, className = 'field-input', placeholder = '', attributes = '') {
+  const isNumeric = className.includes('mana-pool-input');
+  const inputModeAttr = isNumeric ? ' inputmode="numeric"' : '';
+  return `<textarea class="${className}" data-path="${path}" rows="1"${inputModeAttr}${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}${attributes ? ` ${attributes}` : ''}>${esc(value)}</textarea>`;
 }
 
 function editableInteger(path, value, className = 'cell-input', attributes = '') {
@@ -3581,7 +3583,34 @@ function getContrastTextColor(color) {
   return '#1a1e1b';
 }
 
-function customManaPoolsHtml(character) {
+function parseManaPoolIntegerSum(val) {
+  if (val == null) return 0;
+  const lines = String(val).split('\n');
+  let sum = 0;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed) {
+      const parsed = parseInt(trimmed, 10);
+      if (!isNaN(parsed)) {
+        sum += parsed;
+      }
+    }
+  }
+  return sum;
+}
+
+function getAllManaPoolsSum(character) {
+  if (!character?.data) return 0;
+  const st = character.data.stats || {};
+  let total = parseManaPoolIntegerSum(st.ManaPoolBonus ?? '0');
+  const customPools = Array.isArray(character.data.customManaPools) ? character.data.customManaPools : [];
+  for (const pool of customPools) {
+    total += parseManaPoolIntegerSum(pool.value ?? '0');
+  }
+  return total;
+}
+
+function customManaPoolsHtml(character, isManaEmergency = false) {
   const pools = Array.isArray(character?.data?.customManaPools) ? character.data.customManaPools : [];
   if (pools.length === 0) return '';
 
@@ -3603,7 +3632,7 @@ function customManaPoolsHtml(character) {
                 <span class="custom-mp-icon">✨</span>
               </div>
             </div>
-            <div class="excel-cell bg-light input-cell custom-mp-input-cell"${isLastInRow ? ' style="border-right: 0;"' : ''}>
+            <div class="excel-cell bg-light input-cell custom-mp-input-cell${isManaEmergency ? ' mana-emergency' : ''}"${isLastInRow ? ' style="border-right: 0;"' : ''}>
               ${editable(`customManaPools.${globalIdx}.value`, pool.value ?? '0', 'stat-input-cell mana-pool-input', '0')}
             </div>
           `;
@@ -3653,6 +3682,8 @@ function statsPage(character) {
   const movement = 4 + Math.floor(numSpeed / 10);
   const combatCapacityTotal = numStrength + numAgility + numEndurance + numSpeed;
   const manaPoolTotal = numIntelligence + numWisdom + numIntuition + numPsyche;
+  const totalManaInputs = getAllManaPoolsSum(character);
+  const isManaEmergency = totalManaInputs > manaPoolTotal;
   const statSum = numFighting + numStrength + numAgility + numEndurance + numSpeed + numIntelligence + numWisdom + numIntuition + numPsyche;
   const karmaLevel = Math.floor(statSum / 9);
   const actionTotal = (Math.floor((statSum / 90) * 10) / 10).toFixed(1);
@@ -3735,8 +3766,8 @@ function statsPage(character) {
                 <button type="button" class="add-mana-pool-btn" id="add-mana-pool-btn" title="Add new Mana Pool (Ajouter une réserve de mana)">+ Mana Pool</button>
               </div>
               <div class="pool-values-col">
-                <div class="excel-cell bg-light input-cell pool-val-top">${editable('stats.ManaPoolBonus', manaPoolBonus, 'stat-input-cell mana-pool-input', '0')}</div>
-                <div class="excel-cell bg-blue calc-cell pool-val-bottom text-bold"><span class="auto-big-value" id="calc-mana-pool">${manaPoolTotal}</span></div>
+                <div class="excel-cell bg-light input-cell pool-val-top${isManaEmergency ? ' mana-emergency' : ''}">${editable('stats.ManaPoolBonus', manaPoolBonus, 'stat-input-cell mana-pool-input', '0')}</div>
+                <div class="excel-cell bg-blue calc-cell pool-val-bottom text-bold${isManaEmergency ? ' mana-emergency' : ''}"${isManaEmergency ? ` title="Mana Emergency! Total (${totalManaInputs}) exceeds Maximum (${manaPoolTotal})"` : ''}><span class="auto-big-value" id="calc-mana-pool">${manaPoolTotal}</span></div>
               </div>
             </div>
           </div>
@@ -3753,7 +3784,7 @@ function statsPage(character) {
           </div>
         </div>
 
-        ${customManaPoolsHtml(character)}
+        ${customManaPoolsHtml(character, isManaEmergency)}
 
         <div class="excel-spacer-row"></div>
 
@@ -3852,6 +3883,29 @@ function updateStatsCalculations() {
 
   const manaEl = app.querySelector('#calc-mana-pool');
   if (manaEl) manaEl.textContent = manaPoolTotal;
+
+  const totalManaInputs = getAllManaPoolsSum(character);
+  const isManaEmergency = totalManaInputs > manaPoolTotal;
+
+  const mpCalcCell = app.querySelector('.mp-box .calc-cell');
+  const mpTopCell = app.querySelector('.mp-box .pool-val-top');
+  const customMpCells = app.querySelectorAll('.custom-mp-input-cell');
+
+  if (isManaEmergency) {
+    mpCalcCell?.classList.add('mana-emergency');
+    mpTopCell?.classList.add('mana-emergency');
+    customMpCells.forEach((c) => c.classList.add('mana-emergency'));
+    if (mpCalcCell) {
+      mpCalcCell.title = `Mana Emergency! Total (${totalManaInputs}) exceeds Maximum (${manaPoolTotal})`;
+    }
+  } else {
+    mpCalcCell?.classList.remove('mana-emergency');
+    mpTopCell?.classList.remove('mana-emergency');
+    customMpCells.forEach((c) => c.classList.remove('mana-emergency'));
+    if (mpCalcCell) {
+      mpCalcCell.title = '';
+    }
+  }
 
   const actEl = app.querySelector('#calc-action-total');
   if (actEl) actEl.textContent = actionTotal;
@@ -5783,6 +5837,13 @@ function bindEvents() {
     const handleUpdate = () => {
       if (input.dataset.integer) {
         input.value = input.value.match(/^-?\d*/)?.[0] || '';
+      }
+      if (input.classList.contains('mana-pool-input')) {
+        const lines = input.value.split('\n').map((line) => {
+          const match = line.match(/^-?\d*/);
+          return match ? match[0] : '';
+        });
+        input.value = lines.join('\n');
       }
       setPath(input.dataset.path, input.dataset.checkbox ? input.checked : input.value);
       if (activeTab === 'Stats') {
