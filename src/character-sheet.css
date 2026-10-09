@@ -961,6 +961,128 @@ body.col-resizing * {
   white-space: pre-wrap;
   word-break: break-word;
 }
+.custom-roll-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  background: var(--paper-deep);
+  border: 1px solid var(--line);
+}
+.custom-roll-intro {
+  color: var(--muted);
+  font-size: calc(12px * var(--font-scale, 1));
+  line-height: 1.5;
+}
+.custom-roll-intro code {
+  font-family: 'DM Mono', monospace;
+  font-size: calc(10px * var(--font-scale, 1));
+}
+.custom-roll-card {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 2fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.custom-roll-name-label,
+.custom-roll-formula-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: var(--muted);
+  font-size: calc(10px * var(--font-scale, 1));
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.custom-roll-formula-label {
+  position: relative;
+}
+.formula-autocomplete {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  top: calc(100% - 2px);
+  left: 0;
+  right: 0;
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+  background: var(--paper);
+  border: 1px solid var(--accent);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  text-transform: none;
+}
+.formula-cell {
+  position: relative;
+}
+.formula-autocomplete.is-open {
+  display: flex;
+  flex-direction: column;
+}
+.custom-roll-suggestion {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--paper);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.custom-roll-suggestion:last-child {
+  border-bottom: 0;
+}
+.custom-roll-suggestion:hover,
+.custom-roll-suggestion.is-active {
+  background: var(--accent-soft);
+}
+.custom-roll-suggestion code {
+  font-family: 'DM Mono', monospace;
+  font-size: calc(11px * var(--font-scale, 1));
+  overflow-wrap: anywhere;
+}
+.custom-roll-suggestion small {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: calc(10px * var(--font-scale, 1));
+  text-transform: none;
+}
+.custom-roll-name {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  box-sizing: border-box;
+}
+.custom-roll-actions {
+  display: flex;
+  gap: 6px;
+}
+.custom-roll-error {
+  grid-column: 1 / -1;
+  color: #b91c1c;
+  font-size: calc(11px * var(--font-scale, 1));
+}
+.custom-roll-section > .add-row {
+  margin-top: 10px;
+}
+@media (max-width: 700px) {
+  .custom-roll-toolbar,
+  .custom-roll-card {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
 .sheet-table .action-type-cell {
   white-space: pre-line;
   word-break: break-word;

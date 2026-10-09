@@ -8,7 +8,7 @@ import wowUrl from '../sounds/wow.mp3';
 const tabs = [
   'Infos', 'Stats', 'Action Types', 'Skills', 'Spell', 'Specialisations',
   'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur',
-  'Unique Power'
+  'Unique Power', 'Custom Roll'
 ];
 
 // Proactively purge any legacy character sheet data from browser storage / cache
@@ -1016,6 +1016,81 @@ function getCharacterStatsMap(character) {
   return map;
 }
 
+function getCustomRollVariableMap(character) {
+  const variables = { ...getCharacterStatsMap(character) };
+  const rawStats = character?.data?.stats || {};
+  Object.entries(rawStats).forEach(([name, value]) => {
+    const text = String(value ?? '').trim();
+    if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) variables[name] = text;
+  });
+  const info = character?.data?.info || {};
+  Object.entries(info).forEach(([name, value]) => {
+    const text = String(value ?? '').trim();
+    if (name && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) variables[name] = text;
+  });
+
+  const sources = [];
+  Object.entries(tables).forEach(([tableName, headers]) => {
+    const storedRows = character?.data?.tables?.[tableName];
+    const rows = Array.isArray(storedRows)
+      ? storedRows
+      : storedRows && typeof storedRows === 'object'
+        ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
+        : [];
+    const weaponColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+    rows.forEach((row) => {
+      if (!row) return;
+      const rowName = String(Array.isArray(row) ? row[0] : (row.Name ?? row.name ?? row[0] ?? '')).trim();
+      if (!rowName) return;
+      headers.forEach((header, columnIndex) => {
+        const storageIndex = tableName === 'Weapons' ? weaponColumns[columnIndex] : columnIndex;
+        const value = Array.isArray(row) ? row[storageIndex] : (row[header] ?? row[String(storageIndex)]);
+        const raw = String(value ?? '').trim();
+        if (!raw) return;
+        sources.push({ variableName: `${rowName} ${header}`, raw });
+      });
+    });
+  });
+  (Array.isArray(character?.data?.powerThemes) ? character.data.powerThemes : []).forEach((theme) => {
+    const themeName = String(theme?.title ?? '').trim();
+    (theme?.powers || []).forEach((power) => {
+      const powerName = String(power?.name ?? '').trim();
+      const cost = String(power?.cost ?? '').trim();
+      const charges = String(power?.charges ?? '').trim();
+      if (!powerName) return;
+      if (cost) {
+        sources.push({ variableName: `${powerName} Cost`, raw: cost });
+        if (themeName) sources.push({ variableName: `${themeName} ${powerName} Cost`, raw: cost });
+      }
+      if (charges) {
+        sources.push({ variableName: `${powerName} Charges`, raw: charges });
+        if (themeName) sources.push({ variableName: `${themeName} ${powerName} Charges`, raw: charges });
+      }
+    });
+  });
+
+  const isFormulaValue = (value) => {
+    const text = String(value ?? '').trim();
+    if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return true;
+    const parsed = parseDiceAndModifiers(text);
+    return Boolean(parsed?.isNumeric || (parsed?.hasDice && parsed.totalDiceCount > 0));
+  };
+
+  for (let pass = 0; pass < sources.length; pass++) {
+    let addedVariable = false;
+    sources.forEach(({ variableName, raw }) => {
+      if (variables[variableName] !== undefined) return;
+      const resolved = translateFormula(raw, variables);
+      if (!isFormulaValue(resolved)) return;
+      variables[variableName] = resolved;
+      addedVariable = true;
+    });
+    if (!addedVariable) break;
+  }
+
+  return variables;
+}
+
 function simplifyDiceExpression(str) {
   if (!str || typeof str !== 'string') return str;
   const trimmed = str.trim();
@@ -1245,17 +1320,18 @@ function translateFormula(formula, stats) {
   return result;
 }
 
-function formulaCellHtml(path, value, character) {
-  const statsMap = getCharacterStatsMap(character);
-  const translated = translateFormula(value, statsMap);
+function formulaCellHtml(path, value, character, variables = getCharacterStatsMap(character)) {
+  const translated = translateFormula(value, variables);
   const hasValue = Boolean(value && String(value).trim());
+  const supportsAutocomplete = path.startsWith('customRolls.') || /^tables\.(Skills|Spell)\./.test(path);
   return `<div class="formula-cell">
     <div class="formula-subline formula-input-line">
-      <textarea class="cell-input formula-input" data-path="${path}" rows="1" placeholder="Formula or text">${esc(value || '')}</textarea>
+      <textarea class="cell-input formula-input${supportsAutocomplete ? ' formula-autocomplete-input' : ''}" data-path="${path}" rows="1" placeholder="Formula or text">${esc(value || '')}</textarea>
     </div>
     <div class="formula-subline formula-result-line" data-formula-result="${path}" title="Translated value">
       <span class="formula-result-text ${!hasValue ? 'formula-result-empty' : ''}">${esc(hasValue ? (translated || value) : '—')}</span>
     </div>
+    ${supportsAutocomplete ? '<div class="formula-autocomplete" role="listbox" aria-label="Available formula variables"></div>' : ''}
   </div>`;
 }
 
@@ -3982,7 +4058,10 @@ function updateStatsCalculations() {
     if (ta && resultTextEl) {
       const val = ta.value;
       const hasVal = Boolean(val && val.trim());
-      const translated = translateFormula(val, statsMap);
+      const variables = ta.classList.contains('formula-autocomplete-input')
+        ? getCustomRollVariableMap(character)
+        : statsMap;
+      const translated = translateFormula(val, variables);
       resultTextEl.textContent = hasVal ? (translated || val) : '—';
       if (hasVal) {
         resultTextEl.classList.remove('formula-result-empty');
@@ -4637,6 +4716,111 @@ function tablePage(name, character) {
   }).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
 }
 
+function customRollPage(character) {
+  const customRolls = Array.isArray(character?.data?.customRolls) ? character.data.customRolls : [];
+  const variables = getCustomRollVariableMap(character);
+
+  return `<section class="custom-roll-section">
+    <div class="custom-roll-toolbar">
+      <div class="custom-roll-intro">Create reusable rolls with formulas such as <code>(Fighting / 10)D6 + Strength</code>. Type a variable name in a formula to see matching suggestions.</div>
+    </div>
+    ${customRolls.map((roll, index) => {
+      const name = String(roll?.name ?? '');
+      const formula = String(roll?.formula ?? '');
+      const formulaPath = `customRolls.${index}.formula`;
+      return `<div class="custom-roll-card">
+        <label class="custom-roll-name-label">Roll name
+          <input class="cell-input custom-roll-name" type="text" data-path="customRolls.${index}.name" value="${esc(name)}" placeholder="e.g. Fireball" />
+        </label>
+        <label class="custom-roll-formula-label">Formula
+          ${formulaCellHtml(formulaPath, formula, character, variables)}
+        </label>
+        <div class="custom-roll-actions">
+          <button type="button" class="toolbar-button custom-roll-button" data-custom-roll="${index}">Roll</button>
+          <button type="button" class="toolbar-button danger" data-delete-custom-roll="${index}" aria-label="Delete ${esc(name || `custom roll ${index + 1}`)}">Delete</button>
+        </div>
+        <div class="custom-roll-error" role="status" aria-live="polite"></div>
+      </div>`;
+    }).join('')}
+    <button type="button" class="add-row" id="add-custom-roll">+ Add custom roll</button>
+  </section>`;
+}
+
+function updateFormulaAutocomplete(input) {
+  const dropdown = input.closest('.formula-cell')?.querySelector('.formula-autocomplete');
+  if (!dropdown) return;
+
+  const cursor = input.selectionStart ?? input.value.length;
+  const beforeCursor = input.value.slice(0, cursor);
+  const lastOperator = Math.max(
+    beforeCursor.lastIndexOf('+'),
+    beforeCursor.lastIndexOf('-'),
+    beforeCursor.lastIndexOf('*'),
+    beforeCursor.lastIndexOf('/'),
+    beforeCursor.lastIndexOf('('),
+    beforeCursor.lastIndexOf(')'),
+    beforeCursor.lastIndexOf(',')
+  );
+  let tokenStart = lastOperator + 1;
+  while (/\s/.test(beforeCursor[tokenStart] || '') && tokenStart < cursor) tokenStart++;
+  const token = beforeCursor.slice(tokenStart).trimStart();
+  if (!token) {
+    dropdown.replaceChildren();
+    dropdown.classList.remove('is-open');
+    return;
+  }
+
+  const variables = getCustomRollVariableMap(currentCharacter());
+  const matches = Object.entries(variables)
+    .filter(([name, value]) =>
+      !name.startsWith('_') &&
+      (typeof value === 'number' || typeof value === 'string') &&
+      name.toLowerCase().startsWith(token.toLowerCase()) &&
+      name.toLowerCase() !== token.toLowerCase()
+    )
+    .sort(([nameA], [nameB]) => nameA.localeCompare(nameB, undefined, { sensitivity: 'base' }))
+    .slice(0, 8);
+  if (!matches.length) {
+    dropdown.replaceChildren();
+    dropdown.classList.remove('is-open');
+    return;
+  }
+
+  dropdown.innerHTML = matches.map(([name, value], index) => `
+    <button type="button" role="option" aria-selected="${index === 0}" class="custom-roll-suggestion${index === 0 ? ' is-active' : ''}" data-suggestion-index="${index}">
+      <code>${esc(name)}</code><small>${esc(value)}</small>
+    </button>
+  `).join('');
+  dropdown.dataset.tokenStart = String(tokenStart);
+  dropdown.dataset.tokenEnd = String(cursor);
+  dropdown.dataset.activeIndex = '0';
+  dropdown.classList.add('is-open');
+
+  dropdown.querySelectorAll('.custom-roll-suggestion').forEach((suggestion, index) => {
+    suggestion.addEventListener('mousedown', (event) => event.preventDefault());
+    suggestion.addEventListener('click', () => {
+      const variableName = matches[index][0];
+      const start = Number(dropdown.dataset.tokenStart);
+      const end = Number(dropdown.dataset.tokenEnd);
+      const nextValue = `${input.value.slice(0, start)}${variableName}${input.value.slice(end)}`;
+      input.value = nextValue;
+      setPath(input.dataset.path, nextValue);
+      const character = currentCharacter();
+      const result = input.closest('.formula-cell')?.querySelector('.formula-result-text');
+      if (result) {
+        result.textContent = translateFormula(nextValue, getCustomRollVariableMap(character)) || nextValue;
+        result.classList.remove('formula-result-empty');
+      }
+      const nextCursor = start + variableName.length;
+      input.focus();
+      input.setSelectionRange(nextCursor, nextCursor);
+      dropdown.replaceChildren();
+      dropdown.classList.remove('is-open');
+      queueSave(200);
+    });
+  });
+}
+
 function pageFor(character) {
   if (activeTab === 'Rolls & Ini') {
     if (user.role === 'GM') return rollsAndIniPage();
@@ -4646,6 +4830,7 @@ function pageFor(character) {
   if (activeTab === 'Stats') return statsPage(character);
   if (activeTab === 'Monture') return monturePage(character);
   if (activeTab === 'Unique Power') return uniquePowerPage(character);
+  if (activeTab === 'Custom Roll') return customRollPage(character);
   return tablePage(activeTab, character);
 }
 
@@ -5948,7 +6133,10 @@ function bindEvents() {
       if (formulaCell) {
         const resultTextEl = formulaCell.querySelector('.formula-result-text');
         if (resultTextEl) {
-          const statsMap = getCharacterStatsMap(currentCharacter());
+          const character = currentCharacter();
+          const statsMap = input.classList.contains('formula-autocomplete-input')
+            ? getCustomRollVariableMap(character)
+            : getCharacterStatsMap(character);
           const val = input.value;
           const hasVal = Boolean(val && val.trim());
           const translated = translateFormula(val, statsMap);
@@ -5984,6 +6172,35 @@ function bindEvents() {
     });
     input.addEventListener('blur', () => queueSave());
     input.addEventListener('keydown', async (event) => {
+      if (input.classList.contains('formula-autocomplete-input')) {
+        const dropdown = input.closest('.formula-cell')?.querySelector('.formula-autocomplete');
+        const suggestions = Array.from(dropdown?.querySelectorAll('.custom-roll-suggestion') || []);
+        if (dropdown?.classList.contains('is-open') && suggestions.length) {
+          let activeIndex = Number(dropdown.dataset.activeIndex) || 0;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeIndex = (activeIndex + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length;
+            dropdown.dataset.activeIndex = String(activeIndex);
+            suggestions.forEach((suggestion, index) => {
+              const isActive = index === activeIndex;
+              suggestion.classList.toggle('is-active', isActive);
+              suggestion.setAttribute('aria-selected', String(isActive));
+            });
+            return;
+          }
+          if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault();
+            suggestions[activeIndex]?.click();
+            return;
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            dropdown.replaceChildren();
+            dropdown.classList.remove('is-open');
+            return;
+          }
+        }
+      }
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         setPath(input.dataset.path, input.value);
@@ -6295,6 +6512,54 @@ function bindEvents() {
     await save();
     render();
   }));
+  app.querySelector('#add-custom-roll')?.addEventListener('click', async () => {
+    const character = currentCharacter();
+    if (!character || !canEditCurrent()) return;
+    character.data.customRolls ??= [];
+    const newIndex = character.data.customRolls.length;
+    character.data.customRolls.push({ name: '', formula: '' });
+    character.updatedAt = Date.now();
+    state.updatedAt = Date.now();
+    await save();
+    render(`customRolls.${newIndex}.name`, true);
+  });
+  app.querySelectorAll('[data-delete-custom-roll]').forEach((button) => button.addEventListener('click', async () => {
+    const character = currentCharacter();
+    const index = Number(button.dataset.deleteCustomRoll);
+    if (!character || !canEditCurrent() || !Array.isArray(character.data.customRolls) || !Number.isInteger(index)) return;
+    character.data.customRolls.splice(index, 1);
+    character.updatedAt = Date.now();
+    state.updatedAt = Date.now();
+    await save();
+    render();
+  }));
+  app.querySelectorAll('[data-custom-roll]').forEach((button) => button.addEventListener('click', async () => {
+    const character = currentCharacter();
+    const roll = character?.data?.customRolls?.[Number(button.dataset.customRoll)];
+    const formula = String(roll?.formula ?? '').trim();
+    const variables = getCustomRollVariableMap(character);
+    const resolvedFormula = translateFormula(formula, variables);
+    const parsed = parseDiceAndModifiers(resolvedFormula);
+    const error = button.closest('.custom-roll-card')?.querySelector('.custom-roll-error');
+    if (!formula || !parsed || (!parsed.hasDice && !parsed.isNumeric)) {
+      if (error) error.textContent = formula ? 'Formula did not resolve to a number or dice roll. Check the variable names.' : 'Enter a formula before rolling.';
+      return;
+    }
+    if (error) error.textContent = '';
+    await rollFormulaEffect(String(roll?.name || 'Custom Roll'), 'Roll', resolvedFormula);
+  }));
+  app.querySelectorAll('.formula-autocomplete-input').forEach((input) => {
+    input.addEventListener('input', () => updateFormulaAutocomplete(input));
+    input.addEventListener('click', () => updateFormulaAutocomplete(input));
+    input.addEventListener('keyup', () => updateFormulaAutocomplete(input));
+    input.addEventListener('blur', () => {
+      const dropdown = input.closest('.formula-cell')?.querySelector('.formula-autocomplete');
+      setTimeout(() => {
+        dropdown?.replaceChildren();
+        dropdown?.classList.remove('is-open');
+      }, 100);
+    });
+  });
 
   app.querySelector('#add-mana-pool-btn')?.addEventListener('click', (e) => {
     e.preventDefault();

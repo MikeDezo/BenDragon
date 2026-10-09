@@ -11,6 +11,7 @@ An Owlbear Rodeo extension for managing character sheets, stats, roll histories,
 - 🔄 **Auto-Schema Migration**: Tables (`characters`, `app_state`, `roll_history`) are initialized automatically upon first connect.
 - 🔌 **Universal Compatibility**: Works seamlessly with Neon, Supabase, Cloudflare Hyperdrive, Railway, Render, AWS RDS, or any PostgreSQL provider.
 - 🛡️ **Anti-Caching & Real-Time Sync**: Guarantees zero stale browser cache while broadcasting updates across Owlbear Rodeo rooms in real-time.
+- 🎲 **Custom Rolls**: Create reusable formula-based rolls with a live variable reference for character stats and table values.
 - 📦 **1-Click Local & Legacy Migration**: Includes `npm run db:migrate` to instantly import existing JSON sheets to PostgreSQL.
 
 ---
