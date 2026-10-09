@@ -1123,20 +1123,21 @@ body.col-resizing * {
 
 .sheet-table-spell { table-layout: fixed; }
 .sheet-table-spell th:nth-child(1), .sheet-table-spell td:nth-child(1) { width: 160px; }
-.sheet-table-spell th:nth-child(2), .sheet-table-spell td:nth-child(2) { width: 85px; }
-.sheet-table-spell th:nth-child(3), .sheet-table-spell td:nth-child(3) { width: 100px; }
-.sheet-table-spell th:nth-child(4), .sheet-table-spell td:nth-child(4) { width: 85px; }
-.sheet-table-spell th:nth-child(5), .sheet-table-spell td:nth-child(5) { width: 120px; }
-.sheet-table-spell th:nth-child(6), .sheet-table-spell td:nth-child(6) { width: 220px; }
+.sheet-table-spell th:nth-child(2), .sheet-table-spell td:nth-child(2) { width: 140px; }
+.sheet-table-spell th:nth-child(3), .sheet-table-spell td:nth-child(3) { width: 85px; }
+.sheet-table-spell th:nth-child(4), .sheet-table-spell td:nth-child(4) { width: 100px; }
+.sheet-table-spell th:nth-child(5), .sheet-table-spell td:nth-child(5) { width: 85px; }
+.sheet-table-spell th:nth-child(6), .sheet-table-spell td:nth-child(6) { width: 120px; }
 .sheet-table-spell th:nth-child(7), .sheet-table-spell td:nth-child(7) { width: 220px; }
-.sheet-table-spell th:nth-child(8), .sheet-table-spell td:nth-child(8) { background: #fffdf4; width: 140px; }
-.sheet-table-spell th:nth-child(9), .sheet-table-spell td:nth-child(9) { background: #d9ead3; width: 150px; }
-.sheet-table-spell th:nth-child(10), .sheet-table-spell td:nth-child(10) { background: #fff2cc; width: 150px; }
-.sheet-table-spell th:nth-child(11), .sheet-table-spell td:nth-child(11) { background: #f4cccc; width: 150px; }
-.sheet-table-spell th:nth-child(12), .sheet-table-spell td:nth-child(12) { background: #ea9999; width: 150px; }
-.sheet-table-spell th:nth-child(13), .sheet-table-spell td:nth-child(13) { background: #cc4125; color: #fff; width: 150px; }
-.sheet-table-spell td:nth-child(13) .cell-input { color: #fff; }
-.sheet-table-spell td:nth-child(13) .cell-input:focus { color: var(--ink); background: #fffdf4; }
+.sheet-table-spell th:nth-child(8), .sheet-table-spell td:nth-child(8) { width: 220px; }
+.sheet-table-spell th:nth-child(9), .sheet-table-spell td:nth-child(9) { background: #fffdf4; width: 140px; }
+.sheet-table-spell th:nth-child(10), .sheet-table-spell td:nth-child(10) { background: #d9ead3; width: 150px; }
+.sheet-table-spell th:nth-child(11), .sheet-table-spell td:nth-child(11) { background: #fff2cc; width: 150px; }
+.sheet-table-spell th:nth-child(12), .sheet-table-spell td:nth-child(12) { background: #f4cccc; width: 150px; }
+.sheet-table-spell th:nth-child(13), .sheet-table-spell td:nth-child(13) { background: #ea9999; width: 150px; }
+.sheet-table-spell th:nth-child(14), .sheet-table-spell td:nth-child(14) { background: #cc4125; color: #fff; width: 150px; }
+.sheet-table-spell td:nth-child(14) .cell-input { color: #fff; }
+.sheet-table-spell td:nth-child(14) .cell-input:focus { color: var(--ink); background: #fffdf4; }
 .sheet-table-spell .cell-input { min-width: 0; }
 
 .formula-cell {
@@ -1156,7 +1157,7 @@ body.col-resizing * {
   padding-bottom: 2px;
 }
 .sheet-table-skills td:nth-child(13) .formula-input-line,
-.sheet-table-spell td:nth-child(13) .formula-input-line {
+.sheet-table-spell td:nth-child(14) .formula-input-line {
   border-bottom-color: rgba(255, 255, 255, 0.35);
 }
 .formula-input {
@@ -1193,7 +1194,7 @@ body.col-resizing * {
   font-size: calc(10.5px * var(--font-scale, 1));
 }
 .sheet-table-skills td:nth-child(13) .formula-result-text,
-.sheet-table-spell td:nth-child(13) .formula-result-text {
+.sheet-table-spell td:nth-child(14) .formula-result-text {
   color: #ffffff;
 }
 .sheet-table select.cell-input, .sheet-table .cell-select { height: 28px; cursor: pointer; padding: 2px 4px; font-family: inherit; }
