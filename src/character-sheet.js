@@ -1305,8 +1305,9 @@ function translateFormula(formula, stats) {
         if (fullStr[i] === '(') openBefore++;
         else if (fullStr[i] === ')') openBefore--;
       }
+      const isDiceCount = /^\s*[dD]\s*\d+/.test(fullStr.slice(offset + match.length));
 
-      if (openBefore > 0) {
+      if (openBefore > 0 && !isDiceCount) {
         return String(val);
       } else {
         return String(Math.floor(val));
