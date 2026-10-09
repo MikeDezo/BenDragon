@@ -38,7 +38,7 @@ const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelli
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
-  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
+  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat'],
   Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
   Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'],
   Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Rune Slots', 'Runes', 'Description'],
@@ -3487,9 +3487,10 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
 
   const spell = (rawSpells.length > 0 && rawSpells[selectedSpellIdx]) ? rawSpells[selectedSpellIdx] : [];
   const spellName = spell[0] || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
-  const spellStatVal = parseFloat(st.Intelligence ?? statsMap['Intelligence'] ?? numIntelligence) || 0;
+  const spellStatName = (Array.isArray(spell) ? spell[13] : (spell['Roll Stat'] ?? spell.rollStat)) || 'Intelligence';
+  const spellStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
   const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
-  const spellRankLabel = `Intelligence: ${spellStatVal} ➔ ${spellRank.rankName}`;
+  const spellRankLabel = `${spellStatName}: ${spellStatVal} ➔ ${spellRank.rankName}`;
 
   const spellGreenVal = translateFormula(spell[8] || '', statsMap) || spell[8] || '—';
   const spellYellowVal = translateFormula(spell[9] || '', statsMap) || spell[9] || '—';
@@ -3509,10 +3510,10 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       </div>
       <!-- Row 1: 4 columns for Karma target tiers -->
       <div class="qa-grid-4">
-        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="standard" title="Roll Standard ${esc(spellName)} (${spellRankLabel})">No Karma</div>
-        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="green" title="Roll ${esc(spellName)} [Target: Green] (${spellRankLabel})">Green</div>
-        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="yellow" title="Roll ${esc(spellName)} [Target: Yellow] (${spellRankLabel})">Yellow</div>
-        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="Intelligence" data-stat-val="${spellStatVal}" data-target-tier="red" title="Roll ${esc(spellName)} [Target: Red] (${spellRankLabel})">Red</div>
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="${esc(spellStatName)}" data-stat-val="${spellStatVal}" data-target-tier="standard" title="Roll Standard ${esc(spellName)} (${spellRankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="${esc(spellStatName)}" data-stat-val="${spellStatVal}" data-target-tier="green" title="Roll ${esc(spellName)} [Target: Green] (${spellRankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="${esc(spellStatName)}" data-stat-val="${spellStatVal}" data-target-tier="yellow" title="Roll ${esc(spellName)} [Target: Yellow] (${spellRankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(spellName)}" data-stat-name="${esc(spellStatName)}" data-stat-val="${spellStatVal}" data-target-tier="red" title="Roll ${esc(spellName)} [Target: Red] (${spellRankLabel})">Red</div>
       </div>
       <!-- Row 2: 5 columns for translated outcome values -->
       <div class="qa-grid-5">
@@ -4482,7 +4483,11 @@ function tablePage(name, character) {
     .map((name) => String(name).trim())
     .filter(Boolean)
     .filter((name, index, names) => names.indexOf(name) === index);
-  const displayColumns = name === 'Specialisations' ? [0, 1, 5, 2, 3, 4] : headers.map((_, index) => index);
+  const displayColumns = name === 'Specialisations'
+    ? [0, 1, 5, 2, 3, 4]
+    : name === 'Spell'
+      ? [0, 13, ...headers.map((_, index) => index).filter((index) => index !== 0 && index !== 13)]
+      : headers.map((_, index) => index);
   const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
   const canDeleteRows = ['Skills', 'Spell', 'Specialisations', 'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur', 'Unique Power'].includes(name);
 
@@ -4527,7 +4532,8 @@ function tablePage(name, character) {
     const header = headers[columnIndex];
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
     const specialisationDefault = name === 'Specialisations' && sourceColumnIndex === 1 ? 'Unspecialised' : (name === 'Specialisations' && [2, 3, 5].includes(sourceColumnIndex) ? '0' : '');
-    const val = row[sourceColumnIndex] || specialisationDefault;
+    const defaultValue = name === 'Spell' && header === 'Roll Stat' ? 'Intelligence' : specialisationDefault;
+    const val = row[sourceColumnIndex] || defaultValue;
     const path = `tables.${name}.${rowIndex}.${sourceColumnIndex}`;
     if (name === 'Skills' && header === 'Skill Type') {
       return `<td>${editableSelect(path, val, skillTypeOptions, 'cell-input cell-select')}</td>`;
@@ -4546,6 +4552,9 @@ function tablePage(name, character) {
     }
     if (name === 'Spell' && header === 'Action Type') {
       return `<td>${editableSelect(path, val, actionTypeOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Spell' && header === 'Roll Stat') {
+      return `<td>${editableSelect(path, val, stats, 'cell-input cell-select')}</td>`;
     }
     if (name === 'Weapons' && header === 'Touch Stat') {
       return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
