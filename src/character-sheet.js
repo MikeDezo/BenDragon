@@ -3457,7 +3457,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
 
   const skill = (rawSkills.length > 0 && rawSkills[selectedSkillIdx]) ? rawSkills[selectedSkillIdx] : [];
   const skillName = skill[0] || (rawSkills.length > 0 ? `Skill ${selectedSkillIdx + 1}` : 'Skill');
-  const skillStatName = skill[2] || 'Fighting';
+  const skillStatName = String(Array.isArray(skill) ? (skill[2] || 'Fighting') : (skill?.[2] ?? skill?.Stat ?? skill?.stat ?? 'Fighting')).trim();
   const skillStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
   const csLevel = parseInt(skill[3]) || 0;
   const baseRank = resolveUniversalRoll(skillStatVal, 50, 0);
@@ -5804,7 +5804,7 @@ function bindEvents() {
       const targetTier = btn.dataset.targetTier || 'standard';
       const csLevel = parseInt(btn.dataset.csLevel) || 0;
       if (name) {
-        if (btn.dataset.statName === 'Depend') {
+        if (btn.dataset.statName?.trim().toLowerCase() === 'depend') {
           pendingDependentSkillRoll = { name, targetTier, csLevel };
           render();
         } else {
