@@ -41,7 +41,7 @@ const tables = {
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
   Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat'],
   Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
-  Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality'],
+  Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality', 'Critical Multiplier'],
   Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Rune Slots', 'Runes', 'Description'],
   Inventory: ['Qte', 'Name', 'Description', 'Localisation'],
   Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'],
@@ -427,7 +427,7 @@ async function sortTable(tableName, columnIndex) {
     }
   }
 
-  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13];
   const sourceColumnIndex = tableName === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
 
   rows.sort((rowA, rowB) => {
@@ -855,6 +855,13 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const weaponQuality = Array.isArray(weapon)
     ? (usesLegacyWeaponLayout ? weapon[8] : weapon[11])
     : (weapon.Quality ?? weapon.quality ?? weapon[11] ?? weapon['11'] ?? weapon[8] ?? weapon['8']);
+  const criticalMultiplierValue = Array.isArray(weapon)
+    ? weapon[13]
+    : (weapon['Critical Multiplier'] ?? weapon.criticalMultiplier ?? weapon[13] ?? weapon['13']);
+  const parsedCriticalMultiplier = parseFloat(criticalMultiplierValue);
+  const criticalMultiplier = Number.isFinite(parsedCriticalMultiplier) && parsedCriticalMultiplier > 0
+    ? parsedCriticalMultiplier
+    : 1.5;
   const dmgStatVal = parseFloat(damageBonusStatName === 'Quality'
     ? weaponQuality
     : (st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6')))) || 0;
@@ -892,6 +899,7 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
     fightMult,
     totalDiceCount,
     finalDiceStr,
+    criticalMultiplier,
     statDmgBonus,
     specPotentialBonus,
     totalFlatBonus,
@@ -1352,6 +1360,10 @@ function editable(path, value, className = 'field-input', placeholder = '', attr
 
 function editableInteger(path, value, className = 'cell-input', attributes = '') {
   return `<input type="number" class="${className}" data-path="${path}" data-integer="true" step="1" inputmode="numeric" value="${esc(value)}"${attributes ? ` ${attributes}` : ''}>`;
+}
+
+function editableDecimal(path, value, className = 'cell-input', attributes = '') {
+  return `<input type="number" class="${className}" data-path="${path}" step="any" inputmode="decimal" value="${esc(value)}"${attributes ? ` ${attributes}` : ''}>`;
 }
 
 function readOnlyCell(value) {
@@ -2378,6 +2390,7 @@ function rollResultBannerHtml() {
     const diceDetail = activeRollResult.individualRolls?.length
       ? `${activeRollResult.diceStr} (${activeRollResult.individualRolls.join(' + ')}) ${bonusStr}`
       : `${activeRollResult.diceStr} ${bonusStr}`;
+    const multiplierDetail = activeRollResult.multiplier > 1 ? ` x ${activeRollResult.multiplier}` : '';
     return `<div class="roll-result-banner banner-red">
       <div class="roll-result-info">
         <div class="roll-result-title">
@@ -2385,11 +2398,11 @@ function rollResultBannerHtml() {
           <span class="roll-stat-tag">Damage &bull; <strong>${esc(activeRollResult.label)}</strong></span>
         </div>
         <div class="roll-result-detail">
-          ${diceDetail} = <strong class="roll-score-num">${activeRollResult.total}</strong>
+          ${diceDetail}${multiplierDetail} = <strong class="roll-score-num">${activeRollResult.total}</strong>
         </div>
       </div>
       <div class="roll-result-outcome outcome-red">
-        Damage: ${activeRollResult.total}
+        ${activeRollResult.multiplier > 1 ? 'Critical Damage' : 'Damage'}: ${activeRollResult.total}
       </div>
       <button type="button" class="roll-result-close" id="dismiss-roll-result" title="Dismiss result">&times;</button>
     </div>`;
@@ -2636,7 +2649,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   render();
 }
 
-function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null) {
+function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null, multiplier = 1) {
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const label = `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`;
   
@@ -2660,6 +2673,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
     modLabel,
     diceStr,
     flatBonus: bonus,
+    multiplier,
     individualRolls: individualRolls || [],
     total: totalDamage,
     colorTone: 'red',
@@ -2672,9 +2686,11 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
   };
 
   const rollsText = (individualRolls && individualRolls.length > 0) ? individualRolls.join(', ') : (totalDamage - bonus);
-  const detail = bonusStr
-    ? `${diceStr} (${rollsText}) ${bonusStr} = ${totalDamage}`
-    : `${diceStr} (${rollsText}) = ${totalDamage}`;
+  const damageParts = [`${diceStr} (${rollsText})`, bonusStr].filter(Boolean);
+  const damageExpression = damageParts.join(' ');
+  const totalExpression = multiplier > 1
+    ? `(${damageExpression}) x ${multiplier} = ${totalDamage}`
+    : `${damageExpression} = ${totalDamage}`;
 
   addRollToHistory({
     id: currentRollId,
@@ -2683,7 +2699,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
     charName: charName || 'Character',
     playerName: playerName || 'Player',
     statName: `Damage - ${label}`,
-    detail,
+    detail: totalExpression,
     roll: totalDamage,
     outcomeType: 'red',
     outcomeLabel: `Damage: ${totalDamage}`,
@@ -2698,7 +2714,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
 
   if (OBR.isAvailable && OBR.notification?.show) {
     OBR.notification.show(
-      `💥 ${charName || 'Character'} (${playerName || 'Player'}) rolled Damage (${label}): ${diceStr}${bonusStr ? ' ' + bonusStr : ''} = ${totalDamage}`,
+      `💥 ${charName || 'Character'} (${playerName || 'Player'}) rolled Damage (${label}): ${totalExpression}`,
       'DEFAULT'
     );
   }
@@ -2901,7 +2917,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
       }
     }
     const totalDamage = Math.floor((diceTotal + totalFlat) * multiplier);
-    displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
+    displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId, multiplier);
   }
 }
 
@@ -3502,6 +3518,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const statDmgBonus = weaponInfo.statDmgBonus;
   const specPotentialBonus = weaponInfo.specPotentialBonus;
   const totalFlatBonus = weaponInfo.totalFlatBonus;
+  const criticalMultiplier = weaponInfo.criticalMultiplier;
   const twoHanded = weaponInfo.twoHanded;
 
   const weaponTableHtml = `
@@ -3526,10 +3543,13 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
         <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="yellow" title="Roll Attack [Target: Yellow] (Total: ${totalTouchVal})">Yellow</div>
         <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(weaponName)} Attack" data-stat-name="${esc(touchStatName)}" data-stat-val="${totalTouchVal}" data-target-tier="red" title="Roll Attack [Target: Red] (Total: ${totalTouchVal})">Red</div>
       </div>
-      <!-- Row 3: Merged Damage Cell -->
-      <div class="qa-grid-1">
+      <!-- Row 3: Standard and Critical Damage -->
+      <div class="qa-grid-2">
         <div class="qa-cell bg-light text-bold rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="" data-mod-bonus="0" title="Click to roll Damage: ${finalDiceStr} + ${totalFlatBonus}">
           Damage: ${finalDiceStr}+${statDmgBonus}+${specPotentialBonus}
+        </div>
+        <div class="qa-cell bg-crit-red text-bold rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Critical Damage" data-mod-bonus="0" data-multiplier="${criticalMultiplier}" title="Click to roll Critical Damage (x${criticalMultiplier}): ${finalDiceStr} + ${totalFlatBonus}">
+          Critical Damage x${criticalMultiplier}
         </div>
       </div>
       <!-- Row 4: Attack Success Damage Modifiers (4 columns) -->
@@ -4609,7 +4629,7 @@ function tablePage(name, character) {
     : name === 'Spell'
       ? [0, 13, ...headers.map((_, index) => index).filter((index) => index !== 0 && index !== 13)]
       : headers.map((_, index) => index);
-  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+  const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13];
   const canDeleteRows = ['Skills', 'Spell', 'Specialisations', 'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur', 'Unique Power'].includes(name);
 
   const tableClass = name === 'Action Types'
@@ -4659,7 +4679,7 @@ function tablePage(name, character) {
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
     const specialisationDefault = name === 'Specialisations' && sourceColumnIndex === 1 ? 'Unspecialised' : (name === 'Specialisations' && [2, 3, 5].includes(sourceColumnIndex) ? '0' : '');
     const defaultValue = name === 'Spell' && header === 'Roll Stat' ? 'Intelligence' : specialisationDefault;
-    const val = row[sourceColumnIndex] || defaultValue;
+    const val = row[sourceColumnIndex] || (name === 'Weapons' && header === 'Critical Multiplier' ? '1.5' : defaultValue);
     const path = `tables.${name}.${rowIndex}.${sourceColumnIndex}`;
     if (name === 'Skills' && header === 'Skill Type') {
       return `<td>${editableSelect(path, val, skillTypeOptions, 'cell-input cell-select')}</td>`;
@@ -4693,6 +4713,9 @@ function tablePage(name, character) {
     }
     if (name === 'Weapons' && header === 'Touch Bonus') {
       return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Weapons' && header === 'Critical Multiplier') {
+      return `<td>${editableDecimal(path, val, 'cell-input', 'min="0.01"')}</td>`;
     }
     if (name === 'Weapons' && header === 'Two handed?') {
       return `<td>${editableCheckbox(path, val)}</td>`;
@@ -5840,7 +5863,8 @@ async function initialise() {
             rollInfo.charName,
             data.playerName || rollInfo.playerName,
             isMyRoll,
-            rollInfo.rollId
+            rollInfo.rollId,
+            Number(rollInfo.multiplier) || 1
           );
         } else if (rollInfo.type === 'initiative') {
           const bonus = parseInt(rollInfo.bonus) || 0;
@@ -6055,7 +6079,9 @@ function bindEvents() {
       const baseBonus = parseInt(btn.dataset.baseBonus) || 0;
       const modLabel = btn.dataset.modLabel || '';
       const modBonus = parseInt(btn.dataset.modBonus) || 0;
-      rollWeaponDamage(weaponName, dice, baseBonus, modLabel, modBonus);
+      const parsedMultiplier = parseFloat(btn.dataset.multiplier);
+      const multiplier = Number.isFinite(parsedMultiplier) && parsedMultiplier > 0 ? parsedMultiplier : 1.5;
+      rollWeaponDamage(weaponName, dice, baseBonus, modLabel, modBonus, multiplier);
     });
   });
   app.querySelectorAll('.qa-weapon-select').forEach((select) => {

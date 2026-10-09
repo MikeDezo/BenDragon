@@ -1221,6 +1221,7 @@ body.col-resizing * {
 .sheet-table-weapons th:nth-child(10), .sheet-table-weapons td:nth-child(10),
 .sheet-table-weapons th:nth-child(11), .sheet-table-weapons td:nth-child(11),
 .sheet-table-weapons th:nth-child(12), .sheet-table-weapons td:nth-child(12) { width: 82px; }
+.sheet-table-weapons th:nth-child(13), .sheet-table-weapons td:nth-child(13) { width: 135px; }
 .sheet-table-weapons .cell-input { min-width: 0; }
 .sheet-table-armor { table-layout: fixed; }
 .sheet-table-armor th:nth-child(1), .sheet-table-armor td:nth-child(1) { width: 170px; }
