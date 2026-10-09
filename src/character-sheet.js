@@ -35,6 +35,7 @@ purgeBrowserCharacterCache();
 const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 'gender'], ['Origins', 'origins'], ['Age', 'age'], ['Heigth', 'height'], ['Weigth', 'weight'], ['Eyes Color', 'eyesColor'], ['Hairs Color', 'hairColor'], ['Skin Color', 'skinColor'], ['Languages', 'languages'], ['Alphabet', 'alphabet'], ['Gods', 'gods'], ['Xp to spend/Total', 'xp'], ['BackGround', 'background']];
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
+let pendingDependentSkillRoll = null;
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
@@ -1501,6 +1502,28 @@ function addXpModalHtml(character) {
       <div class="xp-modal-footer">
         <button type="button" class="toolbar-button secondary" id="xp-modal-cancel-btn">Cancel</button>
         <button type="button" class="toolbar-button" id="xp-modal-submit-btn">Add XP</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function dependentSkillRollModalHtml() {
+  if (!pendingDependentSkillRoll) return '';
+  const statOptions = stats.map((stat) => `<option value="${esc(stat)}">${esc(stat)}</option>`).join('');
+  return `<div class="modal-backdrop" id="dependent-skill-roll-backdrop" role="dialog" aria-modal="true" aria-labelledby="dependent-skill-roll-title">
+    <div class="xp-modal" id="dependent-skill-roll-dialog" style="max-width: 360px;">
+      <div class="xp-modal-header">
+        <h2 class="xp-modal-title" id="dependent-skill-roll-title">Choose Roll Stat</h2>
+        <button type="button" class="xp-modal-close" id="dependent-skill-roll-close" title="Close dialog">&times;</button>
+      </div>
+      <div class="xp-modal-body">
+        <div class="xp-modal-info">${esc(pendingDependentSkillRoll.name)} depends on the stat you choose.</div>
+        <label for="dependent-skill-roll-stat">Roll using:</label>
+        <select id="dependent-skill-roll-stat" class="xp-modal-input">${statOptions}</select>
+      </div>
+      <div class="xp-modal-footer">
+        <button type="button" class="toolbar-button secondary" id="dependent-skill-roll-cancel">Cancel</button>
+        <button type="button" class="toolbar-button" id="dependent-skill-roll-submit">Roll</button>
       </div>
     </div>
   </div>`;
@@ -4812,6 +4835,7 @@ function render(focusPath = null, selectAll = false) {
       </div>
     </main>
     ${addXpModalHtml(character)}
+    ${dependentSkillRollModalHtml()}
     ${importSheetModalHtml(character)}
     ${addManaPoolModalHtml()}
   </div>`;
@@ -5777,14 +5801,45 @@ function bindEvents() {
       e.preventDefault();
       e.stopPropagation();
       const name = btn.dataset.qaUniversalRoll;
-      const statVal = parseFloat(btn.dataset.statVal) || 0;
       const targetTier = btn.dataset.targetTier || 'standard';
       const csLevel = parseInt(btn.dataset.csLevel) || 0;
       if (name) {
-        rollUniversalCheck(name, statVal, targetTier, csLevel);
+        if (btn.dataset.statName === 'Depend') {
+          pendingDependentSkillRoll = { name, targetTier, csLevel };
+          render();
+        } else {
+          const statVal = parseFloat(btn.dataset.statVal) || 0;
+          rollUniversalCheck(name, statVal, targetTier, csLevel);
+        }
       }
     });
   });
+  if (pendingDependentSkillRoll) {
+    const closeModal = () => {
+      pendingDependentSkillRoll = null;
+      render();
+    };
+    const submitRoll = () => {
+      const statName = app.querySelector('#dependent-skill-roll-stat')?.value;
+      if (!statName || !stats.includes(statName)) return;
+      const character = currentCharacter();
+      const statsMap = getCharacterStatsMap(character);
+      const statValue = parseFloat(character?.data?.stats?.[statName] ?? statsMap[statName]) || 0;
+      const { name, targetTier, csLevel } = pendingDependentSkillRoll;
+      pendingDependentSkillRoll = null;
+      rollUniversalCheck(`${name} (${statName})`, statValue, targetTier, csLevel);
+    };
+    app.querySelector('#dependent-skill-roll-submit')?.addEventListener('click', submitRoll);
+    app.querySelector('#dependent-skill-roll-cancel')?.addEventListener('click', closeModal);
+    app.querySelector('#dependent-skill-roll-close')?.addEventListener('click', closeModal);
+    app.querySelector('#dependent-skill-roll-backdrop')?.addEventListener('click', (event) => {
+      if (event.target.id === 'dependent-skill-roll-backdrop') closeModal();
+    });
+    app.querySelector('#dependent-skill-roll-stat')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') submitRoll();
+      if (event.key === 'Escape') closeModal();
+    });
+  }
   app.querySelectorAll('.rollable-qa-dmg').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
