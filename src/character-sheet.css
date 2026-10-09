@@ -995,6 +995,9 @@ body.col-resizing * {
 .sheet-table-skills td:nth-child(13) .cell-input { color: #fff; }
 .sheet-table-skills td:nth-child(13) .cell-input:focus { color: var(--ink); background: #fffdf4; }
 .sheet-table-skills .cell-input { min-width: 0; }
+.sheet-table-skills tr.skill-type-hors-combat td:not(:nth-child(n+8):nth-child(-n+13)) { background: #d9ead3; }
+.sheet-table-skills tr.skill-type-combat td:not(:nth-child(n+8):nth-child(-n+13)) { background: #f4cccc; }
+.sheet-table-skills tr.skill-type-passive td:not(:nth-child(n+8):nth-child(-n+13)) { background: #cfe2f3; }
 
 .sheet-table-spell { table-layout: fixed; }
 .sheet-table-spell th:nth-child(1), .sheet-table-spell td:nth-child(1) { width: 160px; }

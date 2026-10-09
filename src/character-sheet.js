@@ -4528,7 +4528,12 @@ function tablePage(name, character) {
     return `<th class="row-actions"${widthStyle} data-col-name="Actions"><span class="th-content">Actions</span><div class="col-resize-handle" data-col-resize="Actions" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
   })() : '';
 
-  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${headersHtml}${actionsTh}</tr></thead><tbody>${rows.map((row, rowIndex) => `<tr>${displayColumns.map((columnIndex) => {
+  return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${headersHtml}${actionsTh}</tr></thead><tbody>${rows.map((row, rowIndex) => {
+    const skillType = String(Array.isArray(row) ? row[1] : (row?.['Skill Type'] ?? row?.[1] ?? '')).trim().toLowerCase();
+    const skillTypeClass = name === 'Skills'
+      ? (skillType === 'hors-combat' ? 'skill-type-hors-combat' : skillType === 'combat' ? 'skill-type-combat' : skillType === 'passive' ? 'skill-type-passive' : '')
+      : '';
+    return `<tr${skillTypeClass ? ` class="${skillTypeClass}"` : ''}>${displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
     const specialisationDefault = name === 'Specialisations' && sourceColumnIndex === 1 ? 'Unspecialised' : (name === 'Specialisations' && [2, 3, 5].includes(sourceColumnIndex) ? '0' : '');
@@ -4605,7 +4610,8 @@ function tablePage(name, character) {
     }
     if (isActionTypes) return `<td><span class="cell-readonly action-type-cell">${esc(val)}</span></td>`;
     return `<td>${editable(path, val, 'cell-input')}</td>`;
-  }).join('')}${canDeleteRows ? `<td class="row-actions"><button type="button" class="delete-row" data-delete-row="${esc(name)}" data-row-index="${rowIndex}" title="Delete this row">Delete</button></td>` : ''}</tr>`).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
+  }).join('')}${canDeleteRows ? `<td class="row-actions"><button type="button" class="delete-row" data-delete-row="${esc(name)}" data-row-index="${rowIndex}" title="Delete this row">Delete</button></td>` : ''}</tr>`;
+  }).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
 }
 
 function pageFor(character) {
@@ -5869,6 +5875,17 @@ function bindEvents() {
         input.value = lines.join('\n');
       }
       setPath(input.dataset.path, input.dataset.checkbox ? input.checked : input.value);
+      const pathParts = input.dataset.path?.split('.');
+      if (activeTab === 'Skills' && pathParts?.[0] === 'tables' && pathParts[1] === 'Skills' && pathParts[3] === '1') {
+        const row = input.closest('tr');
+        row?.classList.remove('skill-type-hors-combat', 'skill-type-combat', 'skill-type-passive');
+        const skillTypeClass = {
+          'Hors-Combat': 'skill-type-hors-combat',
+          Combat: 'skill-type-combat',
+          Passive: 'skill-type-passive'
+        }[input.value.trim()];
+        if (skillTypeClass) row?.classList.add(skillTypeClass);
+      }
       if (activeTab === 'Stats') {
         updateStatsCalculations();
       }
