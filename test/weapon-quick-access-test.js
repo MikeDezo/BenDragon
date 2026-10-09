@@ -65,6 +65,7 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const weaponName = rawWeaponName || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
 
   const validStats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
+  const validDamageBonusStats = [...validStats, 'Quality'];
 
   // 1. Identify specialisation name (stored at index 9 in standard table layout)
   let specName = '';
@@ -130,8 +131,8 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const damageBonusStatName = (
     weapon['Damage Bonus Stat'] ||
     weapon.damageBonusStat ||
-    (weapon[2] && validStats.includes(String(weapon[2]).trim()) ? String(weapon[2]).trim() : null) ||
-    (weapon[5] && validStats.includes(String(weapon[5]).trim()) ? String(weapon[5]).trim() : null) ||
+    (weapon[2] && validDamageBonusStats.includes(String(weapon[2]).trim()) ? String(weapon[2]).trim() : null) ||
+    (weapon[5] && validDamageBonusStats.includes(String(weapon[5]).trim()) ? String(weapon[5]).trim() : null) ||
     'Strength'
   );
 
@@ -176,7 +177,16 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const totalDiceCount = fightMult * baseCount;
   const finalDiceStr = `${totalDiceCount}D${dieSides}`;
 
-  const dmgStatVal = parseFloat(st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6'))) || 0;
+  const usesLegacyWeaponLayout = Array.isArray(weapon) && (
+    weapon.length > 12 ||
+    (/^\d*\s*[dD]\s*\d+/i.test(String(weapon[6] ?? '').trim()) && !/^\d*\s*[dD]\s*\d+/i.test(String(weapon[9] ?? '').trim()))
+  );
+  const weaponQuality = Array.isArray(weapon)
+    ? (usesLegacyWeaponLayout ? weapon[8] : weapon[11])
+    : (weapon.Quality ?? weapon.quality ?? weapon[11] ?? weapon['11'] ?? weapon[8] ?? weapon['8']);
+  const dmgStatVal = parseFloat(damageBonusStatName === 'Quality'
+    ? weaponQuality
+    : (st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6')))) || 0;
   const statDmgBonus = twoHanded ? Math.floor(dmgStatVal * 1.5) : dmgStatVal;
   const totalFlatBonus = statDmgBonus + specPotentialBonus;
 
@@ -305,4 +315,45 @@ assert.strictEqual(res3.total1stBonus, 2, 'Total 1st round ini should be 2');
 assert.strictEqual(res3.totalNextBonus, 1, 'Total next rounds ini should be 1');
 console.log('✅ Test 3 passed.');
 
-console.log('🎉 ALL WEAPON QUICK ACCESS INITIATIVE TESTS PASSED SUCCESSFULLY!');
+// Test 4: Damage Bonus Stat can use the weapon's own Quality (current row layout)
+console.log('4. Testing weapon Quality as the damage bonus stat...');
+const char4 = {
+  data: {
+    stats: { Fighting: '10' },
+    tables: {
+      Specialisations: [],
+      Weapons: [
+        ['Quality blade', 'A sharp blade', '', 'Agility', '0', 'Quality', '1', '2', '3', '1D8', false, '17']
+      ]
+    },
+    quickAccessWeaponSlot: 0
+  }
+};
+
+const res4 = getSelectedWeaponDamageInfo(char4, 0);
+assert.strictEqual(res4.damageBonusStatName, 'Quality', 'Quality should be recognized as a damage bonus choice');
+assert.strictEqual(res4.statDmgBonus, 17, 'Damage bonus should use the weapon Quality value');
+assert.strictEqual(res4.damageExpr, '1D8 + 17', 'Damage expression should include the weapon Quality');
+console.log('✅ Test 4 passed.');
+
+// Test 5: Legacy weapon rows also use their Quality value
+console.log('5. Testing weapon Quality with the legacy row layout...');
+const char5 = {
+  data: {
+    stats: { Fighting: '10' },
+    tables: {
+      Specialisations: [],
+      Weapons: [
+        ['Legacy blade', 'Fighting', 'Quality', '1', '2', '3', '1D6', '', '12', '', false, '0', '']
+      ]
+    },
+    quickAccessWeaponSlot: 0
+  }
+};
+
+const res5 = getSelectedWeaponDamageInfo(char5, 0);
+assert.strictEqual(res5.damageBonusStatName, 'Quality', 'Quality should be recognized in a legacy weapon row');
+assert.strictEqual(res5.damageExpr, '1D6 + 12', 'Legacy damage should use the weapon Quality value');
+console.log('✅ Test 5 passed.');
+
+console.log('🎉 ALL WEAPON QUICK ACCESS DAMAGE TESTS PASSED SUCCESSFULLY!');

@@ -735,6 +735,7 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const weaponName = rawWeaponName || (rawWeapons.length > 0 ? `Weapon ${targetIdx + 1}` : 'Weapon');
 
   const validStats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
+  const validDamageBonusStats = [...validStats, 'Quality'];
 
   // 1. Identify specialisation name (stored at index 9 in standard table layout)
   let specName = '';
@@ -800,8 +801,8 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const damageBonusStatName = (
     weapon['Damage Bonus Stat'] ||
     weapon.damageBonusStat ||
-    (weapon[2] && validStats.includes(String(weapon[2]).trim()) ? String(weapon[2]).trim() : null) ||
-    (weapon[5] && validStats.includes(String(weapon[5]).trim()) ? String(weapon[5]).trim() : null) ||
+    (weapon[2] && validDamageBonusStats.includes(String(weapon[2]).trim()) ? String(weapon[2]).trim() : null) ||
+    (weapon[5] && validDamageBonusStats.includes(String(weapon[5]).trim()) ? String(weapon[5]).trim() : null) ||
     'Strength'
   );
 
@@ -846,7 +847,16 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
   const totalDiceCount = fightMult * baseCount;
   const finalDiceStr = `${totalDiceCount}D${dieSides}`;
 
-  const dmgStatVal = parseFloat(st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6'))) || 0;
+  const usesLegacyWeaponLayout = Array.isArray(weapon) && (
+    weapon.length > 12 ||
+    (/^\d*\s*[dD]\s*\d+/i.test(String(weapon[6] ?? '').trim()) && !/^\d*\s*[dD]\s*\d+/i.test(String(weapon[9] ?? '').trim()))
+  );
+  const weaponQuality = Array.isArray(weapon)
+    ? (usesLegacyWeaponLayout ? weapon[8] : weapon[11])
+    : (weapon.Quality ?? weapon.quality ?? weapon[11] ?? weapon['11'] ?? weapon[8] ?? weapon['8']);
+  const dmgStatVal = parseFloat(damageBonusStatName === 'Quality'
+    ? weaponQuality
+    : (st[damageBonusStatName] ?? (damageBonusStatName === 'Strength' ? numStrength : (damageBonusStatName === 'Fighting' ? numFighting : '6')))) || 0;
   const statDmgBonus = twoHanded ? Math.floor(dmgStatVal * 1.5) : dmgStatVal;
   const totalFlatBonus = statDmgBonus + specPotentialBonus;
 
@@ -4456,6 +4466,7 @@ function tablePage(name, character) {
     if (!character.data.tables[name]) character.data.tables[name] = rows;
   }
   const weaponStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche'];
+  const weaponDamageBonusOptions = [...weaponStatOptions, 'Quality'];
   const specialisationLevelOptions = ['Unspecialised', 'Novice', 'Apprentice', 'Adept', 'Expert', 'Master'];
   const skillTypeOptions = ['Combat', 'Hors-Combat', 'Passive'];
   const skillStatOptions = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Depend'];
@@ -4536,8 +4547,11 @@ function tablePage(name, character) {
     if (name === 'Spell' && header === 'Action Type') {
       return `<td>${editableSelect(path, val, actionTypeOptions, 'cell-input cell-select')}</td>`;
     }
-    if (name === 'Weapons' && (header === 'Touch Stat' || header === 'Damage Bonus Stat')) {
+    if (name === 'Weapons' && header === 'Touch Stat') {
       return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
+    }
+    if (name === 'Weapons' && header === 'Damage Bonus Stat') {
+      return `<td>${editableSelect(path, val, weaponDamageBonusOptions, 'cell-input cell-select')}</td>`;
     }
     if (name === 'Weapons' && header === 'Specialisation') {
       return `<td>${editableSelect(path, val, specialisationNames, 'cell-input cell-select')}</td>`;
@@ -7324,5 +7338,3 @@ initialise().catch((error) => {
   console.error(error);
   app.innerHTML = '<div class="empty-note">Unable to connect to the character sheet service.</div>';
 });
-
-
