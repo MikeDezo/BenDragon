@@ -1109,6 +1109,13 @@ function simplifyDiceExpression(str) {
     textSuffix = matchSuffix[2];
   }
 
+  let multiplier = null;
+  const multiplierMatch = mathPortion.match(/\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*$/);
+  if (multiplierMatch) {
+    multiplier = multiplierMatch[1];
+    mathPortion = mathPortion.slice(0, multiplierMatch.index).trim();
+  }
+
   const withoutDiceExpr = mathPortion.replace(/([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g, (match, sign) => {
     return (sign === '-' ? ' - 0 ' : ' + 0 ');
   });
@@ -1147,7 +1154,8 @@ function simplifyDiceExpression(str) {
   }
 
   if (diceParts.length === 0) {
-    return String(Math.floor(flatVal)) + textSuffix;
+    const baseValue = String(Math.floor(flatVal));
+    return `${multiplier !== null ? `(${baseValue}) * ${multiplier}` : baseValue}${textSuffix}`;
   }
 
   const roundedFlat = Math.floor(flatVal);
@@ -1158,7 +1166,7 @@ function simplifyDiceExpression(str) {
     res += ' - ' + Math.abs(roundedFlat);
   }
 
-  return res + textSuffix;
+  return `${multiplier !== null ? `(${res}) * ${multiplier}` : res}${textSuffix}`;
 }
 
 function translateFormula(formula, stats) {
@@ -2768,7 +2776,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard', colu
   }
 }
 
-async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = '', modBonus = 0) {
+async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = '', modBonus = 0, multiplier = 1) {
   const character = currentCharacter();
   const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const charName = character?.name || 'Character';
@@ -2840,6 +2848,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     count: totalDiceCount,
     sides: primarySides,
     flatBonus: totalFlat,
+    multiplier,
     notation,
     charName,
     characterId: charId,
@@ -2890,7 +2899,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
         diceTotal += (g.sign < 0 ? -die : die);
       }
     }
-    const totalDamage = diceTotal + totalFlat;
+    const totalDamage = Math.floor((diceTotal + totalFlat) * multiplier);
     displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId);
   }
 }
@@ -2911,6 +2920,13 @@ function parseDiceAndModifiers(str) {
     if (matchSuffix) {
       mathPortion = matchSuffix[1].trim();
       textSuffix = matchSuffix[2].trim();
+    }
+
+    let multiplier = 1;
+    const multiplierMatch = mathPortion.match(/\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*$/);
+    if (multiplierMatch) {
+      multiplier = Number(multiplierMatch[1]);
+      mathPortion = mathPortion.slice(0, multiplierMatch.index).trim();
     }
 
     const withoutDice = mathPortion.replace(diceRegex, (match, sign) => {
@@ -3001,6 +3017,7 @@ function parseDiceAndModifiers(str) {
       count: diceGroups[0]?.count || 1,
       sides: diceGroups[0]?.sides || 10,
       flatBonus,
+      multiplier,
       suffix: textSuffix
     };
   }
@@ -3037,8 +3054,9 @@ async function rollFormulaEffect(actionName, tierLabel, expression) {
 
   if (parsed && parsed.hasDice && parsed.totalDiceCount > 0) {
     const diceString = parsed.diceString;
-    const modLabel = `${tierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
-    await rollWeaponDamage(actionName, diceString, parsed.flatBonus, modLabel, 0);
+    const multiplierLabel = parsed.multiplier !== 1 ? ` x${parsed.multiplier}` : '';
+    const modLabel = `${tierLabel}${multiplierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
+    await rollWeaponDamage(actionName, diceString, parsed.flatBonus, modLabel, 0, parsed.multiplier);
     return;
   }
 
@@ -5806,7 +5824,8 @@ async function initialise() {
       if (rollInfo) {
         const isMyRoll = rollInfo.playerId === user.id;
         if (rollInfo.type === 'damage') {
-          const finalRoll = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
+          const rolledTotal = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
+          const finalRoll = Math.floor(rolledTotal * (Number(rollInfo.multiplier) || 1));
           const diceList = resultObj.groups?.flatMap((g) => g.dice?.map((d) => d.value) || []) || [];
           displayAndAnnounceDamageResult(
             rollInfo.weaponName || rollInfo.label,
