@@ -559,7 +559,7 @@ function getManaPoolMeasureDummy() {
 
 function autoFitManaPoolInput(el) {
   if (!el || el.tagName !== 'TEXTAREA') return;
-  const cell = el.closest('.pool-val-top');
+  const cell = el.closest('.pool-val-top') || el.closest('.custom-mp-input-cell') || el.closest('.input-cell');
   const cellH = cell ? cell.clientHeight : el.clientHeight;
   const cellW = cell ? cell.clientWidth : el.clientWidth;
   if (!cellH || !cellW) {
@@ -1492,6 +1492,84 @@ function addXpModalHtml(character) {
       </div>
     </div>
   </div>`;
+}
+
+let isAddManaPoolModalOpen = false;
+
+function openAddManaPoolModal() {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  isAddManaPoolModalOpen = true;
+  render();
+}
+
+function closeAddManaPoolModal() {
+  if (!isAddManaPoolModalOpen) return;
+  isAddManaPoolModalOpen = false;
+  render();
+}
+
+async function createCustomManaPool(colorInput) {
+  const character = currentCharacter();
+  if (!character || !canEditCurrent()) return;
+  const resolvedColor = resolveManaPoolColor(colorInput || 'purple');
+  character.data.customManaPools ??= [];
+  character.data.customManaPools.push({
+    id: Date.now().toString(),
+    name: 'Mana Pool',
+    value: '0',
+    color: resolvedColor
+  });
+  character.updatedAt = Date.now();
+  state.updatedAt = Date.now();
+  isAddManaPoolModalOpen = false;
+  await save();
+  render();
+}
+
+function addManaPoolModalHtml() {
+  if (!isAddManaPoolModalOpen) return '';
+  const presets = [
+    { label: 'Purple', color: '#d9d2e9' },
+    { label: 'Blue', color: '#cfe2f3' },
+    { label: 'Red', color: '#f4cccc' },
+    { label: 'Green', color: '#b6d7a8' },
+    { label: 'Yellow', color: '#fff2cc' },
+    { label: 'Orange', color: '#fce5cd' },
+    { label: 'Cyan', color: '#d0e0e3' },
+    { label: 'Pink', color: '#ead1dc' }
+  ];
+
+  return `
+    <div class="modal-backdrop" id="mana-pool-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="mana-pool-modal-title">
+      <div class="xp-modal" id="mana-pool-modal-dialog" style="max-width: 360px;">
+        <div class="xp-modal-header">
+          <h2 class="xp-modal-title" id="mana-pool-modal-title">New Mana Pool</h2>
+          <button type="button" class="xp-modal-close" id="mana-pool-modal-close-btn" title="Close dialog">&times;</button>
+        </div>
+        <div class="xp-modal-body" style="padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: calc(12px * var(--font-scale, 1)); font-weight: 600; color: #1a1e1b;">
+            What color for this Mana Pool?
+          </div>
+          <div class="mana-pool-presets-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;">
+            ${presets.map((p) => `
+              <button type="button" class="mana-pool-preset-chip" data-mp-preset-color="${p.color}" style="background-color: ${p.color}; border: 1px solid #7a7e77; border-radius: 3px; padding: 6px 4px; font: 600 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace; color: #1a1e1b; cursor: pointer; text-align: center;">
+                ${p.label}
+              </button>
+            `).join('')}
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="mana-pool-modal-color-input" class="field-input" value="purple" placeholder="Enter color or #hex..." style="flex: 1; padding: 6px 8px; font-family: 'DM Mono', monospace; font-size: calc(12px * var(--font-scale, 1));" />
+            <input type="color" id="mana-pool-modal-color-picker" value="#d9d2e9" style="width: 38px; height: 32px; padding: 1px; border: 1px solid #7a7e77; cursor: pointer; border-radius: 3px;" title="Pick color" />
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+            <button type="button" class="toolbar-button secondary" id="mana-pool-modal-cancel-btn">Cancel</button>
+            <button type="button" class="toolbar-button" id="mana-pool-modal-confirm-btn">Add Mana Pool</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 let isImportSheetModalOpen = false;
@@ -3449,6 +3527,99 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   `;
 }
 
+function resolveManaPoolColor(raw) {
+  if (!raw) return '#d9d2e9';
+  const clean = raw.trim().toLowerCase();
+  const presets = {
+    purple: '#d9d2e9',
+    violet: '#d9d2e9',
+    pourpre: '#d9d2e9',
+    blue: '#cfe2f3',
+    bleu: '#cfe2f3',
+    green: '#b6d7a8',
+    vert: '#b6d7a8',
+    red: '#f4cccc',
+    rouge: '#f4cccc',
+    coral: '#f4cccc',
+    corail: '#f4cccc',
+    yellow: '#fff2cc',
+    jaune: '#fff2cc',
+    orange: '#fce5cd',
+    cyan: '#d0e0e3',
+    teal: '#d0e0e3',
+    turquoise: '#d0e0e3',
+    pink: '#ead1dc',
+    rose: '#ead1dc',
+    magenta: '#ead1dc',
+    gray: '#d9d9d9',
+    grey: '#d9d9d9',
+    gris: '#d9d9d9',
+    white: '#ffffff',
+    blanc: '#ffffff',
+    black: '#333333',
+    noir: '#333333'
+  };
+  return presets[clean] || raw.trim();
+}
+
+function getContrastTextColor(color) {
+  try {
+    const temp = document.createElement('div');
+    temp.style.color = color;
+    document.body.appendChild(temp);
+    const rgb = window.getComputedStyle(temp).color;
+    document.body.removeChild(temp);
+    const match = rgb.match(/\d+/g);
+    if (match && match.length >= 3) {
+      const r = parseInt(match[0], 10);
+      const g = parseInt(match[1], 10);
+      const b = parseInt(match[2], 10);
+      const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+      return yiq >= 135 ? '#1a1e1b' : '#ffffff';
+    }
+  } catch (e) {}
+  return '#1a1e1b';
+}
+
+function customManaPoolsHtml(character) {
+  const pools = Array.isArray(character?.data?.customManaPools) ? character.data.customManaPools : [];
+  if (pools.length === 0) return '';
+
+  const rows = [];
+  for (let i = 0; i < pools.length; i += 3) {
+    const chunk = pools.slice(i, i + 3);
+    const rowHtml = `
+      <div class="excel-row custom-mana-pool-row">
+        ${chunk.map((pool, chunkIdx) => {
+          const globalIdx = i + chunkIdx;
+          const color = resolveManaPoolColor(pool.color || 'purple');
+          const textColor = getContrastTextColor(color);
+          const isLastInRow = chunkIdx === chunk.length - 1 && chunk.length === 3;
+          return `
+            <div class="excel-cell text-bold banner-cell custom-mp-banner" style="background-color: ${esc(color)}; color: ${textColor};">
+              <button type="button" class="custom-mp-delete-btn" data-delete-custom-mp="${globalIdx}" title="Delete this mana pool (Supprimer ce mana pool)">&times;</button>
+              <div class="custom-mp-title-wrap">
+                <input type="text" class="custom-mp-title-input" data-path="customManaPools.${globalIdx}.name" value="${esc(pool.name || `Mana ${globalIdx + 1}`)}" placeholder="Mana Pool" style="color: inherit;" />
+                <span class="custom-mp-icon">✨</span>
+              </div>
+            </div>
+            <div class="excel-cell bg-light input-cell custom-mp-input-cell"${isLastInRow ? ' style="border-right: 0;"' : ''}>
+              ${editable(`customManaPools.${globalIdx}.value`, pool.value ?? '0', 'stat-input-cell mana-pool-input', '0')}
+            </div>
+          `;
+        }).join('')}
+        ${chunk.length < 3 ? Array.from({ length: 3 - chunk.length }).map((_, emptyIdx) => `
+          <div class="excel-cell bg-light custom-mp-empty-banner"></div>
+          <div class="excel-cell bg-light custom-mp-empty-input"${emptyIdx === (2 - chunk.length) ? ' style="border-right: 0;"' : ''}></div>
+        `).join('') : ''}
+      </div>
+    `;
+    rows.push(rowHtml);
+  }
+
+  return rows.join('');
+}
+
 function statsPage(character) {
   const st = character.data.stats || {};
   const fighting = st.Fighting ?? st['Combat Capacity'] ?? '6';
@@ -3561,6 +3732,7 @@ function statsPage(character) {
               <div class="excel-cell bg-blue text-bold banner-cell">
                 <span class="banner-title text-bold">Mana Pool</span>
                 <span class="banner-icon">✨✨✨</span>
+                <button type="button" class="add-mana-pool-btn" id="add-mana-pool-btn" title="Add new Mana Pool (Ajouter une réserve de mana)">+ Mana Pool</button>
               </div>
               <div class="pool-values-col">
                 <div class="excel-cell bg-light input-cell pool-val-top">${editable('stats.ManaPoolBonus', manaPoolBonus, 'stat-input-cell mana-pool-input', '0')}</div>
@@ -3580,6 +3752,8 @@ function statsPage(character) {
             </div>
           </div>
         </div>
+
+        ${customManaPoolsHtml(character)}
 
         <div class="excel-spacer-row"></div>
 
@@ -4556,6 +4730,7 @@ function render(focusPath = null, selectAll = false) {
     </main>
     ${addXpModalHtml(character)}
     ${importSheetModalHtml(character)}
+    ${addManaPoolModalHtml()}
   </div>`;
   bindEvents();
   autoResizeAllTextareas(app);
@@ -5963,6 +6138,72 @@ function bindEvents() {
     state.updatedAt = Date.now();
     await save();
     render();
+  }));
+
+  app.querySelector('#add-mana-pool-btn')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openAddManaPoolModal();
+  });
+
+  if (isAddManaPoolModalOpen) {
+    const modalInput = app.querySelector('#mana-pool-modal-color-input');
+    const colorPicker = app.querySelector('#mana-pool-modal-color-picker');
+
+    app.querySelector('#mana-pool-modal-close-btn')?.addEventListener('click', closeAddManaPoolModal);
+    app.querySelector('#mana-pool-modal-cancel-btn')?.addEventListener('click', closeAddManaPoolModal);
+    app.querySelector('#mana-pool-modal-backdrop')?.addEventListener('click', (e) => {
+      if (e.target.id === 'mana-pool-modal-backdrop') {
+        closeAddManaPoolModal();
+      }
+    });
+
+    app.querySelectorAll('[data-mp-preset-color]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const c = btn.dataset.mpPresetColor;
+        if (modalInput) modalInput.value = c;
+        if (colorPicker) colorPicker.value = c;
+      });
+    });
+
+    colorPicker?.addEventListener('input', (e) => {
+      if (modalInput) modalInput.value = e.target.value;
+    });
+
+    const submitModal = () => {
+      const val = modalInput?.value || 'purple';
+      createCustomManaPool(val);
+    };
+
+    app.querySelector('#mana-pool-modal-confirm-btn')?.addEventListener('click', submitModal);
+    modalInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        submitModal();
+      } else if (e.key === 'Escape') {
+        closeAddManaPoolModal();
+      }
+    });
+    modalInput?.focus();
+    modalInput?.select();
+  }
+
+  app.querySelectorAll('[data-delete-custom-mp]').forEach((button) => button.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const character = currentCharacter();
+    if (!character || !canEditCurrent()) return;
+    const idx = Number(button.dataset.deleteCustomMp);
+    const pools = character.data.customManaPools;
+    if (!Array.isArray(pools) || isNaN(idx) || !pools[idx]) return;
+    const poolName = pools[idx].name || 'Mana Pool';
+    if (window.confirm(`Delete "${poolName}"?`)) {
+      pools.splice(idx, 1);
+      character.updatedAt = Date.now();
+      state.updatedAt = Date.now();
+      await save();
+      render();
+    }
   }));
 
   app.querySelector('#clear-initiative-btn')?.addEventListener('click', () => {
