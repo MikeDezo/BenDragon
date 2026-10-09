@@ -4740,6 +4740,7 @@ function customRollPage(character) {
   const variables = getCustomRollVariableMap(character);
 
   return `<section class="custom-roll-section">
+    ${rollResultBannerHtml()}
     <div class="custom-roll-toolbar">
       <div class="custom-roll-intro">Create reusable rolls with formulas such as <code>(Fighting / 10)D6 + Strength</code>. Type a variable name in a formula to see matching suggestions.</div>
     </div>
