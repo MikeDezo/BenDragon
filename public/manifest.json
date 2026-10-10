@@ -1,5 +1,5 @@
 {
-  "name": "Ben & Dragon!",
+  "name": "Queb & Dragon!",
   "version": "1.0.0",
   "manifest_version": 1,
   "author": "MikeDezo as The dev & Ben as The creator",
@@ -7,7 +7,7 @@
   "icon": "/icon-alt.svg",
   "background_url": "/index.html",
   "action": {
-    "title": "Ben & Dragon!",
+    "title": "Queb & Dragon!",
     "icon": "/icon.svg",
     "popover": "/character-sheet.html",
     "height": 900,
