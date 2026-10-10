@@ -36,6 +36,7 @@ const infoFields = [['Player Name', 'playerName'], ['Name', 'name'], ['Gender', 
 const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 let pendingDependentSkillRoll = null;
+let quickAccessVsIntensity = '';
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
@@ -2563,9 +2564,12 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   render();
 }
 
-function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard', columnShift = 0) {
+function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard', columnShift = 0, vsIntensity = null) {
   const cShift = parseInt(columnShift) || 0;
-  const resolution = resolveUniversalRoll(statValue, rolledTotal, cShift);
+  const intensity = Number.isInteger(vsIntensity) ? vsIntensity : null;
+  const rollAdjustment = intensity === null ? 0 : (parseFloat(statValue) || 0) - intensity;
+  const adjustedRoll = rolledTotal + rollAdjustment;
+  const resolution = resolveUniversalRoll(statValue, adjustedRoll, cShift);
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   let karmaCost = 0;
@@ -2594,6 +2598,9 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     statName,
     statValue: resolution.statValue,
     roll: resolution.roll,
+    rawRoll: rolledTotal,
+    rollAdjustment,
+    vsIntensity: intensity,
     rankCode: resolution.rankCode,
     rankName: resolution.rankName,
     colIndex: resolution.colIndex,
@@ -2623,7 +2630,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     statName: targetTier && targetTier !== 'standard' ? `${statName} (${targetTier.toUpperCase()})` : statName,
     statValue: resolution.statValue,
     rankName: resolution.rankName,
-    detail: `D100 = ${resolution.roll} (${resolution.statValue} ➔ ${resolution.rankName})${shiftSuffix}${targetSuffix}`,
+    detail: `D100 = ${resolution.roll}${intensity === null ? '' : ` (raw ${rolledTotal} ${rollAdjustment >= 0 ? '+' : '-'} ${Math.abs(rollAdjustment)}; Vs Intensity ${intensity})`} (${resolution.statValue} ➔ ${resolution.rankName})${shiftSuffix}${targetSuffix}`,
     roll: resolution.roll,
     outcomeType: resolution.outcomeType,
     outcomeLabel: finalOutcomeLabel,
@@ -2722,11 +2729,15 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
   render();
 }
 
-async function rollUniversalCheck(name, statValue, targetTier = 'standard', columnShift = 0) {
+async function rollUniversalCheck(name, statValue, targetTier = 'standard', columnShift = 0, vsIntensity = null) {
   const character = currentCharacter();
   const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const numVal = parseFloat(statValue) || 0;
   const cShift = parseInt(columnShift) || 0;
+  const intensity = vsIntensity === '' || vsIntensity === null || vsIntensity === undefined
+    ? null
+    : Number(vsIntensity);
+  const validIntensity = Number.isInteger(intensity) ? intensity : null;
   const charName = character?.name || 'Character';
 
   const rollId = `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -2748,6 +2759,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard', colu
     statValue: numVal,
     targetTier,
     columnShift: cShift,
+    vsIntensity: validIntensity,
     charName,
     characterId: charId,
     playerName,
@@ -2789,7 +2801,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard', colu
     }
   } else {
     const roll = Math.floor(Math.random() * 100) + 1;
-    displayAndAnnounceRollResult(name, numVal, roll, charName, playerName, false, rollId, targetTier, cShift);
+    displayAndAnnounceRollResult(name, numVal, roll, charName, playerName, false, rollId, targetTier, cShift, validIntensity);
   }
 }
 
@@ -3590,19 +3602,22 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const skillsTableHtml = `
     <div class="qa-table-card">
       <div class="qa-table-header text-bold">Skills</div>
-      <div class="qa-sub-header">
+      <div class="qa-sub-header qa-skill-sub-header">
         <label class="qa-weapon-label">Skill:
           <select class="qa-weapon-select qa-skill-select" data-qa-slot="0">
             ${skillOptionsHtml}
           </select>
         </label>
+        <label class="qa-vs-intensity-label" for="qa-vs-intensity">Vs Intensity:
+          <input id="qa-vs-intensity" class="qa-vs-intensity" type="number" step="1" inputmode="numeric" value="${esc(quickAccessVsIntensity)}">
+        </label>
       </div>
       <!-- Row 1: 4 columns for Karma target tiers -->
       <div class="qa-grid-4">
-        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
-        <div class="qa-cell bg-green rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
-        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
-        <div class="qa-cell bg-red rollable-qa-btn" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
       </div>
       <!-- Row 2: 5 columns for translated outcome values -->
       <div class="qa-grid-5">
@@ -5897,7 +5912,8 @@ async function initialise() {
             isMyRoll,
             rollInfo.rollId,
             rollInfo.targetTier || 'standard',
-            rollInfo.columnShift || 0
+            rollInfo.columnShift || 0,
+            rollInfo.vsIntensity ?? null
           );
         }
       } else {
@@ -6033,16 +6049,34 @@ function bindEvents() {
       const name = btn.dataset.qaUniversalRoll;
       const targetTier = btn.dataset.targetTier || 'standard';
       const csLevel = parseInt(btn.dataset.csLevel) || 0;
+      const intensityInput = app.querySelector('.qa-vs-intensity');
+      const vsIntensity = btn.hasAttribute('data-qa-skill-roll')
+        ? intensityInput?.value ?? ''
+        : null;
+      if (vsIntensity !== null && vsIntensity !== '' && !Number.isInteger(Number(vsIntensity))) {
+        intensityInput?.setCustomValidity('Enter a whole number.');
+        intensityInput?.reportValidity();
+        return;
+      }
       if (name) {
         if (btn.dataset.statName?.trim().toLowerCase() === 'depend') {
-          pendingDependentSkillRoll = { name, targetTier, csLevel };
+          pendingDependentSkillRoll = { name, targetTier, csLevel, vsIntensity };
           render();
         } else {
           const statVal = parseFloat(btn.dataset.statVal) || 0;
-          rollUniversalCheck(name, statVal, targetTier, csLevel);
+          if (vsIntensity !== null) {
+            quickAccessVsIntensity = '';
+            if (intensityInput) intensityInput.value = '';
+          }
+          rollUniversalCheck(name, statVal, targetTier, csLevel, vsIntensity);
         }
       }
     });
+  });
+  app.querySelector('.qa-vs-intensity')?.addEventListener('input', (event) => {
+    const input = event.currentTarget;
+    quickAccessVsIntensity = input.value;
+    input.setCustomValidity(input.value !== '' && !Number.isInteger(Number(input.value)) ? 'Enter a whole number.' : '');
   });
   if (pendingDependentSkillRoll) {
     const closeModal = () => {
@@ -6055,9 +6089,14 @@ function bindEvents() {
       const character = currentCharacter();
       const statsMap = getCharacterStatsMap(character);
       const statValue = parseFloat(character?.data?.stats?.[statName] ?? statsMap[statName]) || 0;
-      const { name, targetTier, csLevel } = pendingDependentSkillRoll;
+      const { name, targetTier, csLevel, vsIntensity } = pendingDependentSkillRoll;
       pendingDependentSkillRoll = null;
-      rollUniversalCheck(`${name} (${statName})`, statValue, targetTier, csLevel);
+      if (vsIntensity !== null) {
+        quickAccessVsIntensity = '';
+        const intensityInput = app.querySelector('.qa-vs-intensity');
+        if (intensityInput) intensityInput.value = '';
+      }
+      rollUniversalCheck(`${name} (${statName})`, statValue, targetTier, csLevel, vsIntensity);
     };
     app.querySelector('#dependent-skill-roll-submit')?.addEventListener('click', submitRoll);
     app.querySelector('#dependent-skill-roll-cancel')?.addEventListener('click', closeModal);
