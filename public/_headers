@@ -23,6 +23,11 @@
   Content-Type: application/json; charset=utf-8
   Cache-Control: no-cache, must-revalidate, max-age=60
 
+# Extension icons: Allow Owlbear Rodeo to load root-level SVG icons
+/*.svg
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=86400
+
 # Static immutable assets: Cache efficiently
 /assets/*
   Access-Control-Allow-Origin: *
