@@ -1820,6 +1820,34 @@ body.col-resizing * {
   gap: 6px;
 }
 
+.quick-access-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.qa-d100-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--ink);
+  font: 600 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace;
+}
+
+.qa-d100-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.qa-d100-controls input {
+  accent-color: var(--accent);
+}
+
 .qa-table-card {
   border: 1px solid var(--ink);
   background: var(--paper);

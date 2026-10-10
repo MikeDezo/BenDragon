@@ -37,6 +37,7 @@ const DEFAULT_TABLE_ROWS = 2;
 const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelligence', 'Wisdom', 'Intuition', 'Psyche', 'Luck', 'Karma'];
 let pendingDependentSkillRoll = null;
 let quickAccessVsIntensity = '';
+let quickAccessD100Mode = '';
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
@@ -3681,7 +3682,13 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
 
   return `
     <div class="quick-access-section">
-      <h3 class="quick-access-main-title">⚡ Quick Access</h3>
+      <div class="quick-access-title-row">
+        <h3 class="quick-access-main-title">⚡ Quick Access</h3>
+        <div class="qa-d100-controls">
+          <label><input type="checkbox" class="qa-d100-mode" data-qa-d100-mode="chance" ${quickAccessD100Mode === 'chance' ? 'checked' : ''}> Effet Chance</label>
+          <label><input type="checkbox" class="qa-d100-mode" data-qa-d100-mode="malchance" ${quickAccessD100Mode === 'malchance' ? 'checked' : ''}> Effet malchance</label>
+        </div>
+      </div>
       ${defenseTableHtml}
       <div class="qa-separator"></div>
       ${weaponTableHtml}
@@ -5861,8 +5868,28 @@ async function initialise() {
         pendingStatRolls.delete(rollId);
       }
 
+      const isD100 = data.diceNotation?.toLowerCase().includes('d100')
+        || data.diceCounts?.d100 > 0
+        || rollInfo?.type === 'stat';
+      const isEligibleD100 = isD100 && rollInfo?.type !== 'damage' && rollInfo?.type !== 'initiative';
+      const isMyRoll = (rollInfo?.playerId || data.playerId) === user.id;
+      let finalRawDie = rawDie;
+      if (isEligibleD100 && isMyRoll && quickAccessD100Mode) {
+        const mode = quickAccessD100Mode;
+        quickAccessD100Mode = '';
+        if (typeof rawDie === 'number') {
+          const invertedRoll = rawDie === 100
+            ? 100
+            : Number(String(rawDie).padStart(2, '0').split('').reverse().join(''));
+          if ((mode === 'chance' && invertedRoll > rawDie)
+            || (mode === 'malchance' && invertedRoll < rawDie)) {
+            finalRawDie = invertedRoll;
+          }
+        }
+        render();
+      }
+
       if (rollInfo) {
-        const isMyRoll = rollInfo.playerId === user.id;
         if (rollInfo.type === 'damage') {
           const rolledTotal = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
           const finalRoll = Math.floor(rolledTotal * (Number(rollInfo.multiplier) || 1));
@@ -5902,7 +5929,7 @@ async function initialise() {
             rollInfo.characterId
           );
         } else {
-          const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : 1);
+          const finalRoll = typeof finalRawDie === 'number' ? finalRawDie : (typeof totalVal === 'number' ? totalVal : 1);
           displayAndAnnounceRollResult(
             rollInfo.statName,
             rollInfo.statValue,
@@ -5917,9 +5944,8 @@ async function initialise() {
           );
         }
       } else {
-        const isD100 = data.diceNotation?.toLowerCase().includes('d100') || data.diceCounts?.d100 > 0;
         const isD12 = data.diceNotation?.toLowerCase().includes('d12') || data.diceCounts?.d12 > 0;
-        const finalRoll = typeof rawDie === 'number' ? rawDie : (typeof totalVal === 'number' ? totalVal : null);
+        const finalRoll = typeof finalRawDie === 'number' ? finalRawDie : (typeof totalVal === 'number' ? totalVal : null);
         if (isD100) {
           if (finalRoll === 1) {
             playCritSound('crit-fail', data.rollId || Date.now());
@@ -6077,6 +6103,12 @@ function bindEvents() {
     const input = event.currentTarget;
     quickAccessVsIntensity = input.value;
     input.setCustomValidity(input.value !== '' && !Number.isInteger(Number(input.value)) ? 'Enter a whole number.' : '');
+  });
+  app.querySelectorAll('.qa-d100-mode').forEach((checkbox) => {
+    checkbox.addEventListener('change', () => {
+      quickAccessD100Mode = checkbox.checked ? checkbox.dataset.qaD100Mode || '' : '';
+      render();
+    });
   });
   if (pendingDependentSkillRoll) {
     const closeModal = () => {
