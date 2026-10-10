@@ -6151,7 +6151,7 @@ function bindEvents() {
       const modLabel = btn.dataset.modLabel || '';
       const modBonus = parseInt(btn.dataset.modBonus) || 0;
       const parsedMultiplier = parseFloat(btn.dataset.multiplier);
-      const multiplier = Number.isFinite(parsedMultiplier) && parsedMultiplier > 0 ? parsedMultiplier : 1.5;
+      const multiplier = Number.isFinite(parsedMultiplier) && parsedMultiplier > 0 ? parsedMultiplier : 1;
       rollWeaponDamage(weaponName, dice, baseBonus, modLabel, modBonus, multiplier);
     });
   });
