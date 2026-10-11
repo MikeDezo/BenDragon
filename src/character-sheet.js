@@ -4448,59 +4448,6 @@ function rollsAndIniPage() {
         `}
       </div>
     </div>
-        </div>
-      </div>
-      <div class="tracker-table-wrap roll-history-scroll-wrap">
-        ${filteredRolls.length === 0 ? `
-          <div class="tracker-empty-state">${allRolls.length === 0 ? 'No rolls have been recorded yet. Rolls from character stats, initiative, and dice tray will appear here in real-time.' : 'No rolls match the current filter.'}</div>
-        ` : `
-          <table class="tracker-table">
-            <thead>
-              <tr>
-                ${renderRollHistoryTh('time', 'Time', 'width: 85px;')}
-                ${renderRollHistoryTh('charName', 'Character / Player')}
-                ${renderRollHistoryTh('stat', 'Roll / Stat')}
-                ${renderRollHistoryTh('formula', 'Formula & Details')}
-                ${renderRollHistoryTh('outcome', 'Outcome', '', 'right')}
-              </tr>
-            </thead>
-            <tbody>
-              ${filteredRolls.map((roll) => {
-                const timeStr = roll.timestamp ? new Date(roll.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
-                let outcomeClass = 'outcome-white';
-                if (roll.outcomeType === 'crit-fail' || roll.outcomeType === 'crit-success') outcomeClass = 'outcome-crit';
-                else if (roll.outcomeType === 'red') outcomeClass = 'outcome-red';
-                else if (roll.outcomeType === 'yellow') outcomeClass = 'outcome-yellow';
-                else if (roll.outcomeType === 'green' || roll.outcomeType === 'initiative') outcomeClass = 'outcome-green';
-
-                let badgeText = roll.outcomeLabel || 'Roll';
-                if (roll.outcomeType === 'crit-fail') badgeText = '💥 CRITICAL FAIL (1)';
-                if (roll.outcomeType === 'crit-success') badgeText = '🌟 CRITICAL SUCCESS (100)';
-
-                return `<tr>
-                  <td class="log-cell-time">${timeStr}</td>
-                  <td>
-                    <div class="log-cell-char">
-                      <strong class="tracker-char-name">${esc(roll.charName || 'Character')}</strong>
-                      <span class="log-player-sub">${esc(roll.playerName || 'Player')}</span>
-                    </div>
-                  </td>
-                  <td class="log-cell-stat">
-                    ${esc(roll.statName || 'Roll')}
-                  </td>
-                  <td class="log-cell-detail">
-                    <code>${esc(roll.detail || `Roll: ${roll.roll}`)}</code>
-                  </td>
-                  <td style="text-align: right;">
-                    <span class="roll-log-badge ${outcomeClass}">${esc(badgeText)}</span>
-                  </td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        `}
-      </div>
-    </div>
   </div>`;
 }
 
