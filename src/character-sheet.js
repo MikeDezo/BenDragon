@@ -2390,9 +2390,11 @@ function rollResultBannerHtml() {
 
   if (activeRollResult.type === 'damage') {
     const bonusStr = activeRollResult.flatBonus >= 0 ? `+ ${activeRollResult.flatBonus}` : `- ${Math.abs(activeRollResult.flatBonus)}`;
-    const diceDetail = activeRollResult.individualRolls?.length
-      ? `${activeRollResult.diceStr} (${activeRollResult.individualRolls.join(' + ')}) ${bonusStr}`
-      : `${activeRollResult.diceStr} ${bonusStr}`;
+    const diceDetail = activeRollResult.formulaRollGroups?.length
+      ? `${formatFormulaRollGroups(activeRollResult.formulaRollGroups)} ${bonusStr}`
+      : activeRollResult.individualRolls?.length
+        ? `${activeRollResult.diceStr} (${activeRollResult.individualRolls.join(' + ')}) ${bonusStr}`
+        : `${activeRollResult.diceStr} ${bonusStr}`;
     const multiplierDetail = activeRollResult.multiplier > 1 ? ` x ${activeRollResult.multiplier}` : '';
     return `<div class="roll-result-banner banner-red">
       <div class="roll-result-info">
@@ -2658,7 +2660,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
   render();
 }
 
-function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null, multiplier = 1) {
+function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, sides, individualRolls, flatBonus, totalDamage, charName, playerName, broadcast = true, rollId = null, multiplier = 1, formulaRollGroups = null) {
   const currentRollId = rollId || `roll_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   const label = `${weaponName}${modLabel ? ' (' + modLabel + ')' : ''}`;
   
@@ -2684,6 +2686,7 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
     flatBonus: bonus,
     multiplier,
     individualRolls: individualRolls || [],
+    formulaRollGroups,
     total: totalDamage,
     colorTone: 'red',
     outcomeType: 'red',
@@ -2695,7 +2698,10 @@ function displayAndAnnounceDamageResult(weaponName, modLabel, diceStrOrCount, si
   };
 
   const rollsText = (individualRolls && individualRolls.length > 0) ? individualRolls.join(', ') : (totalDamage - bonus);
-  const damageParts = [`${diceStr} (${rollsText})`, bonusStr].filter(Boolean);
+  const damageParts = formulaRollGroups?.length
+    ? [formatFormulaRollGroups(formulaRollGroups)]
+    : [`${diceStr} (${rollsText})`];
+  if (bonusStr) damageParts.push(bonusStr);
   const damageExpression = damageParts.join(' ');
   const totalExpression = multiplier > 1
     ? `(${damageExpression}) x ${multiplier} = ${totalDamage}`
@@ -2930,11 +2936,14 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
   } else {
     let diceTotal = 0;
     const individualRolls = [];
+    const formulaRollGroupsForDisplay = formulaDiceGroups ? [] : null;
     for (const g of diceGroups) {
       let groupTotal = 0;
+      const groupRolls = [];
       for (let i = 0; i < g.count; i++) {
         const die = Math.floor(Math.random() * g.sides) + 1;
         individualRolls.push(die);
+        groupRolls.push(die);
         groupTotal += die;
       }
       if (formulaDiceGroups) {
@@ -2945,9 +2954,12 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
         }
       }
       diceTotal += groupTotal * g.sign;
+      if (formulaRollGroupsForDisplay) {
+        formulaRollGroupsForDisplay.push({ ...g, rolls: groupRolls });
+      }
     }
     const totalDamage = Math.floor(diceTotal * multiplier + totalFlat * multiplier);
-    displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId, multiplier);
+    displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId, multiplier, formulaRollGroupsForDisplay);
   }
 }
 
@@ -3139,6 +3151,16 @@ function formatDiceNotation(diceGroups, flatBonus, includeMultipliers = true) {
   if (flatBonus > 0) notation += ` + ${flatBonus}`;
   else if (flatBonus < 0) notation += ` - ${Math.abs(flatBonus)}`;
   return notation;
+}
+
+function formatFormulaRollGroups(groups) {
+  return groups.map((group, index) => {
+    const sign = group.sign < 0 ? '-' : '+';
+    const prefix = index === 0 ? (sign === '-' ? '-' : '') : ` ${sign} `;
+    const rollText = group.rolls.length ? ` (${group.rolls.join(', ')})` : '';
+    const multiplierText = group.multiplierSteps.map((step) => ` ${step.operator} ${step.value}`).join('');
+    return `${prefix}${group.count}D${group.sides}${rollText}${multiplierText}`;
+  }).join('');
 }
 
 async function rollFormulaEffect(actionName, tierLabel, expression) {
@@ -5906,13 +5928,18 @@ async function initialise() {
           const rolledTotal = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
           const diceList = resultObj.groups?.flatMap((g) => g.dice?.map((d) => d.value) || []) || [];
           let finalRoll = Math.floor(rolledTotal * (Number(rollInfo.multiplier) || 1));
+          let formulaRollGroups = null;
           if (rollInfo.formulaDiceGroups && diceList.length >= rollInfo.count) {
             let dieIndex = 0;
             let weightedDiceTotal = 0;
+            formulaRollGroups = [];
             for (const group of rollInfo.formulaDiceGroups) {
               let groupTotal = 0;
+              const groupRolls = [];
               for (let index = 0; index < group.count; index++) {
-                groupTotal += Number(diceList[dieIndex++]) || 0;
+                const dieValue = Number(diceList[dieIndex++]) || 0;
+                groupRolls.push(dieValue);
+                groupTotal += dieValue;
               }
               for (const step of group.multiplierSteps) {
                 groupTotal = step.operator === '*'
@@ -5920,6 +5947,7 @@ async function initialise() {
                   : Math.floor(groupTotal / step.value);
               }
               weightedDiceTotal += groupTotal * group.sign;
+              formulaRollGroups.push({ ...group, rolls: groupRolls });
             }
             finalRoll = Math.floor(weightedDiceTotal + (Number(rollInfo.flatBonus) || 0));
           }
@@ -5935,7 +5963,8 @@ async function initialise() {
             data.playerName || rollInfo.playerName,
             isMyRoll,
             rollInfo.rollId,
-            rollInfo.formulaDiceGroups ? 1 : (Number(rollInfo.multiplier) || 1)
+            rollInfo.formulaDiceGroups ? 1 : (Number(rollInfo.multiplier) || 1),
+            formulaRollGroups
           );
         } else if (rollInfo.type === 'initiative') {
           const bonus = parseInt(rollInfo.bonus) || 0;
