@@ -20,6 +20,7 @@ function loadFunction(name, nextFunction, dependencies = {}) {
 
 const evaluateSafeMath = loadFunction('evaluateSafeMath', 'getSelectedWeaponDamageInfo');
 const parseDiceAndModifiers = loadFunction('parseDiceAndModifiers', 'rollFormulaEffect');
+const formatDiceNotation = loadFunction('formatDiceNotation', 'rollFormulaEffect');
 const getSelectedWeaponDamageInfo = () => ({
   damageExpr: '3D10 + 56',
   weaponQuality: 12,
@@ -85,5 +86,9 @@ assert.strictEqual(repeatedMultiplier.multiplierSteps.reduce(
   (total, step) => step.operator === '*' ? Math.floor(total * step.value) : Math.floor(total / step.value),
   1
 ), 2);
+
+const scaledRoll = parseDiceAndModifiers('(3D10 + 56) * 1.5 + 2D6 / 2');
+assert.strictEqual(formatDiceNotation(scaledRoll.diceGroups, scaledRoll.flatBonus, false), '3d10 + 2d6 + 84');
+assert.strictEqual(formatDiceNotation(scaledRoll.diceGroups, scaledRoll.flatBonus, true), '3d10 * 1.5 + 2d6 / 2 + 84');
 
 console.log('✅ Formula expression preservation and arithmetic tests passed.');

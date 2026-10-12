@@ -2871,19 +2871,8 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     } catch (e) {}
   }
 
-  let notation = diceGroups.map((g, idx) => {
-    const prefix = idx > 0 ? (g.sign < 0 ? '- ' : '+ ') : (g.sign < 0 ? '-' : '');
-    const operations = formulaDiceGroups
-      ? g.multiplierSteps.map((step) => ` ${step.operator} ${step.value}`).join('')
-      : '';
-    return `${prefix}${g.count}d${g.sides}${operations}`;
-  }).join(' ');
-
-  if (totalFlat > 0) {
-    notation += ` + ${totalFlat}`;
-  } else if (totalFlat < 0) {
-    notation += ` - ${Math.abs(totalFlat)}`;
-  }
+  const notation = formatDiceNotation(diceGroups, totalFlat, true);
+  const dicePlusNotation = formatDiceNotation(diceGroups, totalFlat, !formulaDiceGroups);
 
   const rollInfo = {
     rollId,
@@ -2915,7 +2904,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     playerId,
     playerName,
     rollTarget: 'everyone',
-    diceNotation: notation,
+    diceNotation: dicePlusNotation,
     diceCounts,
     diceIndices,
     showResults: true,
@@ -3136,6 +3125,20 @@ function parseDiceAndModifiers(str) {
     multiplier: 1,
     suffix: textSuffix
   };
+}
+
+function formatDiceNotation(diceGroups, flatBonus, includeMultipliers = true) {
+  let notation = diceGroups.map((group, index) => {
+    const prefix = index > 0 ? (group.sign < 0 ? '- ' : '+ ') : (group.sign < 0 ? '-' : '');
+    const operations = includeMultipliers
+      ? (group.multiplierSteps || []).map((step) => ` ${step.operator} ${step.value}`).join('')
+      : '';
+    return `${prefix}${group.count}d${group.sides}${operations}`;
+  }).join(' ');
+
+  if (flatBonus > 0) notation += ` + ${flatBonus}`;
+  else if (flatBonus < 0) notation += ` - ${Math.abs(flatBonus)}`;
+  return notation;
 }
 
 async function rollFormulaEffect(actionName, tierLabel, expression) {
