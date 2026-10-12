@@ -50,6 +50,12 @@ assert.deepStrictEqual(parsed.diceGroups.map(({ count, sides, sign, coefficient 
 ]);
 assert.strictEqual(parsed.flatBonus, 88);
 
+assert.strictEqual(evaluateSafeMath('5 / 2'), 2);
+assert.strictEqual(evaluateSafeMath('5 / 2 * 2'), 4);
+assert.strictEqual(evaluateSafeMath('5 * 2 / 3'), 3);
+assert.strictEqual(evaluateSafeMath('-5 / 2'), -3);
+assert.strictEqual(parseDiceAndModifiers('3D10 + 5 / 2 * 2').flatBonus, 4);
+
 const independentlyScaled = parseDiceAndModifiers('(3D10 + 56) * 2 + (3D10) * 0.5 + 32');
 assert.deepStrictEqual(independentlyScaled.diceGroups.map(({ count, coefficient }) => ({ count, coefficient })), [
   { count: 3, coefficient: 2 },
@@ -59,5 +65,15 @@ assert.strictEqual(independentlyScaled.flatBonus, 144);
 
 const precedence = parseDiceAndModifiers('3D10 + 4 * 5 - 6 / 2');
 assert.strictEqual(precedence.flatBonus, 17);
+
+const repeatedMultiplier = parseDiceAndModifiers('1D2 * 1.5 * 2').diceGroups[0];
+assert.deepStrictEqual(repeatedMultiplier.multiplierSteps, [
+  { operator: '*', value: 1.5 },
+  { operator: '*', value: 2 }
+]);
+assert.strictEqual(repeatedMultiplier.multiplierSteps.reduce(
+  (total, step) => step.operator === '*' ? Math.floor(total * step.value) : Math.floor(total / step.value),
+  1
+), 2);
 
 console.log('✅ Formula expression preservation and arithmetic tests passed.');

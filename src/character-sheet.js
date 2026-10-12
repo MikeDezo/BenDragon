@@ -680,10 +680,50 @@ function evaluateSafeMath(expr) {
   if (!expr || typeof expr !== 'string') return null;
   if (!/^[0-9\.\+\-\*\/\%\(\)\s]+$/.test(expr)) return null;
   try {
-    const val = Function('"use strict"; return (' + expr + ')')();
-    if (typeof val === 'number' && !isNaN(val) && isFinite(val)) {
-      return val;
+    const tokens = expr.match(/(?:\d+(?:\.\d*)?|\.\d+)|[()+\-*/%]/g) || [];
+    if (tokens.join('') !== expr.replace(/\s+/g, '')) return null;
+    let index = 0;
+
+    function parsePrimary() {
+      const token = tokens[index++];
+      if (token === '+' || token === '-') {
+        const value = parsePrimary();
+        return token === '-' ? -value : value;
+      }
+      if (token === '(') {
+        const value = parseExpression();
+        if (tokens[index++] !== ')') throw new Error('Missing closing parenthesis');
+        return value;
+      }
+      const value = Number(token);
+      if (!Number.isFinite(value)) throw new Error('Invalid number');
+      return value;
     }
+
+    function parseTerm() {
+      let value = parsePrimary();
+      while (['*', '/', '%'].includes(tokens[index])) {
+        const operator = tokens[index++];
+        const right = parsePrimary();
+        if ((operator === '/' || operator === '%') && right === 0) throw new Error('Division by zero');
+        if (operator === '*') value = Math.floor(value * right);
+        else if (operator === '/') value = Math.floor(value / right);
+        else value %= right;
+      }
+      return value;
+    }
+
+    function parseExpression() {
+      let value = parseTerm();
+      while (tokens[index] === '+' || tokens[index] === '-') {
+        const operator = tokens[index++];
+        const right = parseTerm();
+        value = operator === '+' ? value + right : value - right;
+      }
+      return value;
+    }
+    const val = parseExpression();
+    if (index === tokens.length && Number.isFinite(val)) return val;
   } catch (e) {}
   return null;
 }
@@ -2787,8 +2827,8 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     diceStringRepr = diceGroups.map((group, index) => {
       const sign = group.sign < 0 ? '-' : '+';
       const prefix = index === 0 ? (sign === '-' ? '-' : '') : ` ${sign} `;
-      const coefficient = group.coefficient === 1 ? '' : ` * ${group.coefficient}`;
-      return `${prefix}${group.count}D${group.sides}${coefficient}`;
+      const operations = group.multiplierSteps.map((step) => ` ${step.operator} ${step.value}`).join('');
+      return `${prefix}${group.count}D${group.sides}${operations}`;
     }).join('');
     totalDiceCount = diceGroups.reduce((total, group) => total + group.count, 0);
     primarySides = diceGroups[0]?.sides || 10;
@@ -2835,8 +2875,10 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
 
   let notation = diceGroups.map((g, idx) => {
     const prefix = idx > 0 ? (g.sign < 0 ? '- ' : '+ ') : (g.sign < 0 ? '-' : '');
-    const coefficient = formulaDiceGroups && g.coefficient !== 1 ? ` * ${g.coefficient}` : '';
-    return `${prefix}${g.count}d${g.sides}${coefficient}`;
+    const operations = formulaDiceGroups
+      ? g.multiplierSteps.map((step) => ` ${step.operator} ${step.value}`).join('')
+      : '';
+    return `${prefix}${g.count}d${g.sides}${operations}`;
   }).join(' ');
 
   if (totalFlat > 0) {
@@ -2908,8 +2950,14 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
         individualRolls.push(die);
         groupTotal += die;
       }
-      const coefficient = formulaDiceGroups ? g.coefficient : 1;
-      diceTotal += groupTotal * coefficient * g.sign;
+      if (formulaDiceGroups) {
+        for (const step of g.multiplierSteps) {
+          groupTotal = step.operator === '*'
+            ? Math.floor(groupTotal * step.value)
+            : Math.floor(groupTotal / step.value);
+        }
+      }
+      diceTotal += groupTotal * g.sign;
     }
     const totalDamage = Math.floor(diceTotal * multiplier + totalFlat * multiplier);
     displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId, multiplier);
@@ -2966,12 +3014,19 @@ function parseDiceAndModifiers(str) {
       sign: group.sign * sign
     })))
   });
-  const scale = (value, factor) => ({
-    flat: value.flat * factor,
+  const scale = (value, factor, operator = null, divisor = null) => ({
+    flat: operator === '*'
+      ? Math.floor(value.flat * factor)
+      : operator === '/'
+        ? Math.floor(value.flat / divisor)
+        : value.flat * factor,
     diceGroups: value.diceGroups.map((group) => ({
       ...group,
       coefficient: group.coefficient * Math.abs(factor),
-      sign: group.sign * Math.sign(factor)
+      sign: group.sign * Math.sign(factor),
+      multiplierSteps: operator
+        ? [...group.multiplierSteps, { operator, value: operator === '/' ? divisor : factor }]
+        : group.multiplierSteps
     }))
   });
 
@@ -2998,7 +3053,7 @@ function parseDiceAndModifiers(str) {
       tokenIndex++;
       return {
         flat: 0,
-        diceGroups: [{ count: token.count, sides: token.sides, sign: 1, coefficient: 1 }]
+        diceGroups: [{ count: token.count, sides: token.sides, sign: 1, coefficient: 1, multiplierSteps: [] }]
       };
     }
     throw new Error('Invalid formula value');
@@ -3013,15 +3068,15 @@ function parseDiceAndModifiers(str) {
       const rightHasDice = right.diceGroups.length > 0;
       if (operator === '*') {
         if (leftHasDice && rightHasDice) throw new Error('Cannot multiply dice expressions');
-        if (leftHasDice) value = scale(value, right.flat);
-        else if (rightHasDice) value = scale(right, value.flat);
-        else value = numberValue(value.flat * right.flat);
+        if (leftHasDice) value = scale(value, right.flat, '*');
+        else if (rightHasDice) value = scale(right, value.flat, '*');
+        else value = numberValue(Math.floor(value.flat * right.flat));
       } else {
         if (rightHasDice || right.flat === 0 || (operator === '%' && leftHasDice)) {
           throw new Error('Invalid dice division or modulo');
         }
         value = operator === '/'
-          ? scale(value, 1 / right.flat)
+          ? scale(value, 1 / right.flat, '/', right.flat)
           : numberValue(value.flat % right.flat);
       }
     }
@@ -5858,7 +5913,12 @@ async function initialise() {
               for (let index = 0; index < group.count; index++) {
                 groupTotal += Number(diceList[dieIndex++]) || 0;
               }
-              weightedDiceTotal += groupTotal * group.coefficient * group.sign;
+              for (const step of group.multiplierSteps) {
+                groupTotal = step.operator === '*'
+                  ? Math.floor(groupTotal * step.value)
+                  : Math.floor(groupTotal / step.value);
+              }
+              weightedDiceTotal += groupTotal * group.sign;
             }
             finalRoll = Math.floor(weightedDiceTotal + (Number(rollInfo.flatBonus) || 0));
           }
