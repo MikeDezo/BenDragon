@@ -1127,84 +1127,6 @@ function getCustomRollVariableMap(character) {
   return variables;
 }
 
-function simplifyDiceExpression(str) {
-  if (!str || typeof str !== 'string') return str;
-  const trimmed = str.trim();
-  if (!trimmed) return '';
-
-  const dicePattern = /([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g;
-  const diceMatches = Array.from(trimmed.matchAll(dicePattern));
-  if (diceMatches.length === 0) return trimmed;
-
-  let mathPortion = trimmed;
-  let textSuffix = '';
-
-  const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+(?![dD]\d+\b)[A-Za-z].*)$/);
-  if (matchSuffix) {
-    mathPortion = matchSuffix[1].trim();
-    textSuffix = matchSuffix[2];
-  }
-
-  let multiplier = null;
-  const multiplierMatch = mathPortion.match(/\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*$/);
-  if (multiplierMatch) {
-    multiplier = multiplierMatch[1];
-    mathPortion = mathPortion.slice(0, multiplierMatch.index).trim();
-  }
-
-  const withoutDiceExpr = mathPortion.replace(/([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g, (match, sign) => {
-    return (sign === '-' ? ' - 0 ' : ' + 0 ');
-  });
-
-  const flatVal = evaluateSafeMath(withoutDiceExpr);
-  if (flatVal === null) {
-    return trimmed;
-  }
-
-  const diceList = [];
-  const sidesMap = new Map();
-
-  for (const m of mathPortion.matchAll(/([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g)) {
-    const sign = m[1] === '-' ? -1 : 1;
-    const count = (m[2] ? parseInt(m[2], 10) : 1) * sign;
-    const sides = parseInt(m[3], 10);
-    if (!sidesMap.has(sides)) {
-      const entry = { sides, count: 0 };
-      sidesMap.set(sides, entry);
-      diceList.push(entry);
-    }
-    sidesMap.get(sides).count += count;
-  }
-
-  const diceParts = [];
-  for (const entry of diceList) {
-    if (entry.count !== 0) {
-      if (entry.count > 0 && diceParts.length > 0) {
-        diceParts.push('+ ' + entry.count + 'D' + entry.sides);
-      } else if (entry.count < 0) {
-        diceParts.push('- ' + Math.abs(entry.count) + 'D' + entry.sides);
-      } else {
-        diceParts.push(entry.count + 'D' + entry.sides);
-      }
-    }
-  }
-
-  if (diceParts.length === 0) {
-    const baseValue = String(Math.floor(flatVal));
-    return `${multiplier !== null ? `(${baseValue}) * ${multiplier}` : baseValue}${textSuffix}`;
-  }
-
-  const roundedFlat = Math.floor(flatVal);
-  let res = diceParts.join(' ');
-  if (roundedFlat > 0) {
-    res += ' + ' + roundedFlat;
-  } else if (roundedFlat < 0) {
-    res += ' - ' + Math.abs(roundedFlat);
-  }
-
-  return `${multiplier !== null ? `(${res}) * ${multiplier}` : res}${textSuffix}`;
-}
-
 function translateFormula(formula, stats) {
   if (!formula || typeof formula !== 'string') return '';
 
@@ -1269,13 +1191,13 @@ function translateFormula(formula, stats) {
   result = result.replace(/\b(WeaponDamage|Weapon\s*Damage|Weapon_Damage|weapondamage|weapondmg|WeaponDmg)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
     const arg = (rawArgs || '').trim();
     if (!arg) {
-      return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
+      return `(${stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10'})`;
     }
     if (stats?._character) {
       const specific = getSelectedWeaponDamageInfo(stats._character, arg);
-      return specific.damageExpr;
+      return `(${specific.damageExpr})`;
     }
-    return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
+    return `(${stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10'})`;
   });
 
   result = result.replace(/\b(Selected\s*Weapon\s*Quality|SelectedWeaponQuality|Weapon\s*Quality|Weapon_Quality|WeaponQuality|Selected\s*Weapon\s*Critical\s*Multiplier|SelectedWeaponCriticalMultiplier|Weapon\s*Critical\s*Multiplier|Weapon_Critical_Multiplier|WeaponCriticalMultiplier|CriticalMultiplier)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
@@ -1294,24 +1216,28 @@ function translateFormula(formula, stats) {
   const baseStatPattern = 'Fighting|Fgt|Strength|Stength|Str|Agility|Agi|Endurance|End|Speed|Spd|Spe|Intelligence|Intel|Int|Wisdom|Wis|Intuition|Intui|Intu|Psyche|Psy|Combat Capacity|CC|Mana Pool|MP|Movement|Mov|Mvt|MV|Mv|Mouvement|WeaponDamage|Weapon Damage|Weapon_Damage|weapondamage|weapondmg';
   const fullPattern = escapedKeys ? `(?:${escapedKeys}|${baseStatPattern})` : baseStatPattern;
   const tokenRegex = new RegExp(`\\b(${fullPattern})\\b`, 'gi');
+  const valueForFormula = (value, fallback) => {
+    if (typeof value === 'number') return String(value);
+    if (value == null) return fallback;
+    const text = String(value);
+    return /\b\d*\s*[dD]\s*\d+\b/.test(text) ? `(${text})` : text;
+  };
 
   function replaceStats(str) {
     let replaced = str.replace(tokenRegex, (match) => {
       const trimmed = match.trim();
       if (stats[trimmed] !== undefined) {
-        const val = stats[trimmed];
-        return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+        return valueForFormula(stats[trimmed], match);
       }
       const lower = trimmed.toLowerCase();
       for (const k of Object.keys(stats)) {
         if (k.toLowerCase() === lower) {
-          const val = stats[k];
-          return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+          return valueForFormula(stats[k], match);
         }
       }
       const canonical = statAliases[lower] || match;
       const val = stats[canonical] ?? stats[match] ?? stats[lower.toUpperCase()];
-      return typeof val === 'number' ? String(val) : (val != null ? String(val) : match);
+      return valueForFormula(val, match);
     });
 
     // Fallback for any other [SpecName](IB|TB|PB) pattern (case-insensitive)
@@ -1324,7 +1250,7 @@ function translateFormula(formula, stats) {
           const kPrefix = kClean.slice(0, -suf.length);
           if (kPrefix && (kPrefix === cleanSpec || kPrefix.startsWith(cleanSpec))) {
             const val = stats[k];
-            return typeof val === 'number' ? String(val) : (val != null ? String(val) : '0');
+            return valueForFormula(val, '0');
           }
         }
       }
@@ -1354,7 +1280,9 @@ function translateFormula(formula, stats) {
       }
       const isDiceCount = /^\s*[dD]\s*\d+/.test(fullStr.slice(offset + match.length));
 
-      if (openBefore > 0 && !isDiceCount) {
+      if (isDiceCount) {
+        return `(${Math.floor(val)})`;
+      } else if (openBefore > 0) {
         return String(val);
       } else {
         return String(Math.floor(val));
@@ -1370,10 +1298,8 @@ function translateFormula(formula, stats) {
     return String(Math.floor(wholeVal));
   }
 
-  // Simplify dice arithmetic (e.g. 1D10 + 15 + 10 -> 1D10 + 25)
-  result = simplifyDiceExpression(result);
-
-  return result;
+  result = result.replace(/\((\d+)\)\s*[dD]\s*(\d+)/g, '($1D$2)');
+  return result.replace(/(\d+)\s*[dD]\s*(\d+)/g, '$1D$2');
 }
 
 function formulaCellHtml(path, value, character, variables = getCharacterStatsMap(character)) {
@@ -2843,7 +2769,7 @@ async function rollUniversalCheck(name, statValue, targetTier = 'standard', colu
   }
 }
 
-async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = '', modBonus = 0, multiplier = 1) {
+async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = '', modBonus = 0, multiplier = 1, formulaDiceGroups = null) {
   const character = currentCharacter();
   const charId = activeCharacterId || Object.entries(state.characters).find(([_, c]) => c === character)?.[0] || null;
   const charName = character?.name || 'Character';
@@ -2856,7 +2782,21 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
   let primarySides = 10;
   let diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
 
-  if (parsed && parsed.hasDice) {
+  if (formulaDiceGroups) {
+    diceGroups = formulaDiceGroups.map((group) => ({ ...group }));
+    diceStringRepr = diceGroups.map((group, index) => {
+      const sign = group.sign < 0 ? '-' : '+';
+      const prefix = index === 0 ? (sign === '-' ? '-' : '') : ` ${sign} `;
+      const coefficient = group.coefficient === 1 ? '' : ` * ${group.coefficient}`;
+      return `${prefix}${group.count}D${group.sides}${coefficient}`;
+    }).join('');
+    totalDiceCount = diceGroups.reduce((total, group) => total + group.count, 0);
+    primarySides = diceGroups[0]?.sides || 10;
+    for (const group of diceGroups) {
+      const countsKey = `d${group.sides}`;
+      if (diceCounts[countsKey] !== undefined) diceCounts[countsKey] += group.count;
+    }
+  } else if (parsed && parsed.hasDice) {
     diceGroups = parsed.diceGroups;
     diceStringRepr = parsed.diceString;
     embeddedFlat = parsed.flatBonus || 0;
@@ -2895,7 +2835,8 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
 
   let notation = diceGroups.map((g, idx) => {
     const prefix = idx > 0 ? (g.sign < 0 ? '- ' : '+ ') : (g.sign < 0 ? '-' : '');
-    return `${prefix}${g.count}d${g.sides}`;
+    const coefficient = formulaDiceGroups && g.coefficient !== 1 ? ` * ${g.coefficient}` : '';
+    return `${prefix}${g.count}d${g.sides}${coefficient}`;
   }).join(' ');
 
   if (totalFlat > 0) {
@@ -2912,6 +2853,7 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     modLabel,
     diceStr: diceStringRepr,
     diceGroups,
+    formulaDiceGroups: formulaDiceGroups ? diceGroups : null,
     count: totalDiceCount,
     sides: primarySides,
     flatBonus: totalFlat,
@@ -2960,13 +2902,16 @@ async function rollWeaponDamage(weaponName, diceString, baseBonus, modLabel = ''
     let diceTotal = 0;
     const individualRolls = [];
     for (const g of diceGroups) {
+      let groupTotal = 0;
       for (let i = 0; i < g.count; i++) {
         const die = Math.floor(Math.random() * g.sides) + 1;
         individualRolls.push(die);
-        diceTotal += (g.sign < 0 ? -die : die);
+        groupTotal += die;
       }
+      const coefficient = formulaDiceGroups ? g.coefficient : 1;
+      diceTotal += groupTotal * coefficient * g.sign;
     }
-    const totalDamage = Math.floor((diceTotal + totalFlat) * multiplier);
+    const totalDamage = Math.floor(diceTotal * multiplier + totalFlat * multiplier);
     displayAndAnnounceDamageResult(weaponName, modLabel, diceStringRepr, null, individualRolls, totalFlat, totalDamage, charName, playerName, false, rollId, multiplier);
   }
 }
@@ -2976,138 +2921,167 @@ function parseDiceAndModifiers(str) {
   const trimmed = str.trim();
   if (!trimmed || trimmed === '—') return null;
 
-  const diceRegex = /([+\-]?)\s*(\d*)\s*[dD]\s*(\d+)/g;
-  const diceMatches = Array.from(trimmed.matchAll(diceRegex));
+  let mathPortion = trimmed;
+  let textSuffix = '';
+  const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+(?![dD]\d+\b)[A-Za-z].*)$/);
+  if (matchSuffix) {
+    mathPortion = matchSuffix[1].trim();
+    textSuffix = matchSuffix[2].trim();
+  }
 
-  if (diceMatches.length > 0) {
-    let mathPortion = trimmed;
-    let textSuffix = '';
+  const tokens = [];
+  let remaining = mathPortion;
+  while (remaining) {
+    const leadingSpace = remaining.match(/^\s+/);
+    if (leadingSpace) remaining = remaining.slice(leadingSpace[0].length);
+    if (!remaining) break;
 
-    const matchSuffix = trimmed.match(/^([+\-\d\s\*\/\%\(\)dD\.]+?)(\s+(?![dD]\d+\b)[A-Za-z].*)$/);
-    if (matchSuffix) {
-      mathPortion = matchSuffix[1].trim();
-      textSuffix = matchSuffix[2].trim();
+    const diceMatch = remaining.match(/^(\d*)\s*[dD]\s*(\d+)/);
+    if (diceMatch) {
+      tokens.push({ type: 'dice', count: parseInt(diceMatch[1], 10) || 1, sides: parseInt(diceMatch[2], 10) });
+      remaining = remaining.slice(diceMatch[0].length);
+      continue;
     }
-
-    let multiplier = 1;
-    const multiplierMatch = mathPortion.match(/\*\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))\s*$/);
-    if (multiplierMatch) {
-      multiplier = Number(multiplierMatch[1]);
-      mathPortion = mathPortion.slice(0, multiplierMatch.index).trim();
+    const numberMatch = remaining.match(/^(?:\d+(?:\.\d*)?|\.\d+)/);
+    if (numberMatch) {
+      tokens.push({ type: 'number', value: Number(numberMatch[0]) });
+      remaining = remaining.slice(numberMatch[0].length);
+      continue;
     }
-
-    const withoutDice = mathPortion.replace(diceRegex, (match, sign) => {
-      return (sign === '-' ? ' - 0 ' : ' + 0 ');
-    });
-
-    let flatBonus = 0;
-    const flatVal = evaluateSafeMath(withoutDice);
-    if (flatVal !== null) {
-      flatBonus = Math.floor(flatVal);
-    } else {
-      let bonus = 0;
-      let hasExplicitSign = false;
-      for (const m of withoutDice.matchAll(/([+\-])\s*(\d+(?:\.\d+)?)/g)) {
-        hasExplicitSign = true;
-        const sign = m[1] === '-' ? -1 : 1;
-        bonus += sign * parseInt(m[2], 10);
-      }
-      if (!hasExplicitSign) {
-        const standalone = withoutDice.match(/\b\d+\b/);
-        if (standalone) bonus = parseInt(standalone[0], 10);
-      }
-      flatBonus = bonus;
+    const operator = remaining[0];
+    if ('()+-*/%'.includes(operator)) {
+      tokens.push({ type: operator });
+      remaining = remaining.slice(1);
+      continue;
     }
+    return { hasDice: false, isNumeric: false, text: trimmed };
+  }
 
-    const diceList = [];
-    const sidesMap = new Map();
+  let tokenIndex = 0;
+  const numberValue = (value) => ({ flat: value, diceGroups: [] });
+  const combine = (left, right, sign) => ({
+    flat: left.flat + sign * right.flat,
+    diceGroups: left.diceGroups.concat(right.diceGroups.map((group) => ({
+      ...group,
+      sign: group.sign * sign
+    })))
+  });
+  const scale = (value, factor) => ({
+    flat: value.flat * factor,
+    diceGroups: value.diceGroups.map((group) => ({
+      ...group,
+      coefficient: group.coefficient * Math.abs(factor),
+      sign: group.sign * Math.sign(factor)
+    }))
+  });
 
-    for (const m of mathPortion.matchAll(diceRegex)) {
-      const sign = m[1] === '-' ? -1 : 1;
-      const count = (m[2] ? parseInt(m[2], 10) : 1) * sign;
-      const sides = parseInt(m[3], 10);
-      if (!sidesMap.has(sides)) {
-        const entry = { sides, count: 0 };
-        sidesMap.set(sides, entry);
-        diceList.push(entry);
-      }
-      sidesMap.get(sides).count += count;
+  function parsePrimary() {
+    const token = tokens[tokenIndex];
+    if (!token) throw new Error('Missing formula value');
+    if (token.type === '+' || token.type === '-') {
+      tokenIndex++;
+      const value = parsePrimary();
+      return token.type === '-' ? scale(value, -1) : value;
     }
+    if (token.type === '(') {
+      tokenIndex++;
+      const value = parseExpression();
+      if (tokens[tokenIndex]?.type !== ')') throw new Error('Missing closing parenthesis');
+      tokenIndex++;
+      return value;
+    }
+    if (token.type === 'number') {
+      tokenIndex++;
+      return numberValue(token.value);
+    }
+    if (token.type === 'dice') {
+      tokenIndex++;
+      return {
+        flat: 0,
+        diceGroups: [{ count: token.count, sides: token.sides, sign: 1, coefficient: 1 }]
+      };
+    }
+    throw new Error('Invalid formula value');
+  }
 
-    const diceGroups = [];
-    const diceParts = [];
-    let totalDiceCount = 0;
-
-    for (const entry of diceList) {
-      if (entry.count !== 0) {
-        diceGroups.push({
-          count: Math.abs(entry.count),
-          sides: entry.sides,
-          sign: entry.count < 0 ? -1 : 1
-        });
-        totalDiceCount += Math.abs(entry.count);
-        if (entry.count > 0 && diceParts.length > 0) {
-          diceParts.push('+ ' + entry.count + 'D' + entry.sides);
-        } else if (entry.count < 0) {
-          diceParts.push('- ' + Math.abs(entry.count) + 'D' + entry.sides);
-        } else {
-          diceParts.push(entry.count + 'D' + entry.sides);
+  function parseTerm() {
+    let value = parsePrimary();
+    while (['*', '/', '%'].includes(tokens[tokenIndex]?.type)) {
+      const operator = tokens[tokenIndex++].type;
+      const right = parsePrimary();
+      const leftHasDice = value.diceGroups.length > 0;
+      const rightHasDice = right.diceGroups.length > 0;
+      if (operator === '*') {
+        if (leftHasDice && rightHasDice) throw new Error('Cannot multiply dice expressions');
+        if (leftHasDice) value = scale(value, right.flat);
+        else if (rightHasDice) value = scale(right, value.flat);
+        else value = numberValue(value.flat * right.flat);
+      } else {
+        if (rightHasDice || right.flat === 0 || (operator === '%' && leftHasDice)) {
+          throw new Error('Invalid dice division or modulo');
         }
+        value = operator === '/'
+          ? scale(value, 1 / right.flat)
+          : numberValue(value.flat % right.flat);
       }
     }
+    return value;
+  }
 
-    const diceString = diceParts.join(' ') || '1D10';
-
-    const diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
-    for (const g of diceGroups) {
-      const k = `d${g.sides}`;
-      if (diceCounts[k] !== undefined) {
-        diceCounts[k] = (diceCounts[k] || 0) + g.count;
-      }
+  function parseExpression() {
+    let value = parseTerm();
+    while (tokens[tokenIndex]?.type === '+' || tokens[tokenIndex]?.type === '-') {
+      const operator = tokens[tokenIndex++].type;
+      value = combine(value, parseTerm(), operator === '+' ? 1 : -1);
     }
+    return value;
+  }
 
-    let diceNotation = diceParts.map((p) => p.toLowerCase()).join(' ');
-    if (flatBonus > 0) {
-      diceNotation += ` + ${flatBonus}`;
-    } else if (flatBonus < 0) {
-      diceNotation += ` - ${Math.abs(flatBonus)}`;
-    }
+  let parsed;
+  try {
+    parsed = parseExpression();
+    if (tokenIndex !== tokens.length) throw new Error('Unexpected formula token');
+  } catch {
+    return { hasDice: false, isNumeric: false, text: trimmed };
+  }
 
+  if (!parsed.diceGroups.length) {
     return {
-      hasDice: true,
-      isNumeric: false,
-      diceGroups,
-      totalDiceCount,
-      diceString,
-      diceNotation,
-      diceCounts,
-      count: diceGroups[0]?.count || 1,
-      sides: diceGroups[0]?.sides || 10,
-      flatBonus,
-      multiplier,
+      hasDice: false,
+      isNumeric: true,
+      total: Math.floor(parsed.flat),
       suffix: textSuffix
     };
   }
 
-  const mathOnly = trimmed.match(/^[+\-\d\s\*\/\(\)\.]+$/);
-  if (mathOnly) {
-    try {
-      const val = Math.floor(Function('"use strict"; return (' + trimmed + ')')());
-      if (!isNaN(val) && isFinite(val)) {
-        return {
-          hasDice: false,
-          isNumeric: true,
-          total: val,
-          suffix: ''
-        };
-      }
-    } catch (e) {}
-  }
+  const diceGroups = parsed.diceGroups.filter((group) => group.coefficient !== 0);
+  const totalDiceCount = diceGroups.reduce((total, group) => total + group.count, 0);
+  const diceCounts = { d1: 0, d2: 0, d3: 0, d4: 0, d6: 0, d8: 0, d10: 0, d12: 0, d20: 0, d100: 0, dF: 0 };
+  const diceParts = diceGroups.map((group, index) => {
+    const sign = group.sign < 0 ? '-' : '+';
+    const prefix = index === 0 ? (sign === '-' ? '-' : '') : ` ${sign} `;
+    const multiplier = group.coefficient === 1 ? '' : ` * ${group.coefficient}`;
+    const key = `d${group.sides}`;
+    if (diceCounts[key] !== undefined) diceCounts[key] += group.count;
+    return `${prefix}${group.count}D${group.sides}${multiplier}`;
+  });
+  const diceString = diceParts.join('');
+  const flatBonus = Math.floor(parsed.flat);
+  const diceNotation = `${diceString}${flatBonus > 0 ? ` + ${flatBonus}` : flatBonus < 0 ? ` - ${Math.abs(flatBonus)}` : ''}`;
 
   return {
-    hasDice: false,
+    hasDice: true,
     isNumeric: false,
-    text: trimmed
+    diceGroups,
+    totalDiceCount,
+    diceString,
+    diceNotation,
+    diceCounts,
+    count: diceGroups[0]?.count || 1,
+    sides: diceGroups[0]?.sides || 10,
+    flatBonus,
+    multiplier: 1,
+    suffix: textSuffix
   };
 }
 
@@ -3120,10 +3094,8 @@ async function rollFormulaEffect(actionName, tierLabel, expression) {
   const label = `${actionName} (${tierLabel})`;
 
   if (parsed && parsed.hasDice && parsed.totalDiceCount > 0) {
-    const diceString = parsed.diceString;
-    const multiplierLabel = parsed.multiplier !== 1 ? ` x${parsed.multiplier}` : '';
-    const modLabel = `${tierLabel}${multiplierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
-    await rollWeaponDamage(actionName, diceString, parsed.flatBonus, modLabel, 0, parsed.multiplier);
+    const modLabel = `${tierLabel}${parsed.suffix ? ' - ' + parsed.suffix : ''}`;
+    await rollWeaponDamage(actionName, parsed.diceString, parsed.flatBonus, modLabel, 0, 1, parsed.diceGroups);
     return;
   }
 
@@ -5876,8 +5848,20 @@ async function initialise() {
       if (rollInfo) {
         if (rollInfo.type === 'damage') {
           const rolledTotal = typeof totalVal === 'number' ? totalVal : (typeof rawDie === 'number' ? rawDie : 1);
-          const finalRoll = Math.floor(rolledTotal * (Number(rollInfo.multiplier) || 1));
           const diceList = resultObj.groups?.flatMap((g) => g.dice?.map((d) => d.value) || []) || [];
+          let finalRoll = Math.floor(rolledTotal * (Number(rollInfo.multiplier) || 1));
+          if (rollInfo.formulaDiceGroups && diceList.length >= rollInfo.count) {
+            let dieIndex = 0;
+            let weightedDiceTotal = 0;
+            for (const group of rollInfo.formulaDiceGroups) {
+              let groupTotal = 0;
+              for (let index = 0; index < group.count; index++) {
+                groupTotal += Number(diceList[dieIndex++]) || 0;
+              }
+              weightedDiceTotal += groupTotal * group.coefficient * group.sign;
+            }
+            finalRoll = Math.floor(weightedDiceTotal + (Number(rollInfo.flatBonus) || 0));
+          }
           displayAndAnnounceDamageResult(
             rollInfo.weaponName || rollInfo.label,
             rollInfo.modLabel || '',
@@ -5890,7 +5874,7 @@ async function initialise() {
             data.playerName || rollInfo.playerName,
             isMyRoll,
             rollInfo.rollId,
-            Number(rollInfo.multiplier) || 1
+            rollInfo.formulaDiceGroups ? 1 : (Number(rollInfo.multiplier) || 1)
           );
         } else if (rollInfo.type === 'initiative') {
           const bonus = parseInt(rollInfo.bonus) || 0;
