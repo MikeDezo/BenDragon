@@ -40,7 +40,17 @@ const translated = translateFormula(formula, {
   _character: {}
 });
 
-assert.strictEqual(translated, '(3D10 + 56) + (3D10) + 32');
+assert.strictEqual(translated, '3D10 + 56 + (3D10) + 32');
+
+assert.strictEqual(translateFormula('WeaponDamage()', {
+  WeaponDamage: '3D10 + 58',
+  _character: {}
+}), '3D10 + 58');
+
+assert.strictEqual(translateFormula('(WeaponDamage()) * 2', {
+  WeaponDamage: '3D10 + 58',
+  _character: {}
+}), '(3D10 + 58) * 2');
 
 const parsed = parseDiceAndModifiers(translated);
 assert.strictEqual(parsed.hasDice, true);

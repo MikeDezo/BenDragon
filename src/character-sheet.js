@@ -1231,13 +1231,13 @@ function translateFormula(formula, stats) {
   result = result.replace(/\b(WeaponDamage|Weapon\s*Damage|Weapon_Damage|weapondamage|weapondmg|WeaponDmg)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
     const arg = (rawArgs || '').trim();
     if (!arg) {
-      return `(${stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10'})`;
+      return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
     }
     if (stats?._character) {
       const specific = getSelectedWeaponDamageInfo(stats._character, arg);
-      return `(${specific.damageExpr})`;
+      return specific.damageExpr;
     }
-    return `(${stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10'})`;
+    return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
   });
 
   result = result.replace(/\b(Selected\s*Weapon\s*Quality|SelectedWeaponQuality|Weapon\s*Quality|Weapon_Quality|WeaponQuality|Selected\s*Weapon\s*Critical\s*Multiplier|SelectedWeaponCriticalMultiplier|Weapon\s*Critical\s*Multiplier|Weapon_Critical_Multiplier|WeaponCriticalMultiplier|CriticalMultiplier)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
@@ -1258,9 +1258,7 @@ function translateFormula(formula, stats) {
   const tokenRegex = new RegExp(`\\b(${fullPattern})\\b`, 'gi');
   const valueForFormula = (value, fallback) => {
     if (typeof value === 'number') return String(value);
-    if (value == null) return fallback;
-    const text = String(value);
-    return /\b\d*\s*[dD]\s*\d+\b/.test(text) ? `(${text})` : text;
+    return value == null ? fallback : String(value);
   };
 
   function replaceStats(str) {
