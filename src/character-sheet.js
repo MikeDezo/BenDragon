@@ -717,7 +717,10 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
         targetIdx = parsedNum;
       } else {
         const cleanSelector = weaponSelector.replace(/^['"]|['"]$/g, '').trim().toLowerCase();
-        const foundIdx = rawWeapons.findIndex((w) => (w?.[0] || '').trim().toLowerCase() === cleanSelector);
+        const foundIdx = rawWeapons.findIndex((w) => {
+          const name = Array.isArray(w) ? w[0] : (w?.Name ?? w?.name ?? w?.[0]);
+          return String(name ?? '').trim().toLowerCase() === cleanSelector;
+        });
         if (foundIdx !== -1) {
           targetIdx = foundIdx;
         } else {
@@ -901,6 +904,7 @@ function getSelectedWeaponDamageInfo(character, weaponSelector = null) {
     fightMult,
     totalDiceCount,
     finalDiceStr,
+    weaponQuality: parseFloat(weaponQuality) || 0,
     criticalMultiplier,
     statDmgBonus,
     specPotentialBonus,
@@ -1019,6 +1023,28 @@ function getCharacterStatsMap(character) {
   map['WeaponFlatBonus'] = weaponInfo.totalFlatBonus;
   map['WeaponDice'] = weaponInfo.finalDiceStr;
   map['WeaponName'] = weaponInfo.weaponName;
+  map['WeaponQuality'] = weaponInfo.weaponQuality;
+  map['Weapon Quality'] = weaponInfo.weaponQuality;
+  map['SelectedWeaponQuality'] = weaponInfo.weaponQuality;
+  map['Selected Weapon Quality'] = weaponInfo.weaponQuality;
+  map['WeaponCriticalMultiplier'] = weaponInfo.criticalMultiplier;
+  map['Weapon Critical Multiplier'] = weaponInfo.criticalMultiplier;
+  map['SelectedWeaponCriticalMultiplier'] = weaponInfo.criticalMultiplier;
+  map['Selected Weapon Critical Multiplier'] = weaponInfo.criticalMultiplier;
+
+  const storedWeapons = character?.data?.tables?.Weapons;
+  const rawWeapons = Array.isArray(storedWeapons)
+    ? storedWeapons
+    : (storedWeapons && typeof storedWeapons === 'object'
+      ? Object.keys(storedWeapons).sort((a, b) => Number(a) - Number(b)).map((key) => storedWeapons[key])
+      : []);
+  rawWeapons.forEach((weapon, index) => {
+    const name = String(Array.isArray(weapon) ? weapon[0] : (weapon?.Name ?? weapon?.name ?? weapon?.[0] ?? '')).trim();
+    if (!name) return;
+    const weaponInfoForRow = getSelectedWeaponDamageInfo(character, index);
+    map[`${name} Quality`] = weaponInfoForRow.weaponQuality;
+    map[`${name} Critical Multiplier`] = weaponInfoForRow.criticalMultiplier;
+  });
 
   map._weaponInfo = weaponInfo;
   map._character = character;
@@ -1047,7 +1073,7 @@ function getCustomRollVariableMap(character) {
       : storedRows && typeof storedRows === 'object'
         ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
         : [];
-    const weaponColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8];
+    const weaponColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13];
     rows.forEach((row) => {
       if (!row) return;
       const rowName = String(Array.isArray(row) ? row[0] : (row.Name ?? row.name ?? row[0] ?? '')).trim();
@@ -1250,6 +1276,17 @@ function translateFormula(formula, stats) {
       return specific.damageExpr;
     }
     return stats?.WeaponDamage || stats?._weaponInfo?.damageExpr || '1D10';
+  });
+
+  result = result.replace(/\b(Selected\s*Weapon\s*Quality|SelectedWeaponQuality|Weapon\s*Quality|Weapon_Quality|WeaponQuality|Selected\s*Weapon\s*Critical\s*Multiplier|SelectedWeaponCriticalMultiplier|Weapon\s*Critical\s*Multiplier|Weapon_Critical_Multiplier|WeaponCriticalMultiplier|CriticalMultiplier)\s*\(([^)]*)\)/gi, (match, fnName, rawArgs) => {
+    const arg = (rawArgs || '').trim();
+    const weaponInfo = stats?._character
+      ? getSelectedWeaponDamageInfo(stats._character, arg || null)
+      : stats?._weaponInfo;
+    if (!weaponInfo) return match;
+    return /quality/i.test(fnName)
+      ? String(weaponInfo.weaponQuality)
+      : String(weaponInfo.criticalMultiplier);
   });
 
   const allKeys = Object.keys(stats).sort((a, b) => b.length - a.length);
