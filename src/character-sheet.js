@@ -2385,6 +2385,14 @@ function playCritSound(outcomeType, rollId = null) {
   }
 }
 
+function playNaturalRollCritSound(roll, rollId) {
+  if (roll === 1) {
+    playCritSound('crit-fail', rollId);
+  } else if (roll === 100) {
+    playCritSound('crit-success', rollId);
+  }
+}
+
 function rollResultBannerHtml() {
   if (!activeRollResult) return '';
 
@@ -2623,7 +2631,7 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     timestamp: Date.now()
   };
 
-  playCritSound(resolution.outcomeType, currentRollId);
+  playNaturalRollCritSound(rolledTotal, currentRollId);
 
   const targetSuffix = targetTier && targetTier !== 'standard' ? ` [Target: ${targetTier.toUpperCase()}, Karma: ${karmaCost}]` : '';
   const shiftSuffix = cShift !== 0 ? ` [CS: ${cShift > 0 ? '+' + cShift : cShift}]` : '';
@@ -6043,9 +6051,13 @@ async function initialise() {
         if (data.rollMode === 'chance' || data.rollMode === 'malchance') {
           activeRollResult = data;
         }
-        const outcome = data.outcomeType || (data.roll === 1 ? 'crit-fail' : (data.roll === 100 ? 'crit-success' : null));
-        if (outcome) {
-          playCritSound(outcome, data.rollId || data.timestamp);
+        if (data.statName) {
+          playNaturalRollCritSound(data.rawRoll ?? data.roll, data.rollId || data.timestamp);
+        } else {
+          const outcome = data.outcomeType || (data.roll === 1 ? 'crit-fail' : (data.roll === 100 ? 'crit-success' : null));
+          if (outcome) {
+            playCritSound(outcome, data.rollId || data.timestamp);
+          }
         }
 
         if (data.type === 'initiative') {
