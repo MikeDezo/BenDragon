@@ -2466,7 +2466,7 @@ function rollResultBannerHtml() {
         ${targetTag}
       </div>
       <div class="roll-result-detail">
-        D100 Roll: <strong class="roll-score-num">${activeRollResult.roll}</strong>
+        D100 Roll: <strong class="roll-score-num">${activeRollResult.roll}</strong>${activeRollResult.rollMode && typeof activeRollResult.originalRoll === 'number' ? ` <span>(Effet ${activeRollResult.rollMode === 'chance' ? 'Chance' : 'Malchance'}: ${activeRollResult.originalRoll} → ${activeRollResult.roll})</span>` : ''}
       </div>
     </div>
     <div class="roll-result-outcome outcome-${activeRollResult.colorTone}">
@@ -2568,7 +2568,7 @@ function displayAndAnnounceInitiativeResult(label, bonus, d12Val, total, charNam
   render();
 }
 
-function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard', columnShift = 0, vsIntensity = null) {
+function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName, playerName, broadcast = true, rollId = null, targetTier = 'standard', columnShift = 0, vsIntensity = null, rollMode = null, originalRoll = null) {
   const cShift = parseInt(columnShift) || 0;
   const intensity = Number.isInteger(vsIntensity) ? vsIntensity : null;
   const rollAdjustment = intensity === null ? 0 : (parseFloat(statValue) || 0) - intensity;
@@ -2605,6 +2605,8 @@ function displayAndAnnounceRollResult(statName, statValue, rolledTotal, charName
     rawRoll: rolledTotal,
     rollAdjustment,
     vsIntensity: intensity,
+    rollMode,
+    originalRoll,
     rankCode: resolution.rankCode,
     rankName: resolution.rankName,
     colIndex: resolution.colIndex,
@@ -5908,6 +5910,7 @@ async function initialise() {
       const isEligibleD100 = isD100 && rollInfo?.type !== 'damage' && rollInfo?.type !== 'initiative';
       const isMyRoll = (rollInfo?.playerId || data.playerId) === user.id;
       let finalRawDie = rawDie;
+      let appliedQuickAccessD100Mode = null;
       if (isEligibleD100 && isMyRoll && quickAccessD100Mode) {
         const mode = quickAccessD100Mode;
         quickAccessD100Mode = '';
@@ -5918,6 +5921,7 @@ async function initialise() {
           if ((mode === 'chance' && invertedRoll > rawDie)
             || (mode === 'malchance' && invertedRoll < rawDie)) {
             finalRawDie = invertedRoll;
+            appliedQuickAccessD100Mode = mode;
           }
         }
         render();
@@ -5998,7 +6002,9 @@ async function initialise() {
             rollInfo.rollId,
             rollInfo.targetTier || 'standard',
             rollInfo.columnShift || 0,
-            rollInfo.vsIntensity ?? null
+            rollInfo.vsIntensity ?? null,
+            appliedQuickAccessD100Mode,
+            appliedQuickAccessD100Mode ? rawDie : null
           );
         }
       } else {
@@ -6034,6 +6040,9 @@ async function initialise() {
     OBR.broadcast.onMessage('terranova/stat-roll-result', (event) => {
       const data = event.data;
       if (data && (typeof data.roll === 'number' || typeof data.total === 'number')) {
+        if (data.rollMode === 'chance' || data.rollMode === 'malchance') {
+          activeRollResult = data;
+        }
         const outcome = data.outcomeType || (data.roll === 1 ? 'crit-fail' : (data.roll === 100 ? 'crit-success' : null));
         if (outcome) {
           playCritSound(outcome, data.rollId || data.timestamp);
