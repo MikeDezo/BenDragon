@@ -3582,13 +3582,13 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const rawSpecs = normalizeTableRows(character.data.tables?.Specialisations);
   const rawSkills = normalizeTableRows(character.data.tables?.Skills);
   const rawSpells = normalizeTableRows(character.data.tables?.Spell);
-  const getSpellCell = (spellRow, columnIndex) => {
-    if (Array.isArray(spellRow)) return spellRow[columnIndex];
-    if (!spellRow || typeof spellRow !== 'object') return undefined;
+  const getTableCell = (row, headers, columnIndex) => {
+    if (Array.isArray(row)) return row[columnIndex];
+    if (!row || typeof row !== 'object') return undefined;
 
-    const header = tables.Spell[columnIndex];
+    const header = headers[columnIndex];
     const normalizedHeader = header?.toLowerCase().replace(/[\s_-]/g, '');
-    const matchingEntry = Object.entries(spellRow).find(([key]) =>
+    const matchingEntry = Object.entries(row).find(([key]) =>
       key === String(columnIndex) ||
       key.toLowerCase().replace(/[\s_-]/g, '') === normalizedHeader
     );
@@ -3690,10 +3690,14 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   }
   const skillOptionsHtml = rawSkills.length === 0
     ? '<option value="0">-- No skills in Skills tab --</option>'
-    : rawSkills.map((s, sIdx) => `<option value="${sIdx}" ${sIdx === selectedSkillIdx ? 'selected' : ''}>${esc(s[0] || `Skill ${sIdx + 1}`)}</option>`).join('');
+    : rawSkills.map((s, sIdx) => `<option value="${sIdx}" ${sIdx === selectedSkillIdx ? 'selected' : ''}>${esc(getTableCell(s, tables.Skills, 0) || `Skill ${sIdx + 1}`)}</option>`).join('');
 
   const skill = (rawSkills.length > 0 && rawSkills[selectedSkillIdx]) ? rawSkills[selectedSkillIdx] : [];
-  const skillName = skill[0] || (rawSkills.length > 0 ? `Skill ${selectedSkillIdx + 1}` : 'Skill');
+  const skillName = getTableCell(skill, tables.Skills, 0) || (rawSkills.length > 0 ? `Skill ${selectedSkillIdx + 1}` : 'Skill');
+  const skillFocusCost = getTableCell(skill, tables.Skills, 5);
+  const skillFocusCostLabel = skillFocusCost === undefined || skillFocusCost === null || String(skillFocusCost).trim() === ''
+    ? '—'
+    : String(skillFocusCost);
   const skillStatName = String(Array.isArray(skill) ? (skill[2] || 'Fighting') : (skill?.[2] ?? skill?.Stat ?? skill?.stat ?? 'Fighting')).trim();
   const skillStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
   const csLevel = parseInt(skill[3]) || 0;
@@ -3713,7 +3717,8 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
     <div class="qa-table-card">
       <div class="qa-table-header text-bold">Skills</div>
       <div class="qa-sub-header qa-skill-sub-header">
-        <label class="qa-weapon-label">Skill:
+        <label class="qa-weapon-label">
+          <span class="qa-quick-access-cost">Focus cost: ${esc(skillFocusCostLabel)}</span>
           <select class="qa-weapon-select qa-skill-select" data-qa-slot="0">
             ${skillOptionsHtml}
           </select>
@@ -3746,24 +3751,24 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   }
   const spellOptionsHtml = rawSpells.length === 0
     ? '<option value="0">-- No spells in Spell tab --</option>'
-    : rawSpells.map((sp, spIdx) => `<option value="${spIdx}" ${spIdx === selectedSpellIdx ? 'selected' : ''}>${esc(getSpellCell(sp, 0) || `Spell ${spIdx + 1}`)}</option>`).join('');
+    : rawSpells.map((sp, spIdx) => `<option value="${spIdx}" ${spIdx === selectedSpellIdx ? 'selected' : ''}>${esc(getTableCell(sp, tables.Spell, 0) || `Spell ${spIdx + 1}`)}</option>`).join('');
 
   const spell = (rawSpells.length > 0 && rawSpells[selectedSpellIdx]) ? rawSpells[selectedSpellIdx] : [];
-  const spellName = getSpellCell(spell, 0) || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
-  const spellManaCost = getSpellCell(spell, 3);
+  const spellName = getTableCell(spell, tables.Spell, 0) || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
+  const spellManaCost = getTableCell(spell, tables.Spell, 3);
   const spellManaCostLabel = spellManaCost === undefined || spellManaCost === null || String(spellManaCost).trim() === ''
     ? '—'
     : String(spellManaCost);
-  const spellStatName = getSpellCell(spell, 13) || 'Intelligence';
+  const spellStatName = getTableCell(spell, tables.Spell, 13) || 'Intelligence';
   const spellStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
   const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
   const spellRankLabel = `${spellStatName}: ${spellStatVal} ➔ ${spellRank.rankName}`;
 
-  const spellGreen = getSpellCell(spell, 8) || '';
-  const spellYellow = getSpellCell(spell, 9) || '';
-  const spellRed = getSpellCell(spell, 10) || '';
-  const spellNatRed = getSpellCell(spell, 11) || '';
-  const spellCrit = getSpellCell(spell, 12) || '';
+  const spellGreen = getTableCell(spell, tables.Spell, 8) || '';
+  const spellYellow = getTableCell(spell, tables.Spell, 9) || '';
+  const spellRed = getTableCell(spell, tables.Spell, 10) || '';
+  const spellNatRed = getTableCell(spell, tables.Spell, 11) || '';
+  const spellCrit = getTableCell(spell, tables.Spell, 12) || '';
   const spellGreenVal = translateFormula(spellGreen, statsMap) || spellGreen || '—';
   const spellYellowVal = translateFormula(spellYellow, statsMap) || spellYellow || '—';
   const spellRedVal = translateFormula(spellRed, statsMap) || spellRed || '—';
@@ -3775,7 +3780,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       <div class="qa-table-header text-bold">Spells</div>
       <div class="qa-sub-header qa-spell-sub-header">
         <label class="qa-weapon-label">
-          <span class="qa-spell-mana-cost">Mana cost: ${esc(spellManaCostLabel)}</span>
+          <span class="qa-quick-access-cost">Mana cost: ${esc(spellManaCostLabel)}</span>
           <select class="qa-weapon-select qa-spell-select" data-qa-slot="0">
             ${spellOptionsHtml}
           </select>

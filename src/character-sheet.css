@@ -1904,7 +1904,7 @@ body.col-resizing * {
   max-width: none;
 }
 
-.qa-spell-mana-cost {
+.qa-quick-access-cost {
   color: var(--ink);
   font-weight: 700;
   white-space: nowrap;
