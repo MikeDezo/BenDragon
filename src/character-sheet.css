@@ -1896,6 +1896,12 @@ body.col-resizing * {
   width: auto;
 }
 
+.qa-spell-mana-cost {
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .qa-vs-intensity-label {
   display: flex;
   align-items: center;

@@ -3738,6 +3738,10 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
 
   const spell = (rawSpells.length > 0 && rawSpells[selectedSpellIdx]) ? rawSpells[selectedSpellIdx] : [];
   const spellName = spell[0] || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
+  const spellManaCost = Array.isArray(spell) ? spell[3] : (spell['Mana Cost'] ?? spell.manaCost);
+  const spellManaCostLabel = spellManaCost === undefined || spellManaCost === null || String(spellManaCost).trim() === ''
+    ? '—'
+    : String(spellManaCost);
   const spellStatName = (Array.isArray(spell) ? spell[13] : (spell['Roll Stat'] ?? spell.rollStat)) || 'Intelligence';
   const spellStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
   const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
@@ -3754,6 +3758,7 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       <div class="qa-table-header text-bold">Spells</div>
       <div class="qa-sub-header">
         <label class="qa-weapon-label">Spell:
+          <span class="qa-spell-mana-cost">Mana: ${esc(spellManaCostLabel)}</span>
           <select class="qa-weapon-select qa-spell-select" data-qa-slot="0">
             ${spellOptionsHtml}
           </select>
