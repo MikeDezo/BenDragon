@@ -3582,6 +3582,18 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const rawSpecs = normalizeTableRows(character.data.tables?.Specialisations);
   const rawSkills = normalizeTableRows(character.data.tables?.Skills);
   const rawSpells = normalizeTableRows(character.data.tables?.Spell);
+  const getSpellCell = (spellRow, columnIndex) => {
+    if (Array.isArray(spellRow)) return spellRow[columnIndex];
+    if (!spellRow || typeof spellRow !== 'object') return undefined;
+
+    const header = tables.Spell[columnIndex];
+    const normalizedHeader = header?.toLowerCase().replace(/[\s_-]/g, '');
+    const matchingEntry = Object.entries(spellRow).find(([key]) =>
+      key === String(columnIndex) ||
+      key.toLowerCase().replace(/[\s_-]/g, '') === normalizedHeader
+    );
+    return matchingEntry?.[1];
+  };
 
   const defenseTableHtml = `
     <div class="qa-table-card">
@@ -3734,31 +3746,36 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   }
   const spellOptionsHtml = rawSpells.length === 0
     ? '<option value="0">-- No spells in Spell tab --</option>'
-    : rawSpells.map((sp, spIdx) => `<option value="${spIdx}" ${spIdx === selectedSpellIdx ? 'selected' : ''}>${esc(sp[0] || `Spell ${spIdx + 1}`)}</option>`).join('');
+    : rawSpells.map((sp, spIdx) => `<option value="${spIdx}" ${spIdx === selectedSpellIdx ? 'selected' : ''}>${esc(getSpellCell(sp, 0) || `Spell ${spIdx + 1}`)}</option>`).join('');
 
   const spell = (rawSpells.length > 0 && rawSpells[selectedSpellIdx]) ? rawSpells[selectedSpellIdx] : [];
-  const spellName = spell[0] || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
-  const spellManaCost = Array.isArray(spell) ? spell[3] : (spell['Mana Cost'] ?? spell.manaCost);
+  const spellName = getSpellCell(spell, 0) || (rawSpells.length > 0 ? `Spell ${selectedSpellIdx + 1}` : 'Spell');
+  const spellManaCost = getSpellCell(spell, 3);
   const spellManaCostLabel = spellManaCost === undefined || spellManaCost === null || String(spellManaCost).trim() === ''
     ? '—'
     : String(spellManaCost);
-  const spellStatName = (Array.isArray(spell) ? spell[13] : (spell['Roll Stat'] ?? spell.rollStat)) || 'Intelligence';
+  const spellStatName = getSpellCell(spell, 13) || 'Intelligence';
   const spellStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
   const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
   const spellRankLabel = `${spellStatName}: ${spellStatVal} ➔ ${spellRank.rankName}`;
 
-  const spellGreenVal = translateFormula(spell[8] || '', statsMap) || spell[8] || '—';
-  const spellYellowVal = translateFormula(spell[9] || '', statsMap) || spell[9] || '—';
-  const spellRedVal = translateFormula(spell[10] || '', statsMap) || spell[10] || '—';
-  const spellNatRedVal = translateFormula(spell[11] || '', statsMap) || spell[11] || '—';
-  const spellCritVal = translateFormula(spell[12] || '', statsMap) || spell[12] || '—';
+  const spellGreen = getSpellCell(spell, 8) || '';
+  const spellYellow = getSpellCell(spell, 9) || '';
+  const spellRed = getSpellCell(spell, 10) || '';
+  const spellNatRed = getSpellCell(spell, 11) || '';
+  const spellCrit = getSpellCell(spell, 12) || '';
+  const spellGreenVal = translateFormula(spellGreen, statsMap) || spellGreen || '—';
+  const spellYellowVal = translateFormula(spellYellow, statsMap) || spellYellow || '—';
+  const spellRedVal = translateFormula(spellRed, statsMap) || spellRed || '—';
+  const spellNatRedVal = translateFormula(spellNatRed, statsMap) || spellNatRed || '—';
+  const spellCritVal = translateFormula(spellCrit, statsMap) || spellCrit || '—';
 
   const spellsTableHtml = `
     <div class="qa-table-card">
       <div class="qa-table-header text-bold">Spells</div>
-      <div class="qa-sub-header">
-        <label class="qa-weapon-label">Spell:
-          <span class="qa-spell-mana-cost">Mana: ${esc(spellManaCostLabel)}</span>
+      <div class="qa-sub-header qa-spell-sub-header">
+        <label class="qa-weapon-label">
+          <span class="qa-spell-mana-cost">Mana cost: ${esc(spellManaCostLabel)}</span>
           <select class="qa-weapon-select qa-spell-select" data-qa-slot="0">
             ${spellOptionsHtml}
           </select>

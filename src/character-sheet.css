@@ -1881,6 +1881,10 @@ body.col-resizing * {
   flex-wrap: wrap;
 }
 
+.qa-spell-sub-header {
+  justify-content: flex-start;
+}
+
 .qa-weapon-label {
   font: 600 calc(11px * var(--font-scale, 1)) 'DM Mono', monospace;
   display: flex;
@@ -1894,6 +1898,10 @@ body.col-resizing * {
 .qa-skill-sub-header .qa-weapon-label {
   flex: 1 1 220px;
   width: auto;
+}
+
+.qa-spell-sub-header .qa-weapon-label {
+  max-width: none;
 }
 
 .qa-spell-mana-cost {
