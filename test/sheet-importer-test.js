@@ -58,6 +58,21 @@ assert.strictEqual(counterSpell[1], '2', 'Counter Spell scell value');
 assert.strictEqual(counterSpell[3], '10', 'Counter Spell mana cost');
 console.log('✅ Workbook parsing tests passed.');
 
+const linkedSpecialisationWorkbook = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(linkedSpecialisationWorkbook, XLSX.utils.aoa_to_sheet([
+  ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Specialisation'],
+  ['Acrobatics', 'Hors-Combat', 'Agility', '1', 'Normal', '0', '', '', '', '', '', '', '', 'Acrobatics']
+]), 'Skills');
+XLSX.utils.book_append_sheet(linkedSpecialisationWorkbook, XLSX.utils.aoa_to_sheet([
+  ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat', 'Specialisation'],
+  ['Spark', '1', 'Normal', '2', '1', '', '', '', '', '', '', '', '', 'Intelligence', 'Fire Magic']
+]), 'Spell');
+const linkedSpecialisationData = parseWorkbookToCharacterData(linkedSpecialisationWorkbook);
+assert.strictEqual(linkedSpecialisationData.tables.Skills[0][13], 'Acrobatics', 'Skill specialisation link should import');
+assert.strictEqual(linkedSpecialisationData.tables.Spell[0][13], 'Intelligence', 'Spell roll stat should import');
+assert.strictEqual(linkedSpecialisationData.tables.Spell[0][14], 'Fire Magic', 'Spell specialisation link should import');
+console.log('✅ Skill and spell specialisation import tests passed.');
+
 // --- Test 3: Blank filling on Skills & Spells ---
 console.log('3. Testing skill & spell blank-filling logic...');
 

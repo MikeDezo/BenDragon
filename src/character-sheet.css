@@ -1116,6 +1116,7 @@ body.col-resizing * {
 .sheet-table-skills th:nth-child(13), .sheet-table-skills td:nth-child(13) { background: #cc4125; color: #fff; width: 150px; }
 .sheet-table-skills td:nth-child(13) .cell-input { color: #fff; }
 .sheet-table-skills td:nth-child(13) .cell-input:focus { color: var(--ink); background: #fffdf4; }
+.sheet-table-skills th:nth-child(14), .sheet-table-skills td:nth-child(14) { width: 160px; }
 .sheet-table-skills .cell-input { min-width: 0; }
 .sheet-table-skills tr.skill-type-hors-combat td:not(:nth-child(n+8):nth-child(-n+13)) { background: #d9ead3; }
 .sheet-table-skills tr.skill-type-combat td:not(:nth-child(n+8):nth-child(-n+13)) { background: #f4cccc; }
@@ -1138,6 +1139,7 @@ body.col-resizing * {
 .sheet-table-spell th:nth-child(14), .sheet-table-spell td:nth-child(14) { background: #cc4125; color: #fff; width: 150px; }
 .sheet-table-spell td:nth-child(14) .cell-input { color: #fff; }
 .sheet-table-spell td:nth-child(14) .cell-input:focus { color: var(--ink); background: #fffdf4; }
+.sheet-table-spell th:nth-child(15), .sheet-table-spell td:nth-child(15) { width: 160px; }
 .sheet-table-spell .cell-input { min-width: 0; }
 
 .formula-cell {

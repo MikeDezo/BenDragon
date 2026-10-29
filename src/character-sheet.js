@@ -40,8 +40,8 @@ let quickAccessVsIntensity = '';
 let quickAccessD100Mode = '';
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
-  Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'],
-  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat'],
+  Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Specialisation'],
+  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat', 'Specialisation'],
   Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
   Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality', 'Critical Multiplier'],
   Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Rune Slots', 'Runes', 'Description'],
@@ -675,6 +675,37 @@ const specialisationLevels = {
   Expert: { touch: '+20', potential: '+20', ini: '+4', colors: [null, 'yellow', 'red'], defaults: [null, null, 'Combo on naturel red'] },
   Master: { touch: '+25', potential: '+25', ini: '+5', colors: [null, 'yellow', 'red', 'dark-red'] }
 };
+
+function getSpecialisationTouchBonus(character, specialisationName) {
+  const requestedName = String(specialisationName ?? '').trim();
+  if (!requestedName) return 0;
+
+  const stored = character?.data?.tables?.Specialisations;
+  const rows = Array.isArray(stored)
+    ? stored
+    : stored && typeof stored === 'object'
+      ? Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key])
+      : [];
+  const row = rows.find((candidate) => {
+    const name = String(Array.isArray(candidate)
+      ? candidate[0]
+      : (candidate?.[0] ?? candidate?.Name ?? candidate?.name ?? '')).trim();
+    return name && name.toLowerCase() === requestedName.toLowerCase();
+  });
+  if (!row) return 0;
+
+  const level = String(Array.isArray(row)
+    ? row[1]
+    : (row?.[1] ?? row?.['Actual LVL'] ?? row?.actualLvl ?? row?.level ?? '')).trim();
+  const configuredBonus = specialisationLevels[level]?.touch ?? specialisationLevels.Unspecialised.touch;
+  const rawBonus = Array.isArray(row)
+    ? row[2]
+    : (row?.[2] ?? row?.['Touch Bonus'] ?? row?.touchBonus ?? row?.touch);
+  const parsedBonus = rawBonus === undefined || rawBonus === null || String(rawBonus).trim() === ''
+    ? Number.NaN
+    : parseInt(rawBonus, 10);
+  return Number.isNaN(parsedBonus) ? parseInt(configuredBonus, 10) || 0 : parsedBonus;
+}
 
 function evaluateSafeMath(expr) {
   if (!expr || typeof expr !== 'string') return null;
@@ -3699,13 +3730,17 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
     ? '—'
     : String(skillFocusCost);
   const skillStatName = String(Array.isArray(skill) ? (skill[2] || 'Fighting') : (skill?.[2] ?? skill?.Stat ?? skill?.stat ?? 'Fighting')).trim();
-  const skillStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
+  const skillBaseStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
+  const skillSpecialisationName = getTableCell(skill, tables.Skills, 13);
+  const skillTouchBonus = getSpecialisationTouchBonus(character, skillSpecialisationName);
+  const skillStatVal = skillBaseStatVal + skillTouchBonus;
   const csLevel = parseInt(skill[3]) || 0;
   const baseRank = resolveUniversalRoll(skillStatVal, 50, 0);
   const shiftedRank = resolveUniversalRoll(skillStatVal, 50, csLevel);
+  const skillTouchNote = skillTouchBonus ? ` + Touch ${skillTouchBonus}` : '';
   const rankLabel = csLevel !== 0
-    ? `${skillStatName}: ${skillStatVal} ➔ ${shiftedRank.rankName} (Base: ${baseRank.rankName}, CS: ${csLevel > 0 ? '+' + csLevel : csLevel})`
-    : `${skillStatName}: ${skillStatVal} ➔ ${shiftedRank.rankName}`;
+    ? `${skillStatName}: ${skillBaseStatVal}${skillTouchNote} = ${skillStatVal} ➔ ${shiftedRank.rankName} (Base: ${baseRank.rankName}, CS: ${csLevel > 0 ? '+' + csLevel : csLevel})`
+    : `${skillStatName}: ${skillBaseStatVal}${skillTouchNote} = ${skillStatVal} ➔ ${shiftedRank.rankName}`;
 
   const skillGreenVal = translateFormula(skill[8] || '', statsMap) || skill[8] || '—';
   const skillYellowVal = translateFormula(skill[9] || '', statsMap) || skill[9] || '—';
@@ -3729,10 +3764,10 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       </div>
       <!-- Row 1: 4 columns for Karma target tiers -->
       <div class="qa-grid-4">
-        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
-        <div class="qa-cell bg-green rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
-        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
-        <div class="qa-cell bg-red rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
       </div>
       <!-- Row 2: 5 columns for translated outcome values -->
       <div class="qa-grid-5">
@@ -3760,9 +3795,13 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
     ? '—'
     : String(spellManaCost);
   const spellStatName = getTableCell(spell, tables.Spell, 13) || 'Intelligence';
-  const spellStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
+  const spellBaseStatVal = parseFloat(st[spellStatName] ?? statsMap[spellStatName] ?? (spellStatName === 'Intelligence' ? numIntelligence : 0)) || 0;
+  const spellSpecialisationName = getTableCell(spell, tables.Spell, 14);
+  const spellTouchBonus = getSpecialisationTouchBonus(character, spellSpecialisationName);
+  const spellStatVal = spellBaseStatVal + spellTouchBonus;
   const spellRank = resolveUniversalRoll(spellStatVal, 50, 0);
-  const spellRankLabel = `${spellStatName}: ${spellStatVal} ➔ ${spellRank.rankName}`;
+  const spellTouchNote = spellTouchBonus ? ` + Touch ${spellTouchBonus}` : '';
+  const spellRankLabel = `${spellStatName}: ${spellBaseStatVal}${spellTouchNote} = ${spellStatVal} ➔ ${spellRank.rankName}`;
 
   const spellGreen = getTableCell(spell, tables.Spell, 8) || '';
   const spellYellow = getTableCell(spell, tables.Spell, 9) || '';
@@ -4794,6 +4833,9 @@ function tablePage(name, character) {
     }
     if (name === 'Spell' && header === 'Roll Stat') {
       return `<td>${editableSelect(path, val, stats, 'cell-input cell-select')}</td>`;
+    }
+    if ((name === 'Skills' && header === 'Specialisation') || (name === 'Spell' && header === 'Specialisation')) {
+      return `<td>${editableSelect(path, val, specialisationNames, 'cell-input cell-select')}</td>`;
     }
     if (name === 'Weapons' && header === 'Touch Stat') {
       return `<td>${editableSelect(path, val, weaponStatOptions, 'cell-input cell-select')}</td>`;
@@ -6192,7 +6234,7 @@ function bindEvents() {
       }
       if (name) {
         if (btn.dataset.statName?.trim().toLowerCase() === 'depend') {
-          pendingDependentSkillRoll = { name, targetTier, csLevel, vsIntensity };
+          pendingDependentSkillRoll = { name, targetTier, csLevel, touchBonus: parseInt(btn.dataset.touchBonus, 10) || 0, vsIntensity };
           render();
         } else {
           const statVal = parseFloat(btn.dataset.statVal) || 0;
@@ -6227,14 +6269,14 @@ function bindEvents() {
       const character = currentCharacter();
       const statsMap = getCharacterStatsMap(character);
       const statValue = parseFloat(character?.data?.stats?.[statName] ?? statsMap[statName]) || 0;
-      const { name, targetTier, csLevel, vsIntensity } = pendingDependentSkillRoll;
+      const { name, targetTier, csLevel, touchBonus, vsIntensity } = pendingDependentSkillRoll;
       pendingDependentSkillRoll = null;
       if (vsIntensity !== null) {
         quickAccessVsIntensity = '';
         const intensityInput = app.querySelector('.qa-vs-intensity');
         if (intensityInput) intensityInput.value = '';
       }
-      rollUniversalCheck(`${name} (${statName})`, statValue, targetTier, csLevel, vsIntensity);
+      rollUniversalCheck(`${name} (${statName})`, statValue + touchBonus, targetTier, csLevel, vsIntensity);
     };
     app.querySelector('#dependent-skill-roll-submit')?.addEventListener('click', submitRoll);
     app.querySelector('#dependent-skill-roll-cancel')?.addEventListener('click', closeModal);

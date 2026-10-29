@@ -240,6 +240,7 @@ function parseSkillsSheet(workbook) {
   const colRed = findCol(['red', 'rouge'], 10);
   const colNatRed = findCol(['natural red', 'rouge naturel'], 11);
   const colCritRed = findCol(['critical red', 'critique'], 12);
+  const colSpecialisation = findCol(['specialisation', 'specialization'], 13);
 
   const skills = [];
   for (let r = 1; r < rows.length; r++) {
@@ -261,7 +262,8 @@ function parseSkillsSheet(workbook) {
       String(row[colYellow] ?? '').trim(),
       String(row[colRed] ?? '').trim(),
       String(row[colNatRed] ?? '').trim(),
-      String(row[colCritRed] ?? '').trim()
+      String(row[colCritRed] ?? '').trim(),
+      String(row[colSpecialisation] ?? '').trim()
     ];
     skills.push(skillRow);
   }
@@ -295,6 +297,8 @@ function parseSpellsSheet(workbook) {
   const colRed = findCol(['red', 'rouge'], 10);
   const colNatRed = findCol(['natural red', 'rouge naturel'], 11);
   const colCritRed = findCol(['critical red', 'critique'], 12);
+  const colRollStat = findCol(['roll stat'], 13);
+  const colSpecialisation = findCol(['specialisation', 'specialization'], 14);
 
   const spells = [];
   for (let r = 1; r < rows.length; r++) {
@@ -316,7 +320,9 @@ function parseSpellsSheet(workbook) {
       String(row[colYellow] ?? '').trim(),
       String(row[colRed] ?? '').trim(),
       String(row[colNatRed] ?? '').trim(),
-      String(row[colCritRed] ?? '').trim()
+      String(row[colCritRed] ?? '').trim(),
+      String(row[colRollStat] ?? '').trim(),
+      String(row[colSpecialisation] ?? '').trim()
     ];
     spells.push(spellRow);
   }
@@ -679,7 +685,7 @@ export function mergeCharacterData(targetCharacter, importedData, options = {}) 
             }
           }
         } else if (typeof existing === 'object') {
-          for (let i = 0; i < 13; i++) {
+          for (let i = 0; i < impSkill.length; i++) {
             if (isBlank(existing[i]) && !isBlank(impSkill[i])) {
               existing[i] = impSkill[i];
             }
@@ -721,7 +727,7 @@ export function mergeCharacterData(targetCharacter, importedData, options = {}) 
             }
           }
         } else if (typeof existing === 'object') {
-          for (let i = 0; i < 13; i++) {
+          for (let i = 0; i < impSpell.length; i++) {
             if (isBlank(existing[i]) && !isBlank(impSpell[i])) {
               existing[i] = impSpell[i];
             }
