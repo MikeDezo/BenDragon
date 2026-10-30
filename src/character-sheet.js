@@ -7,7 +7,7 @@ import wowUrl from '../sounds/wow.mp3';
 
 const tabs = [
   'Infos', 'Stats', 'Action Types', 'Skills', 'Spell', 'Specialisations',
-  'Weapons', 'Armor', 'Inventory', 'Relations', 'Monture', 'Note du joueur',
+  'Weapons', 'Armor', 'Inventory', 'Currency', 'Relations', 'Monture', 'Note du joueur',
   'Unique Power', 'Custom Roll'
 ];
 
@@ -215,6 +215,7 @@ const blankCharacter = (name = 'New Character') => ({
       ],
       'Note du joueur': [{}]
     },
+    currency: { boreal: '0', fleuron: '0', fleuronRoyal: '0' },
     powerThemes: [
       {
         title: 'Power Theme 1',
@@ -4893,6 +4894,69 @@ function tablePage(name, character) {
   }).join('')}</tbody></table></div>${isActionTypes ? '' : `<button class="add-row" data-add-row="${esc(name)}">+ Add row</button>`}</section>`;
 }
 
+function getCurrencyTotalInBoreals(currency = {}) {
+  const amount = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return amount(currency.boreal) + amount(currency.fleuron) * 100 + amount(currency.fleuronRoyal) * 10000;
+}
+
+function formatCurrencyAmount(amount, fractionDigits = 0) {
+  return new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  }).format(amount);
+}
+
+function getFormattedCurrencyAmounts(currency) {
+  const totalBoreals = getCurrencyTotalInBoreals(currency);
+  return {
+    boreal: `${formatCurrencyAmount(totalBoreals)} β`,
+    fleuron: `${formatCurrencyAmount(totalBoreals / 100, 2)} ƒ`,
+    fleuronRoyal: `${formatCurrencyAmount(totalBoreals / 10000, 2)} ℱℛ`
+  };
+}
+
+function currencyPage(character) {
+  const currency = character.data.currency || {};
+  const amounts = getFormattedCurrencyAmounts(currency);
+  const entries = [
+    { key: 'boreal', name: 'Boréal', symbol: 'β', className: 'boreal' },
+    { key: 'fleuron', name: 'Fleuron', symbol: 'ƒ', className: 'fleuron' },
+    { key: 'fleuronRoyal', name: 'Fleuron Royal', symbol: 'ℱℛ', className: 'fleuron-royal' }
+  ];
+
+  return `<section class="currency-converter">
+    <h2 class="section-title">Currency</h2>
+    <div class="currency-entry-grid">
+      ${entries.map(({ key, name, symbol, className }) => `<label class="currency-entry currency-${className}">
+        <span class="currency-entry-name">${name}</span>
+        <span class="currency-input-wrap">
+          <input type="number" min="0" step="1" inputmode="numeric" data-path="currency.${key}" data-integer="true" value="${esc(currency[key] ?? '0')}" aria-label="${name} amount" />
+          <span class="currency-symbol" aria-hidden="true">${symbol}</span>
+        </span>
+      </label>`).join('')}
+    </div>
+    <h3 class="currency-results-title">Valeur Converti</h3>
+    <div class="currency-results">
+      ${entries.map(({ key, name, className }) => `<div class="currency-result currency-${className}">
+        <span class="currency-result-name">${name}</span>
+        <output class="currency-result-value" data-currency-result="${key}">${amounts[key]}</output>
+      </div>`).join('')}
+    </div>
+  </section>`;
+}
+
+function updateCurrencyConversion() {
+  const currency = currentCharacter()?.data.currency || {};
+  const amounts = getFormattedCurrencyAmounts(currency);
+  Object.entries(amounts).forEach(([key, amount]) => {
+    const output = app.querySelector(`[data-currency-result="${key}"]`);
+    if (output) output.textContent = amount;
+  });
+}
+
 function customRollPage(character) {
   const customRolls = Array.isArray(character?.data?.customRolls) ? character.data.customRolls : [];
   const variables = getCustomRollVariableMap(character);
@@ -5006,6 +5070,7 @@ function pageFor(character) {
   }
   if (activeTab === 'Infos') return infoPage(character);
   if (activeTab === 'Stats') return statsPage(character);
+  if (activeTab === 'Currency') return currencyPage(character);
   if (activeTab === 'Monture') return monturePage(character);
   if (activeTab === 'Unique Power') return uniquePowerPage(character);
   if (activeTab === 'Custom Roll') return customRollPage(character);
@@ -6381,6 +6446,9 @@ function bindEvents() {
         input.value = lines.join('\n');
       }
       setPath(input.dataset.path, input.dataset.checkbox ? input.checked : input.value);
+      if (activeTab === 'Currency') {
+        updateCurrencyConversion();
+      }
       const pathParts = input.dataset.path?.split('.');
       if (activeTab === 'Skills' && pathParts?.[0] === 'tables' && pathParts[1] === 'Skills' && pathParts[3] === '1') {
         const row = input.closest('tr');
