@@ -1046,17 +1046,24 @@ function getCharacterStatsMap(character) {
 
   rawSpecs.forEach((row) => {
     if (!row) return;
-    const name = String(Array.isArray(row) ? row[0] : (row[0] || row.name || '')).trim();
+    const name = String(Array.isArray(row) ? row[0] : (row[0] ?? row.Name ?? row.name ?? '')).trim();
     if (!name) return;
-    const lvl = String(Array.isArray(row) ? row[1] : (row[1] || row.level || '')).trim();
+    const lvl = String(Array.isArray(row) ? row[1] : (row[1] ?? row['Actual LVL'] ?? row.level ?? '')).trim();
     const cfg = specialisationLevels[lvl] || specialisationLevels.Unspecialised || { touch: '0', potential: '0', ini: '0' };
 
-    const tb = (row[2] !== undefined && row[2] !== '' && !isNaN(parseInt(row[2]))) ? parseInt(row[2]) : (parseInt(cfg.touch) || 0);
-    const pb = (row[3] !== undefined && row[3] !== '' && !isNaN(parseInt(row[3]))) ? parseInt(row[3]) : (parseInt(cfg.potential) || 0);
-    const ib = (row[5] !== undefined && row[5] !== '' && !isNaN(parseInt(row[5]))) ? parseInt(row[5]) : (parseInt(cfg.ini) || 0);
+    const rawTouchBonus = Array.isArray(row) ? row[2] : (row[2] ?? row['Touch Bonus'] ?? row.touchBonus);
+    const rawPotentialBonus = Array.isArray(row) ? row[3] : (row[3] ?? row['Potential Bonus'] ?? row.potentialBonus);
+    const rawIniBonus = Array.isArray(row) ? row[5] : (row[5] ?? row['Ini Bonus'] ?? row.iniBonus);
+    const tb = (rawTouchBonus !== undefined && rawTouchBonus !== '' && !isNaN(parseInt(rawTouchBonus))) ? parseInt(rawTouchBonus) : (parseInt(cfg.touch) || 0);
+    const pb = (rawPotentialBonus !== undefined && rawPotentialBonus !== '' && !isNaN(parseInt(rawPotentialBonus))) ? parseInt(rawPotentialBonus) : (parseInt(cfg.potential) || 0);
+    const ib = (rawIniBonus !== undefined && rawIniBonus !== '' && !isNaN(parseInt(rawIniBonus))) ? parseInt(rawIniBonus) : (parseInt(cfg.ini) || 0);
 
     const variations = Array.from(new Set([name, name.replace(/\s+/g, ''), name.replace(/\s+/g, '_')])).filter(Boolean);
     variations.forEach((v) => {
+      map[`${v} Touch Bonus`] = tb;
+      map[`${v} Potential Bonus`] = pb;
+      map[`${v} Ini Bonus`] = ib;
+
       map[`${v}TB`] = tb;
       map[`${v} TB`] = tb;
       map[`${v}_TB`] = tb;
@@ -1372,7 +1379,7 @@ function translateFormula(formula, stats) {
   return result.replace(/(\d+)\s*[dD]\s*(\d+)/g, '$1D$2');
 }
 
-function formulaCellHtml(path, value, character, variables = getCharacterStatsMap(character)) {
+function formulaCellHtml(path, value, character, variables = getCustomRollVariableMap(character)) {
   const translated = translateFormula(value, variables);
   const hasValue = Boolean(value && String(value).trim());
   const supportsAutocomplete = path.startsWith('customRolls.') || /^tables\.(Skills|Spell)\./.test(path);

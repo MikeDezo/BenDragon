@@ -31,6 +31,36 @@ const translateFormula = loadFunction('translateFormula', 'formulaCellHtml', {
   evaluateSafeMath,
   getSelectedWeaponDamageInfo
 });
+const getCharacterStatsMap = loadFunction('getCharacterStatsMap', 'getCustomRollVariableMap', {
+  specialisationLevels: {
+    Unspecialised: { touch: '0', potential: '0', ini: '0' },
+    Novice: { touch: '+5', potential: '+5', ini: '+1' }
+  },
+  getSelectedWeaponDamageInfo
+});
+
+const specialisationStats = getCharacterStatsMap({
+  data: {
+    tables: {
+      Specialisations: [
+        ['Fire Magic', 'Novice', '+5', '+10', '', '+1'],
+        { Name: 'Named Spec', 'Actual LVL': 'Novice', 'Touch Bonus': '+7', 'Potential Bonus': '+12', 'Ini Bonus': '+2' }
+      ]
+    }
+  }
+});
+assert.strictEqual(translateFormula('1D10 + Fire Magic Potential Bonus', specialisationStats), '1D10 + 10');
+assert.strictEqual(translateFormula('Fire Magic Touch Bonus + Named Spec Potential Bonus', specialisationStats), '17');
+assert.strictEqual(specialisationStats['FireMagicPB'], 10);
+const formulaCellHtml = loadFunction('formulaCellHtml', 'editable', {
+  translateFormula,
+  getCustomRollVariableMap: () => specialisationStats,
+  esc: (value) => String(value ?? '')
+});
+assert.match(
+  formulaCellHtml('tables.Spell.0.7', '1D10 + Fire Magic Potential Bonus', {}),
+  /<span class="formula-result-text[^>]*>1D10 \+ 10<\/span>/
+);
 
 const formula = 'WeaponDamage("Longsword") + (Fgt/10)D10 + (Psy)';
 const translated = translateFormula(formula, {
