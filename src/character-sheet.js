@@ -3725,9 +3725,9 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       <!-- Row 4: Attack Success Damage Modifiers (4 columns) -->
       <div class="qa-grid-4">
         <div class="qa-cell bg-green rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Block" data-mod-bonus="10" title="Click to roll Damage (+10 Block): ${finalDiceStr} + ${totalFlatBonus + 10}">Block (+10)</div>
-        <div class="qa-cell bg-yellow rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Yellow" data-mod-bonus="20" title="Click to roll Damage (+20 Yellow): ${finalDiceStr} + ${totalFlatBonus + 20}">Yellow</div>
-        <div class="qa-cell bg-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Red" data-mod-bonus="30" title="Click to roll Damage (+30 Red): ${finalDiceStr} + ${totalFlatBonus + 30}">Red</div>
-        <div class="qa-cell bg-dark-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Natural Red" data-mod-bonus="40" title="Click to roll Damage (+40 Natural Red): ${finalDiceStr} + ${totalFlatBonus + 40}">NaturalRed</div>
+        <div class="qa-cell bg-yellow rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Yellow Block" data-mod-bonus="20" title="Click to roll Damage (+20 Yellow Block): ${finalDiceStr} + ${totalFlatBonus + 20}">Yellow Block (+20)</div>
+        <div class="qa-cell bg-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Red Block" data-mod-bonus="30" title="Click to roll Damage (+30 Red Block): ${finalDiceStr} + ${totalFlatBonus + 30}">Red Block (+30)</div>
+        <div class="qa-cell bg-dark-red rollable-qa-dmg" data-weapon-name="${esc(weaponName)}" data-dice="${finalDiceStr}" data-base-bonus="${totalFlatBonus}" data-mod-label="Natural Red Block" data-mod-bonus="40" title="Click to roll Damage (+40 Natural Red Block): ${finalDiceStr} + ${totalFlatBonus + 40}">Natural Red Block (+40)</div>
       </div>
     </div>
   `;
