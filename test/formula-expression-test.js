@@ -61,6 +61,12 @@ assert.match(
   formulaCellHtml('tables.Spell.0.7', '1D10 + Fire Magic Potential Bonus', {}),
   /<span class="formula-result-text[^>]*>1D10 \+ 10<\/span>/
 );
+const powerDamageCell = formulaCellHtml('powerThemes.0.powers.0.damage', '1D6 + Fire Magic Potential Bonus', {});
+assert.match(powerDamageCell, /formula-autocomplete-input/);
+assert.match(powerDamageCell, /<span class="formula-result-text[^>]*>1D6 \+ 10<\/span>/);
+const powerDamageFormula = parseDiceAndModifiers(translateFormula('1D6 + Fire Magic Potential Bonus', specialisationStats));
+assert.strictEqual(powerDamageFormula.hasDice, true);
+assert.strictEqual(powerDamageFormula.flatBonus, 10);
 
 const formula = 'WeaponDamage("Longsword") + (Fgt/10)D10 + (Psy)';
 const translated = translateFormula(formula, {

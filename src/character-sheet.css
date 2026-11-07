@@ -3219,10 +3219,19 @@ body.col-resizing * {
 .sheet-table-unique-powers th.col-p-name, .sheet-table-unique-powers td.col-p-name { width: 170px; }
 .sheet-table-unique-powers th.col-p-desc, .sheet-table-unique-powers td.col-p-desc { width: 260px; }
 .sheet-table-unique-powers th.col-p-roll, .sheet-table-unique-powers td.col-p-roll { width: 170px; }
+.sheet-table-unique-powers th.col-p-damage, .sheet-table-unique-powers td.col-p-damage { width: 190px; }
 .sheet-table-unique-powers th.col-p-cost, .sheet-table-unique-powers td.col-p-cost { width: 100px; }
 .sheet-table-unique-powers th.col-p-charges, .sheet-table-unique-powers td.col-p-charges { width: 130px; }
 .sheet-table-unique-powers th.col-p-rollbtn, .sheet-table-unique-powers td.col-p-rollbtn { width: 85px; }
+.sheet-table-unique-powers th.col-p-damage-roll, .sheet-table-unique-powers td.col-p-damage-roll { width: 125px; }
 .sheet-table-unique-powers th.col-p-delete, .sheet-table-unique-powers td.col-p-delete { width: 75px; }
+
+.power-damage-roll-error {
+  display: block;
+  color: #b91c1c;
+  font-size: calc(10px * var(--font-scale, 1));
+  text-align: left;
+}
 
 .power-roll-btn {
   display: inline-flex;

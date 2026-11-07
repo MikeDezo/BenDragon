@@ -223,8 +223,8 @@ const blankCharacter = (name = 'New Character') => ({
         image: '',
         imageSettings: { width: 320, height: 420 },
         powers: [
-          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
-          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+          { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' },
+          { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' }
         ]
       }
     ],
@@ -1382,7 +1382,7 @@ function translateFormula(formula, stats) {
 function formulaCellHtml(path, value, character, variables = getCustomRollVariableMap(character)) {
   const translated = translateFormula(value, variables);
   const hasValue = Boolean(value && String(value).trim());
-  const supportsAutocomplete = path.startsWith('customRolls.') || /^tables\.(Skills|Spell)\./.test(path);
+  const supportsAutocomplete = path.startsWith('customRolls.') || /^tables\.(Skills|Spell)\./.test(path) || /^powerThemes\.\d+\.powers\.\d+\.damage$/.test(path);
   return `<div class="formula-cell">
     <div class="formula-subline formula-input-line">
       <textarea class="cell-input formula-input${supportsAutocomplete ? ' formula-autocomplete-input' : ''}" data-path="${path}" rows="1" placeholder="Formula or text">${esc(value || '')}</textarea>
@@ -2118,8 +2118,8 @@ function getPowerThemes(character) {
     image: '',
     imageSettings: { width: 320, height: 420 },
     powers: [
-      { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
-      { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+      { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' },
+      { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' }
     ]
   };
   character.data.powerThemes = [defaultTheme];
@@ -2258,9 +2258,11 @@ function uniquePowerPage(character) {
                       ${renderPowerTh('name', 'Nom du Pouvoir', 'col-p-name')}
                       ${renderPowerTh('description', 'Description', 'col-p-desc')}
                       ${renderPowerTh('roll', 'Jet Universel', 'col-p-roll')}
+                      <th class="col-p-damage">Damage</th>
                       ${renderPowerTh('cost', 'Coût Mana/Focus', 'col-p-cost')}
                       ${renderPowerTh('charges', 'Charges / Utilisation', 'col-p-charges')}
                       <th class="col-p-rollbtn" style="text-align: center;">Lancer</th>
+                      <th class="col-p-damage-roll" style="text-align: center;">Roll damage</th>
                       <th class="row-actions col-p-delete" style="text-align: center;">Actions</th>
                     </tr>
                   </thead>
@@ -2285,6 +2287,9 @@ function uniquePowerPage(character) {
                             ${rollOptionsHtml}
                           </select>
                         </td>
+                        <td class="col-p-damage">
+                          ${formulaCellHtml(`powerThemes.${themeIdx}.powers.${pIdx}.damage`, power.damage || '', character)}
+                        </td>
                         <td class="col-p-cost">
                           <textarea class="cell-input" data-path="powerThemes.${themeIdx}.powers.${pIdx}.cost" rows="1" placeholder="Coût (Mana / Focus)">${esc(power.cost || '')}</textarea>
                         </td>
@@ -2297,6 +2302,10 @@ function uniquePowerPage(character) {
                           ` : `
                             <button type="button" class="power-roll-btn power-roll-btn-disabled" disabled title="Sélectionnez un rang dans la colonne Jet Universel pour activer le lancer">🎲 Lancer</button>
                           `}
+                        </td>
+                        <td class="col-p-damage-roll" style="text-align: center;">
+                          <button type="button" class="power-roll-btn power-roll-btn-active" data-roll-power-damage-theme="${themeIdx}" data-roll-power-damage-idx="${pIdx}" title="Roll damage for ${esc(power.name || `Power ${pIdx + 1}`)}">🎲 Roll damage</button>
+                          <span class="power-damage-roll-error" role="status" aria-live="polite"></span>
                         </td>
                         <td class="row-actions col-p-delete" style="text-align: center;">
                           <button type="button" class="delete-row" data-delete-power-row="${themeIdx}.${pIdx}" title="Supprimer cette ligne">Supprimer</button>
@@ -6567,7 +6576,7 @@ function bindEvents() {
             if (themes[themeIdx]) {
               themes[themeIdx].powers ??= [];
               const newPIdx = themes[themeIdx].powers.length;
-              themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', cost: '', charges: '' });
+              themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' });
               await save();
               const targetPath = `powerThemes.${themeIdx}.powers.${newPIdx}.name`;
               render(targetPath, true);
@@ -7556,8 +7565,8 @@ function bindEvents() {
         image: '',
         imageSettings: { width: 320, height: 420 },
         powers: [
-          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' },
-          { name: '', description: '', roll: 'No Roll', cost: '', charges: '' }
+          { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' },
+          { name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' }
         ]
       });
       await save();
@@ -7583,7 +7592,7 @@ function bindEvents() {
             description: '',
             image: '',
             imageSettings: { width: 320, height: 420 },
-            powers: [{ name: '', description: '', roll: 'No Roll', cost: '', charges: '' }]
+            powers: [{ name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' }]
           });
         }
         await save();
@@ -7606,6 +7615,7 @@ function bindEvents() {
         name: '',
         description: '',
         roll: 'No Roll',
+        damage: '',
         cost: '',
         charges: ''
       });
@@ -7627,7 +7637,7 @@ function bindEvents() {
       if (!themes[themeIdx]?.powers || !Number.isInteger(pIdx)) return;
       themes[themeIdx].powers.splice(pIdx, 1);
       if (themes[themeIdx].powers.length === 0) {
-        themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', cost: '', charges: '' });
+        themes[themeIdx].powers.push({ name: '', description: '', roll: 'No Roll', damage: '', cost: '', charges: '' });
       }
       await save();
       render();
@@ -7656,6 +7666,39 @@ function bindEvents() {
       const fullName = `${themeTitle} — ${powerName}`;
 
       rollUniversalCheck(fullName, rankVal, 'standard', 0);
+    });
+  });
+
+  app.querySelectorAll('[data-roll-power-damage-theme]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const themeIdx = Number(btn.dataset.rollPowerDamageTheme);
+      const pIdx = Number(btn.dataset.rollPowerDamageIdx);
+      const character = currentCharacter();
+      const themes = getPowerThemes(character);
+      const theme = themes[themeIdx];
+      const power = theme?.powers?.[pIdx];
+      const error = btn.parentElement?.querySelector('.power-damage-roll-error');
+      if (!power) return;
+
+      const damage = String(power.damage ?? '').trim();
+      if (!damage) {
+        if (error) error.textContent = 'Enter a damage formula first.';
+        return;
+      }
+
+      const resolvedDamage = translateFormula(damage, getCustomRollVariableMap(character));
+      const parsed = parseDiceAndModifiers(resolvedDamage);
+      if (!parsed || (!parsed.hasDice && !parsed.isNumeric)) {
+        if (error) error.textContent = 'Damage formula did not resolve to a number or dice roll.';
+        return;
+      }
+
+      if (error) error.textContent = '';
+      const powerName = power.name?.trim() || `Power ${pIdx + 1}`;
+      const themeTitle = theme.title?.trim() || `Power Theme ${themeIdx + 1}`;
+      await rollFormulaEffect(`${themeTitle} — ${powerName}`, 'Damage', resolvedDamage);
     });
   });
 
