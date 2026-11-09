@@ -25,7 +25,10 @@ const formatFormulaRollGroups = loadFunction('formatFormulaRollGroups', 'rollFor
 const getSelectedWeaponDamageInfo = () => ({
   damageExpr: '3D10 + 56',
   weaponQuality: 12,
-  criticalMultiplier: 2
+  criticalMultiplier: 2,
+  totalFlatBonus: 56,
+  finalDiceStr: '3D10',
+  weaponName: 'Selected Blade'
 });
 const translateFormula = loadFunction('translateFormula', 'formulaCellHtml', {
   evaluateSafeMath,
@@ -56,7 +59,8 @@ const getCustomRollVariableMap = loadFunction('getCustomRollVariableMap', 'getFo
   tables: formulaTables,
   ACTION_TYPES_ROWS: [['Normal', 'Full']],
   parseDiceAndModifiers,
-  translateFormula
+  translateFormula,
+  getSelectedWeaponDamageInfo
 });
 const getFormulaReferenceGroups = loadFunction('getFormulaReferenceGroups', 'formulaReferencePopoverHtml', {
   getCustomRollVariableMap,
@@ -75,10 +79,23 @@ const formulaReferenceCharacter = {
       ...Object.fromEntries(Object.entries(formulaTables)
         .filter(([tableName]) => tableName !== 'Action Types')
         .map(([tableName, headers]) => [tableName, [headers.map((header, index) => index === 0 ? `${tableName} Item` : `${tableName} ${header} value`)]])),
-      Skills: [['Acrobaties', 'Hors-Combat', 'Agility', '', '', '', 'Balance', '', '(Fgt/10)D6']],
+      Skills: [
+        ['Acrobaties', 'Hors-Combat', 'Agility', '', '', '', 'Balance', '', '(Fgt/10)D6'],
+        ['Selected Skill', 'Combat', 'Fighting', '2', 'Normal', '3', 'A selected skill', '', '1D6 + Fighting']
+      ],
       Specialisations: [['Fire Magic', 'Novice', '+5', '+10', '', '+1']],
-      Weapons: [{ Name: 'Longsword', Quality: '12' }]
+      Weapons: [
+        { Name: 'Longsword', Quality: '12', Dice: '1D8' },
+        { Name: 'Selected Blade', Quality: '18', Dice: '2D10', 'Critical Multiplier': '2', 'Damage Bonus Stat': 'Strength' }
+      ],
+      Spell: [
+        ['Counter Spell', '2', 'Normal', '10', '2 x Spirit'],
+        ['Selected Spell', '7', 'Free', '3', '1 x Fire', 'Burning', 'Damage', 'Fail', '1D8 + MP']
+      ]
     },
+    quickAccessWeaponSlot: 1,
+    quickAccessSkillSlot: 1,
+    quickAccessSpellSlot: 1,
     currency: { boreal: '4' },
     customManaPools: [{ name: 'Focus Pool', value: '5' }],
     customRolls: [{ name: 'Fireball', formula: '1D6 + Fighting' }],
@@ -102,6 +119,21 @@ assert.ok(formulaReferenceNames.has('Currency_boreal'));
 assert.ok(formulaReferenceNames.has('Mana_Pools_Focus_Pool_value'));
 assert.ok(formulaReferenceNames.has('Custom_Roll_Fireball_formula'));
 assert.ok(formulaReferenceNames.has('Unique_Power_Flame_Flame_Burst_damage'));
+assert.ok(formulaReferenceNames.has('Selected_Weapon_Name'));
+assert.ok(formulaReferenceNames.has('Selected_Weapon_Quality'));
+assert.ok(formulaReferenceNames.has('Selected_Weapon_total_Flat_Bonus'));
+assert.ok(formulaReferenceNames.has('Selected_Skill_Name'));
+assert.ok(formulaReferenceNames.has('Selected_Skill_Green'));
+assert.ok(formulaReferenceNames.has('Selected_Spell_Name'));
+assert.ok(formulaReferenceNames.has('Selected_Spell_Green'));
+const selectedValues = Object.fromEntries(formulaReferenceEntries.map(({ name, value }) => [name, value]));
+assert.strictEqual(selectedValues.Selected_Weapon_Name, 'Selected Blade');
+assert.strictEqual(selectedValues.Selected_Weapon_Quality, '18');
+assert.strictEqual(selectedValues.Selected_Skill_Name, 'Selected Skill');
+assert.strictEqual(selectedValues.Selected_Spell_Name, 'Selected Spell');
+assert.strictEqual(selectedValues.Selected_Skill_Green, '1D6 + 30');
+assert.strictEqual(selectedValues.Selected_Spell_Green, '1D8 + 24');
+assert.strictEqual(translateFormula('Selected_Weapon_Dice', getCustomRollVariableMap(formulaReferenceCharacter)), '2D10');
 assert.strictEqual(
   translateFormula('Skills_Acrobaties_Green', getCustomRollVariableMap(formulaReferenceCharacter)),
   '(3D6)'

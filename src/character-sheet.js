@@ -1146,6 +1146,7 @@ function getCustomRollVariableMap(character) {
   const toIdentifier = (value) => String(value ?? '')
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
     .replace(/[^A-Za-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '') || 'Value';
   const displayValue = (value) => {
@@ -1167,6 +1168,28 @@ function getCustomRollVariableMap(character) {
       formulaSources.push({ variableName: legacyName, raw });
     }
   };
+  const normalizeRows = (stored) => Array.isArray(stored)
+    ? stored
+    : stored && typeof stored === 'object'
+      ? Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key])
+      : [];
+  const addSelectedTableRow = (group, prefix, tableName, selectedIndex, columnOrder = null) => {
+    const headers = tables[tableName] || [];
+    const rows = normalizeRows(character?.data?.tables?.[tableName]);
+    const rowIndex = Number.isInteger(Number(selectedIndex)) && Number(selectedIndex) >= 0 && Number(selectedIndex) < rows.length
+      ? Number(selectedIndex)
+      : 0;
+    const row = rows[rowIndex];
+    if (!row) return;
+    headers.forEach((header, headerIndex) => {
+      const storageIndex = columnOrder ? columnOrder[headerIndex] : headerIndex;
+      const value = Array.isArray(row)
+        ? row[storageIndex]
+        : row[header] ?? row[String(storageIndex)] ?? row[header.replace(/\s+/g, '')];
+      addReference(group, prefix, header, value);
+    });
+    addReference(group, prefix, 'Row Index', rowIndex);
+  };
   const addObjectFields = (group, prefix, object, ignored = []) => {
     if (!object || typeof object !== 'object') return;
     Object.entries(object).forEach(([key, value]) => {
@@ -1179,6 +1202,15 @@ function getCustomRollVariableMap(character) {
   if (character?.name) addReference('Infos', 'Infos', 'Character Name', character.name);
   addObjectFields('Stats', 'Stats', character?.data?.stats);
   addObjectFields('Currency', 'Currency', character?.data?.currency);
+  const selectedWeaponIndex = character?.data?.quickAccessWeaponSlot
+    ?? (Array.isArray(character?.data?.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0);
+  addSelectedTableRow('Arme sélectionnée', 'Selected Weapon', 'Weapons', selectedWeaponIndex, [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13]);
+  const selectedWeaponInfo = getSelectedWeaponDamageInfo(character, selectedWeaponIndex);
+  addObjectFields('Arme sélectionnée', 'Selected Weapon', selectedWeaponInfo, ['weapon', 'specRow']);
+  const selectedSkillIndex = character?.data?.quickAccessSkillSlot ?? 0;
+  addSelectedTableRow('Compétence sélectionnée', 'Selected Skill', 'Skills', selectedSkillIndex);
+  const selectedSpellIndex = character?.data?.quickAccessSpellSlot ?? 0;
+  addSelectedTableRow('Sort sélectionné', 'Selected Spell', 'Spell', selectedSpellIndex);
 
   const storedTables = character?.data?.tables || {};
   const tableNames = new Set([...Object.keys(tables), ...Object.keys(storedTables)]);
@@ -1286,6 +1318,9 @@ function getFormulaReferenceGroups(character) {
     ...Object.keys(tables),
     'Rolls & Ini',
     'Currency',
+    'Arme sélectionnée',
+    'Compétence sélectionnée',
+    'Sort sélectionné',
     'Unique Power',
     'Custom Roll',
     'Mana Pools'
