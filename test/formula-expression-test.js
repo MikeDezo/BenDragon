@@ -209,7 +209,13 @@ const quickAccessRollHandler = source.slice(
   source.indexOf("app.querySelectorAll('[data-qa-universal-roll]')"),
   source.indexOf("app.querySelector('.qa-vs-intensity')?.addEventListener('input'")
 );
-assert.match(quickAccessRollHandler, /targetTier === 'standard'/);
+assert.match(quickAccessRollHandler, /const focusCostIsDependent = btn\.dataset\.focusCostDependent === 'true'/);
+const quickAccessSkillMarkup = source.slice(
+  source.indexOf('const skillsTableHtml = `'),
+  source.indexOf('let selectedSpellIdx', source.indexOf('const skillsTableHtml = `'))
+);
+assert.match(quickAccessSkillMarkup, /data-focus-cost-dependent="\$\{isDependentFocusCost\}"[^>]+data-target-tier="standard"/);
+assert.doesNotMatch(quickAccessSkillMarkup, /data-focus-cost-dependent="\$\{isDependentFocusCost\}"[^>]+data-target-tier="(?:green|yellow|red)"/);
 const quickAccessSkillEffectHandler = source.slice(
   source.indexOf("app.querySelectorAll('.rollable-qa-effect')"),
   source.indexOf("app.querySelector('#font-decrease-btn')")
