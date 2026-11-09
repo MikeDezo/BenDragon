@@ -1132,6 +1132,31 @@ function getCharacterStatsMap(character) {
   return map;
 }
 
+function getSkillFocusCostValue(character, skillRowIndex = null, focusCostOverride = quickAccessDependentFocusCost) {
+  const rows = character?.data?.tables?.Skills;
+  const skillRows = Array.isArray(rows)
+    ? rows
+    : rows && typeof rows === 'object'
+      ? Object.keys(rows).sort((a, b) => Number(a) - Number(b)).map((key) => rows[key])
+      : [];
+  const parsedSelectedIndex = Number(character?.data?.quickAccessSkillSlot ?? 0);
+  const selectedSkillIndex = Number.isInteger(parsedSelectedIndex) && parsedSelectedIndex >= 0 && parsedSelectedIndex < skillRows.length
+    ? parsedSelectedIndex
+    : 0;
+  const parsedRowIndex = skillRowIndex === null ? selectedSkillIndex : Number(skillRowIndex);
+  const focusCostRowIndex = Number.isInteger(parsedRowIndex) && parsedRowIndex >= 0 && parsedRowIndex < skillRows.length
+    ? parsedRowIndex
+    : 0;
+  const focusCostRow = skillRows[focusCostRowIndex];
+  const rawFocusCost = Array.isArray(focusCostRow)
+    ? focusCostRow[5]
+    : focusCostRow?.['Focus Cost'] ?? focusCostRow?.[5] ?? focusCostRow?.focusCost;
+  const isDependentFocusCost = String(rawFocusCost ?? '').trim().toLowerCase() === 'depend';
+  return isDependentFocusCost
+    ? (focusCostRowIndex === selectedSkillIndex && focusCostOverride !== null ? focusCostOverride : 'Depend')
+    : (String(rawFocusCost ?? '').trim() || '--');
+}
+
 function getCustomRollVariableMap(character, focusCostOverride = quickAccessDependentFocusCost, skillRowIndex = null) {
   const variables = { ...getCharacterStatsMap(character) };
   const numericValue = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
@@ -1180,17 +1205,7 @@ function getCustomRollVariableMap(character, focusCostOverride = quickAccessDepe
     return Number.isInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < rows.length ? parsedIndex : 0;
   };
   const selectedSkillIndex = normalizeSelectedIndex('Skills', character?.data?.quickAccessSkillSlot ?? 0);
-  const focusCostRowIndex = skillRowIndex === null ? selectedSkillIndex : normalizeSelectedIndex('Skills', skillRowIndex);
-  const skillRows = normalizeRows(character?.data?.tables?.Skills);
-  const focusCostRow = skillRows[focusCostRowIndex];
-  const rawFocusCost = Array.isArray(focusCostRow)
-    ? focusCostRow[5]
-    : focusCostRow?.['Focus Cost'] ?? focusCostRow?.[5] ?? focusCostRow?.focusCost;
-  const isDependentFocusCost = String(rawFocusCost ?? '').trim().toLowerCase() === 'depend';
-  const focusCostValue = isDependentFocusCost
-    ? (focusCostRowIndex === selectedSkillIndex && focusCostOverride !== null ? focusCostOverride : 'Depend')
-    : (String(rawFocusCost ?? '').trim() || '--');
-  variables.focus_cost = focusCostValue;
+  variables.focus_cost = getSkillFocusCostValue(character, skillRowIndex, focusCostOverride);
   const addSelectedTableRow = (group, prefix, tableName, selectedIndex, columnOrder = null) => {
     const headers = tables[tableName] || [];
     const rows = normalizeRows(character?.data?.tables?.[tableName]);
@@ -5048,12 +5063,18 @@ function tablePage(name, character) {
     const widthStyle = savedActionW ? ` style="width: ${savedActionW}px; min-width: ${savedActionW}px;"` : '';
     return `<th class="row-actions"${widthStyle} data-col-name="Actions"><span class="th-content">Actions</span><div class="col-resize-handle" data-col-resize="Actions" data-table-name="${esc(name)}" title="Drag to resize column (Double-click to reset)"></div></th>`;
   })() : '';
+  const tableFormulaVariables = name === 'Skills' || name === 'Spell'
+    ? getCustomRollVariableMap(character)
+    : null;
 
   return `<section><h2 class="section-title">${esc(name)}</h2><div class="table-wrap"><table class="sheet-table${tableClass}"><thead><tr>${headersHtml}${actionsTh}</tr></thead><tbody>${rows.map((row, rowIndex) => {
     const skillType = String(Array.isArray(row) ? row[1] : (row?.['Skill Type'] ?? row?.[1] ?? '')).trim().toLowerCase();
     const skillTypeClass = name === 'Skills'
       ? (skillType === 'hors-combat' ? 'skill-type-hors-combat' : skillType === 'combat' ? 'skill-type-combat' : skillType === 'passive' ? 'skill-type-passive' : '')
       : '';
+    const rowFormulaVariables = tableFormulaVariables && name === 'Skills'
+      ? { ...tableFormulaVariables, focus_cost: getSkillFocusCostValue(character, rowIndex) }
+      : tableFormulaVariables;
     return `<tr${skillTypeClass ? ` class="${skillTypeClass}"` : ''}>${displayColumns.map((columnIndex) => {
     const header = headers[columnIndex];
     const sourceColumnIndex = name === 'Weapons' ? weaponStorageColumns[columnIndex] : columnIndex;
@@ -5144,7 +5165,7 @@ function tablePage(name, character) {
       return `<td>${readOnlyCell(val)}</td>`;
     }
     if ((name === 'Skills' || name === 'Spell') && ['White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red'].includes(header)) {
-      return `<td>${formulaCellHtml(path, val, character)}</td>`;
+      return `<td>${formulaCellHtml(path, val, character, rowFormulaVariables)}</td>`;
     }
     if (isActionTypes) return `<td><span class="cell-readonly action-type-cell">${esc(val)}</span></td>`;
     return `<td>${editable(path, val, 'cell-input')}</td>`;

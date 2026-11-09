@@ -54,8 +54,12 @@ const formulaTables = {
   'Note du joueur': ['Note'],
   'Unique Power': ['Name', 'Description', 'Cost']
 };
+const getSkillFocusCostValue = loadFunction('getSkillFocusCostValue', 'getCustomRollVariableMap', {
+  quickAccessDependentFocusCost: null
+});
 const getCustomRollVariableMap = loadFunction('getCustomRollVariableMap', 'getFormulaReferenceGroups', {
   getCharacterStatsMap,
+  getSkillFocusCostValue,
   quickAccessDependentFocusCost: null,
   tables: formulaTables,
   ACTION_TYPES_ROWS: [['Normal', 'Full']],
@@ -167,7 +171,10 @@ const dependentFocusCostCharacter = {
     stats: { Fighting: 30 },
     quickAccessSkillSlot: 0,
     tables: {
-      Skills: [['Dependent Skill', 'Combat', 'Fighting', '', 'Normal', 'Depend', '', '', '1D6 + Skills_Dependent_Skill_Focus_Cost']]
+      Skills: [
+        ['Dependent Skill', 'Combat', 'Fighting', '', 'Normal', 'Depend', '', '', '1D6 + Skills_Dependent_Skill_Focus_Cost'],
+        ['Fixed Skill', 'Combat', 'Fighting', '', 'Normal', '4', '', '', '1D6 + focus_cost']
+      ]
     }
   }
 };
@@ -178,6 +185,16 @@ assert.strictEqual(dependentFocusVariables.focus_cost, 7);
 assert.strictEqual(
   getFormulaVariableMapForPath(dependentFocusCostCharacter, 'tables.Skills.0.8').focus_cost,
   7
+);
+assert.strictEqual(
+  getFormulaVariableMapForPath(dependentFocusCostCharacter, 'tables.Skills.1.8').focus_cost,
+  '4'
+);
+assert.strictEqual(getSkillFocusCostValue(dependentFocusCostCharacter, 0, 7), 7);
+assert.strictEqual(getSkillFocusCostValue(dependentFocusCostCharacter, 1, 7), '4');
+assert.strictEqual(
+  translateFormula('1D6 + focus_cost', getFormulaVariableMapForPath(dependentFocusCostCharacter, 'tables.Skills.1.8')),
+  '1D6 + 4'
 );
 assert.strictEqual(
   translateFormula('1D6 + focus_cost', dependentFocusVariables),
