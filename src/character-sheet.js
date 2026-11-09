@@ -38,6 +38,7 @@ const stats = ['Fighting', 'Strength', 'Agility', 'Endurance', 'Speed', 'Intelli
 let pendingDependentSkillRoll = null;
 let quickAccessVsIntensity = '';
 let quickAccessD100Mode = '';
+let quickAccessDependentFocusCost = null;
 const tables = {
   'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
   Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Specialisation'],
@@ -1131,7 +1132,7 @@ function getCharacterStatsMap(character) {
   return map;
 }
 
-function getCustomRollVariableMap(character) {
+function getCustomRollVariableMap(character, focusCostOverride = quickAccessDependentFocusCost, skillRowIndex = null) {
   const variables = { ...getCharacterStatsMap(character) };
   const numericValue = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
   [character?.data?.stats || {}, character?.data?.info || {}].forEach((source) => {
@@ -1173,6 +1174,23 @@ function getCustomRollVariableMap(character) {
     : stored && typeof stored === 'object'
       ? Object.keys(stored).sort((a, b) => Number(a) - Number(b)).map((key) => stored[key])
       : [];
+  const normalizeSelectedIndex = (tableName, index) => {
+    const rows = normalizeRows(character?.data?.tables?.[tableName]);
+    const parsedIndex = Number(index);
+    return Number.isInteger(parsedIndex) && parsedIndex >= 0 && parsedIndex < rows.length ? parsedIndex : 0;
+  };
+  const selectedSkillIndex = normalizeSelectedIndex('Skills', character?.data?.quickAccessSkillSlot ?? 0);
+  const focusCostRowIndex = skillRowIndex === null ? selectedSkillIndex : normalizeSelectedIndex('Skills', skillRowIndex);
+  const skillRows = normalizeRows(character?.data?.tables?.Skills);
+  const focusCostRow = skillRows[focusCostRowIndex];
+  const rawFocusCost = Array.isArray(focusCostRow)
+    ? focusCostRow[5]
+    : focusCostRow?.['Focus Cost'] ?? focusCostRow?.[5] ?? focusCostRow?.focusCost;
+  const isDependentFocusCost = String(rawFocusCost ?? '').trim().toLowerCase() === 'depend';
+  const focusCostValue = isDependentFocusCost
+    ? (focusCostRowIndex === selectedSkillIndex && focusCostOverride !== null ? focusCostOverride : 'Depend')
+    : (String(rawFocusCost ?? '').trim() || '--');
+  variables.focus_cost = focusCostValue;
   const addSelectedTableRow = (group, prefix, tableName, selectedIndex, columnOrder = null) => {
     const headers = tables[tableName] || [];
     const rows = normalizeRows(character?.data?.tables?.[tableName]);
@@ -1183,9 +1201,15 @@ function getCustomRollVariableMap(character) {
     if (!row) return;
     headers.forEach((header, headerIndex) => {
       const storageIndex = columnOrder ? columnOrder[headerIndex] : headerIndex;
-      const value = Array.isArray(row)
+      let value = Array.isArray(row)
         ? row[storageIndex]
         : row[header] ?? row[String(storageIndex)] ?? row[header.replace(/\s+/g, '')];
+      if (tableName === 'Skills' && header === 'Focus Cost' && !String(value ?? '').trim()) {
+        value = '--';
+      } else if (tableName === 'Skills' && header === 'Focus Cost' &&
+        String(value ?? '').trim().toLowerCase() === 'depend' && focusCostOverride !== null) {
+        value = focusCostOverride;
+      }
       addReference(group, prefix, header, value);
     });
     addReference(group, prefix, 'Row Index', rowIndex);
@@ -1202,14 +1226,16 @@ function getCustomRollVariableMap(character) {
   if (character?.name) addReference('Infos', 'Infos', 'Character Name', character.name);
   addObjectFields('Stats', 'Stats', character?.data?.stats);
   addObjectFields('Currency', 'Currency', character?.data?.currency);
-  const selectedWeaponIndex = character?.data?.quickAccessWeaponSlot
-    ?? (Array.isArray(character?.data?.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0);
+  const selectedWeaponIndex = normalizeSelectedIndex(
+    'Weapons',
+    character?.data?.quickAccessWeaponSlot
+      ?? (Array.isArray(character?.data?.quickAccessWeaponSlots) ? character.data.quickAccessWeaponSlots[0] : 0)
+  );
   addSelectedTableRow('Arme sélectionnée', 'Selected Weapon', 'Weapons', selectedWeaponIndex, [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13]);
   const selectedWeaponInfo = getSelectedWeaponDamageInfo(character, selectedWeaponIndex);
   addObjectFields('Arme sélectionnée', 'Selected Weapon', selectedWeaponInfo, ['weapon', 'specRow']);
-  const selectedSkillIndex = character?.data?.quickAccessSkillSlot ?? 0;
   addSelectedTableRow('Compétence sélectionnée', 'Selected Skill', 'Skills', selectedSkillIndex);
-  const selectedSpellIndex = character?.data?.quickAccessSpellSlot ?? 0;
+  const selectedSpellIndex = normalizeSelectedIndex('Spell', character?.data?.quickAccessSpellSlot ?? 0);
   addSelectedTableRow('Sort sélectionné', 'Selected Spell', 'Spell', selectedSpellIndex);
 
   const storedTables = character?.data?.tables || {};
@@ -1232,12 +1258,34 @@ function getCustomRollVariableMap(character) {
         ? Object.entries(row).map(([storageIndex, value]) => {
           const index = Number(storageIndex);
           const headerIndex = tableName === 'Weapons' ? weaponStorageColumns.indexOf(index) : index;
-          return [headers[headerIndex] || `Column ${index + 1}`, value];
+          const header = headers[headerIndex] || `Column ${index + 1}`;
+          if (tableName === 'Skills' && rowIndex === selectedSkillIndex && header === 'Focus Cost' &&
+            String(value ?? '').trim().toLowerCase() === 'depend' && focusCostOverride !== null) {
+            return [header, focusCostOverride];
+          }
+          return [header, value];
         })
         : Object.entries(row)
           .filter(([key]) => !key.startsWith('_'))
-          .map(([key, value]) => [headers[Number(key)] || key, value]);
+          .map(([key, value]) => {
+            const header = headers[Number(key)] || key;
+            if (tableName === 'Skills' && rowIndex === selectedSkillIndex && header === 'Focus Cost' &&
+              String(value ?? '').trim().toLowerCase() === 'depend' && focusCostOverride !== null) {
+              return [header, focusCostOverride];
+            }
+            return [header, value];
+          });
+      if (tableName === 'Skills' && !cells.some(([header]) => header === 'Focus Cost')) {
+        cells.push(['Focus Cost', '--']);
+      }
       cells.forEach(([header, value]) => {
+        if (tableName === 'Skills' && header === 'Focus Cost') {
+          if (!String(value ?? '').trim()) {
+            value = '--';
+          } else if (rowIndex === selectedSkillIndex && String(value).trim().toLowerCase() === 'depend' && focusCostOverride !== null) {
+            value = focusCostOverride;
+          }
+        }
         addReference(tableName, tableName, `${rowName} ${header}`, value, `${rowName} ${header}`);
       });
     });
@@ -1540,8 +1588,18 @@ function translateFormula(formula, stats) {
   return result.replace(/(\d+)\s*[dD]\s*(\d+)/g, '$1D$2');
 }
 
-function formulaCellHtml(path, value, character, variables = getCustomRollVariableMap(character)) {
-  const translated = translateFormula(value, variables);
+function getFormulaVariableMapForPath(character, path = '') {
+  const skillRowMatch = path.match(/^tables\.Skills\.(\d+)\./);
+  return getCustomRollVariableMap(
+    character,
+    quickAccessDependentFocusCost,
+    skillRowMatch ? Number(skillRowMatch[1]) : null
+  );
+}
+
+function formulaCellHtml(path, value, character, variables) {
+  const formulaVariables = variables || getFormulaVariableMapForPath(character, path);
+  const translated = translateFormula(value, formulaVariables);
   const hasValue = Boolean(value && String(value).trim());
   const supportsAutocomplete = path.startsWith('customRolls.') || /^tables\.(Skills|Spell)\./.test(path) || /^powerThemes\.\d+\.powers\.\d+\.damage$/.test(path);
   return `<div class="formula-cell">
@@ -1567,6 +1625,10 @@ function editableInteger(path, value, className = 'cell-input', attributes = '')
 
 function editableDecimal(path, value, className = 'cell-input', attributes = '') {
   return `<input type="number" class="${className}" data-path="${path}" step="any" inputmode="decimal" value="${esc(value)}"${attributes ? ` ${attributes}` : ''}>`;
+}
+
+function getSkillFocusCostOptions() {
+  return ['--', 'Depend', ...Array.from({ length: 50 }, (_, index) => String(index + 1))];
 }
 
 function readOnlyCell(value) {
@@ -1810,16 +1872,20 @@ function addXpModalHtml(character) {
 function dependentSkillRollModalHtml() {
   if (!pendingDependentSkillRoll) return '';
   const statOptions = stats.map((stat) => `<option value="${esc(stat)}">${esc(stat)}</option>`).join('');
+  const needsStat = pendingDependentSkillRoll.statIsDependent;
+  const needsFocusCost = pendingDependentSkillRoll.focusCostIsDependent;
   return `<div class="modal-backdrop" id="dependent-skill-roll-backdrop" role="dialog" aria-modal="true" aria-labelledby="dependent-skill-roll-title">
     <div class="xp-modal" id="dependent-skill-roll-dialog" style="max-width: 360px;">
       <div class="xp-modal-header">
-        <h2 class="xp-modal-title" id="dependent-skill-roll-title">Choose Roll Stat</h2>
+        <h2 class="xp-modal-title" id="dependent-skill-roll-title">${needsStat && needsFocusCost ? 'Skill Roll Details' : needsStat ? 'Choose Roll Stat' : 'Enter Focus Cost'}</h2>
         <button type="button" class="xp-modal-close" id="dependent-skill-roll-close" title="Close dialog">&times;</button>
       </div>
       <div class="xp-modal-body">
-        <div class="xp-modal-info">${esc(pendingDependentSkillRoll.name)} depends on the stat you choose.</div>
-        <label for="dependent-skill-roll-stat">Roll using:</label>
-        <select id="dependent-skill-roll-stat" class="xp-modal-input">${statOptions}</select>
+        <div class="xp-modal-info">${esc(pendingDependentSkillRoll.name)}${needsStat ? ' requires a roll stat.' : ''}${needsFocusCost ? ' Enter the focus cost for this roll.' : ''}</div>
+        ${needsStat ? `<label for="dependent-skill-roll-stat">Roll using:</label>
+        <select id="dependent-skill-roll-stat" class="xp-modal-input">${statOptions}</select>` : ''}
+        ${needsFocusCost ? `<label for="dependent-skill-roll-focus-cost">Focus cost (integer):</label>
+        <input id="dependent-skill-roll-focus-cost" class="xp-modal-input" type="number" min="0" step="1" inputmode="numeric" value="${esc(quickAccessDependentFocusCost ?? '')}" required>` : ''}
       </div>
       <div class="xp-modal-footer">
         <button type="button" class="toolbar-button secondary" id="dependent-skill-roll-cancel">Cancel</button>
@@ -3774,7 +3840,7 @@ async function rollDicePlus(statName) {
 
 function quickAccessSectionHtml(character, numFighting, numStrength, numAgility, numIntuition, numSpeed) {
   const st = character.data.stats || {};
-  const statsMap = getCharacterStatsMap(character);
+  const statsMap = getCustomRollVariableMap(character);
   character.data.quickAccessWeaponSlot ??= 0;
   character.data.quickAccessSkillSlot ??= 0;
   character.data.quickAccessSpellSlot ??= 0;
@@ -3904,9 +3970,13 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
   const skill = (rawSkills.length > 0 && rawSkills[selectedSkillIdx]) ? rawSkills[selectedSkillIdx] : [];
   const skillName = getTableCell(skill, tables.Skills, 0) || (rawSkills.length > 0 ? `Skill ${selectedSkillIdx + 1}` : 'Skill');
   const skillFocusCost = getTableCell(skill, tables.Skills, 5);
-  const skillFocusCostLabel = skillFocusCost === undefined || skillFocusCost === null || String(skillFocusCost).trim() === ''
+  const isDependentFocusCost = String(skillFocusCost ?? '').trim().toLowerCase() === 'depend';
+  const resolvedFocusCost = isDependentFocusCost
+    ? (quickAccessDependentFocusCost ?? 'Depend')
+    : skillFocusCost;
+  const skillFocusCostLabel = resolvedFocusCost === undefined || resolvedFocusCost === null || String(resolvedFocusCost).trim() === ''
     ? '—'
-    : String(skillFocusCost);
+    : String(resolvedFocusCost);
   const skillStatName = String(Array.isArray(skill) ? (skill[2] || 'Fighting') : (skill?.[2] ?? skill?.Stat ?? skill?.stat ?? 'Fighting')).trim();
   const skillBaseStatVal = parseFloat(st[skillStatName] ?? statsMap[skillStatName] ?? numFighting) || 0;
   const skillSpecialisationName = getTableCell(skill, tables.Skills, 13);
@@ -3942,18 +4012,18 @@ function quickAccessSectionHtml(character, numFighting, numStrength, numAgility,
       </div>
       <!-- Row 1: 4 columns for Karma target tiers -->
       <div class="qa-grid-4">
-        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
-        <div class="qa-cell bg-green rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
-        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
-        <div class="qa-cell bg-red rollable-qa-btn" data-qa-skill-roll data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
+        <div class="qa-cell bg-gray rollable-qa-btn" data-qa-skill-roll data-focus-cost-dependent="${isDependentFocusCost}" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="standard" title="Roll Standard ${esc(skillName)} (${rankLabel})">No Karma</div>
+        <div class="qa-cell bg-green rollable-qa-btn" data-qa-skill-roll data-focus-cost-dependent="${isDependentFocusCost}" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="green" title="Roll ${esc(skillName)} [Target: Green] (${rankLabel})">Green</div>
+        <div class="qa-cell bg-yellow rollable-qa-btn" data-qa-skill-roll data-focus-cost-dependent="${isDependentFocusCost}" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="yellow" title="Roll ${esc(skillName)} [Target: Yellow] (${rankLabel})">Yellow</div>
+        <div class="qa-cell bg-red rollable-qa-btn" data-qa-skill-roll data-focus-cost-dependent="${isDependentFocusCost}" data-qa-universal-roll="${esc(skillName)}" data-stat-name="${esc(skillStatName)}" data-stat-val="${skillStatVal}" data-touch-bonus="${skillTouchBonus}" data-cs-level="${csLevel}" data-target-tier="red" title="Roll ${esc(skillName)} [Target: Red] (${rankLabel})">Red</div>
       </div>
       <!-- Row 2: 5 columns for translated outcome values -->
       <div class="qa-grid-5">
-        <div class="qa-cell bg-green rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Green" data-qa-effect-expr="${esc(skillGreenVal)}" title="Click to roll Green: ${esc(skillGreenVal)}">${esc(skillGreenVal)}</div>
-        <div class="qa-cell bg-yellow rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Yellow" data-qa-effect-expr="${esc(skillYellowVal)}" title="Click to roll Yellow: ${esc(skillYellowVal)}">${esc(skillYellowVal)}</div>
-        <div class="qa-cell bg-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Red" data-qa-effect-expr="${esc(skillRedVal)}" title="Click to roll Red: ${esc(skillRedVal)}">${esc(skillRedVal)}</div>
-        <div class="qa-cell bg-nat-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Natural Red" data-qa-effect-expr="${esc(skillNatRedVal)}" title="Click to roll Natural Red: ${esc(skillNatRedVal)}">${esc(skillNatRedVal)}</div>
-        <div class="qa-cell bg-crit-red rollable-qa-effect" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Critical 100" data-qa-effect-expr="${esc(skillCritVal)}" title="Click to roll Critical 100: ${esc(skillCritVal)}">${esc(skillCritVal)}</div>
+        <div class="qa-cell bg-green rollable-qa-effect" data-qa-skill-effect="${isDependentFocusCost}" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Green" data-qa-effect-expr="${esc(skill[8] || '')}" title="Click to roll Green: ${esc(skillGreenVal)}">${esc(skillGreenVal)}</div>
+        <div class="qa-cell bg-yellow rollable-qa-effect" data-qa-skill-effect="${isDependentFocusCost}" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Yellow" data-qa-effect-expr="${esc(skill[9] || '')}" title="Click to roll Yellow: ${esc(skillYellowVal)}">${esc(skillYellowVal)}</div>
+        <div class="qa-cell bg-red rollable-qa-effect" data-qa-skill-effect="${isDependentFocusCost}" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Red" data-qa-effect-expr="${esc(skill[10] || '')}" title="Click to roll Red: ${esc(skillRedVal)}">${esc(skillRedVal)}</div>
+        <div class="qa-cell bg-nat-red rollable-qa-effect" data-qa-skill-effect="${isDependentFocusCost}" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Natural Red" data-qa-effect-expr="${esc(skill[11] || '')}" title="Click to roll Natural Red: ${esc(skillNatRedVal)}">${esc(skillNatRedVal)}</div>
+        <div class="qa-cell bg-crit-red rollable-qa-effect" data-qa-skill-effect="${isDependentFocusCost}" data-qa-effect-name="${esc(skillName)}" data-qa-tier-label="Critical 100" data-qa-effect-expr="${esc(skill[12] || '')}" title="Click to roll Critical 100: ${esc(skillCritVal)}">${esc(skillCritVal)}</div>
       </div>
     </div>
   `;
@@ -4997,8 +5067,19 @@ function tablePage(name, character) {
     if (name === 'Skills' && header === 'Stat') {
       return `<td>${editableSelect(path, val, skillStatOptions, 'cell-input cell-select')}</td>`;
     }
-    if (name === 'Skills' && (header === 'CS Level' || header === 'Focus Cost')) {
+    if (name === 'Skills' && header === 'CS Level') {
       return `<td>${editableInteger(path, val)}</td>`;
+    }
+    if (name === 'Skills' && header === 'Focus Cost') {
+      const currentFocusCost = String(val ?? '');
+      const focusCostOptions = getSkillFocusCostOptions();
+      const optionHtml = focusCostOptions.map((option) => {
+        const value = option === '--' ? '' : option;
+        const label = option;
+        return `<option value="${esc(value)}" ${currentFocusCost === value ? 'selected' : ''}>${esc(label)}</option>`;
+      }).join('');
+      const isLegacyValue = currentFocusCost && !focusCostOptions.includes(currentFocusCost);
+      return `<td><select class="cell-input cell-select" data-path="${path}">${optionHtml}${isLegacyValue ? `<option value="${esc(currentFocusCost)}" selected>${esc(currentFocusCost)} (legacy)</option>` : ''}</select></td>`;
     }
     if (name === 'Skills' && header === 'Action Type') {
       return `<td>${editableSelect(path, val, actionTypeOptions, 'cell-input cell-select')}</td>`;
@@ -5189,7 +5270,7 @@ function updateFormulaAutocomplete(input) {
     return;
   }
 
-  const variables = getCustomRollVariableMap(currentCharacter());
+  const variables = getFormulaVariableMapForPath(currentCharacter(), input.dataset.path || '');
   const matches = Object.entries(variables)
     .filter(([name, value]) =>
       !name.startsWith('_') &&
@@ -6523,8 +6604,21 @@ function bindEvents() {
         return;
       }
       if (name) {
-        if (btn.dataset.statName?.trim().toLowerCase() === 'depend') {
-          pendingDependentSkillRoll = { name, targetTier, csLevel, touchBonus: parseInt(btn.dataset.touchBonus, 10) || 0, vsIntensity };
+        const statIsDependent = btn.dataset.statName?.trim().toLowerCase() === 'depend';
+        const focusCostIsDependent = btn.dataset.focusCostDependent === 'true';
+        if (statIsDependent || focusCostIsDependent) {
+          pendingDependentSkillRoll = {
+            kind: 'universal',
+            name,
+            targetTier,
+            csLevel,
+            touchBonus: parseInt(btn.dataset.touchBonus, 10) || 0,
+            statIsDependent,
+            statName: btn.dataset.statName,
+            statValue: parseFloat(btn.dataset.statVal) || 0,
+            focusCostIsDependent,
+            vsIntensity
+          };
           render();
         } else {
           const statVal = parseFloat(btn.dataset.statVal) || 0;
@@ -6554,19 +6648,44 @@ function bindEvents() {
       render();
     };
     const submitRoll = () => {
-      const statName = app.querySelector('#dependent-skill-roll-stat')?.value;
-      if (!statName || !stats.includes(statName)) return;
+      const pendingRoll = pendingDependentSkillRoll;
+      let statName = pendingRoll.statName;
+      if (pendingRoll.statIsDependent) {
+        statName = app.querySelector('#dependent-skill-roll-stat')?.value;
+        if (!statName || !stats.includes(statName)) return;
+      }
+      let focusCost = null;
+      if (pendingRoll.focusCostIsDependent) {
+        const focusCostInput = app.querySelector('#dependent-skill-roll-focus-cost');
+        const focusCostValue = focusCostInput?.value.trim() ?? '';
+        focusCost = Number(focusCostValue);
+        if (!focusCostValue || !Number.isInteger(focusCost) || focusCost < 0) {
+          focusCostInput?.setCustomValidity('Enter a non-negative whole number.');
+          focusCostInput?.reportValidity();
+          return;
+        }
+        quickAccessDependentFocusCost = focusCost;
+      }
       const character = currentCharacter();
       const statsMap = getCharacterStatsMap(character);
-      const statValue = parseFloat(character?.data?.stats?.[statName] ?? statsMap[statName]) || 0;
-      const { name, targetTier, csLevel, touchBonus, vsIntensity } = pendingDependentSkillRoll;
+      const statValue = pendingRoll.statIsDependent
+        ? parseFloat(character?.data?.stats?.[statName] ?? statsMap[statName]) || 0
+        : pendingRoll.statValue;
       pendingDependentSkillRoll = null;
-      if (vsIntensity !== null) {
+      if (pendingRoll.vsIntensity !== null) {
         quickAccessVsIntensity = '';
         const intensityInput = app.querySelector('.qa-vs-intensity');
         if (intensityInput) intensityInput.value = '';
       }
-      rollUniversalCheck(`${name} (${statName})`, statValue + touchBonus, targetTier, csLevel, vsIntensity);
+      if (focusCost !== null) render();
+      if (pendingRoll.kind === 'effect') {
+        const variables = getCustomRollVariableMap(character);
+        const expression = translateFormula(pendingRoll.expression, variables) || pendingRoll.expression;
+        rollFormulaEffect(pendingRoll.name, pendingRoll.tierLabel, expression);
+      } else {
+        const rollName = pendingRoll.statIsDependent ? `${pendingRoll.name} (${statName})` : pendingRoll.name;
+        rollUniversalCheck(rollName, statValue + pendingRoll.touchBonus, pendingRoll.targetTier, pendingRoll.csLevel, pendingRoll.vsIntensity);
+      }
     };
     app.querySelector('#dependent-skill-roll-submit')?.addEventListener('click', submitRoll);
     app.querySelector('#dependent-skill-roll-cancel')?.addEventListener('click', closeModal);
@@ -6575,6 +6694,13 @@ function bindEvents() {
       if (event.target.id === 'dependent-skill-roll-backdrop') closeModal();
     });
     app.querySelector('#dependent-skill-roll-stat')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') submitRoll();
+      if (event.key === 'Escape') closeModal();
+    });
+    app.querySelector('#dependent-skill-roll-focus-cost')?.addEventListener('input', (event) => {
+      event.currentTarget.setCustomValidity('');
+    });
+    app.querySelector('#dependent-skill-roll-focus-cost')?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') submitRoll();
       if (event.key === 'Escape') closeModal();
     });
@@ -6616,6 +6742,7 @@ function bindEvents() {
       const character = currentCharacter();
       if (character) {
         character.data.quickAccessSkillSlot = val;
+        quickAccessDependentFocusCost = null;
         await save();
         render();
       }
@@ -6640,9 +6767,24 @@ function bindEvents() {
       e.stopPropagation();
       const actionName = btn.dataset.qaEffectName || 'Action';
       const tierLabel = btn.dataset.qaTierLabel || 'Effect';
-      const expr = btn.dataset.qaEffectExpr || '';
-      if (expr && expr !== '—') {
-        rollFormulaEffect(actionName, tierLabel, expr);
+      const rawExpression = btn.dataset.qaEffectExpr || '';
+      if (!rawExpression || rawExpression === '—') return;
+      if (btn.dataset.qaSkillEffect === 'true') {
+        pendingDependentSkillRoll = {
+          kind: 'effect',
+          name: actionName,
+          tierLabel,
+          expression: rawExpression,
+          statIsDependent: false,
+          focusCostIsDependent: true,
+          vsIntensity: null
+        };
+        render();
+      } else {
+        const expr = translateFormula(rawExpression, getCustomRollVariableMap(currentCharacter())) || rawExpression;
+        if (expr && expr !== '—') {
+          rollFormulaEffect(actionName, tierLabel, expr);
+        }
       }
     });
   });
@@ -6694,7 +6836,7 @@ function bindEvents() {
         if (resultTextEl) {
           const character = currentCharacter();
           const statsMap = input.classList.contains('formula-autocomplete-input')
-            ? getCustomRollVariableMap(character)
+            ? getFormulaVariableMapForPath(character, input.dataset.path || '')
             : getCharacterStatsMap(character);
           const val = input.value;
           const hasVal = Boolean(val && val.trim());
@@ -6720,6 +6862,13 @@ function bindEvents() {
           await save();
           render();
         }
+        return;
+      }
+      const pathParts = input.dataset.path?.split('.');
+      if (pathParts?.[0] === 'tables' && pathParts[1] === 'Skills' && pathParts[3] === '5') {
+        quickAccessDependentFocusCost = null;
+        await save();
+        render();
         return;
       }
       if (input.classList.contains('power-roll-select')) {

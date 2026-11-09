@@ -56,18 +56,34 @@ const formulaTables = {
 };
 const getCustomRollVariableMap = loadFunction('getCustomRollVariableMap', 'getFormulaReferenceGroups', {
   getCharacterStatsMap,
+  quickAccessDependentFocusCost: null,
   tables: formulaTables,
   ACTION_TYPES_ROWS: [['Normal', 'Full']],
   parseDiceAndModifiers,
   translateFormula,
   getSelectedWeaponDamageInfo
 });
+const getSkillFocusCostOptions = loadFunction('getSkillFocusCostOptions', 'readOnlyCell');
 const getFormulaReferenceGroups = loadFunction('getFormulaReferenceGroups', 'formulaReferencePopoverHtml', {
   getCustomRollVariableMap,
   tables: formulaTables
 });
+const getFormulaVariableMapForPath = loadFunction('getFormulaVariableMapForPath', 'formulaCellHtml', {
+  getCustomRollVariableMap,
+  quickAccessDependentFocusCost: 7
+});
 const formulaReferencePopoverHtml = loadFunction('formulaReferencePopoverHtml', 'translateFormula', {
   getFormulaReferenceGroups,
+  esc: (value) => String(value ?? '')
+});
+const dependentSkillRollModalHtml = loadFunction('dependentSkillRollModalHtml', 'openAddManaPoolModal', {
+  pendingDependentSkillRoll: {
+    name: 'Dependent Skill',
+    statIsDependent: true,
+    focusCostIsDependent: true
+  },
+  stats: ['Fighting', 'Strength'],
+  quickAccessDependentFocusCost: null,
   esc: (value) => String(value ?? '')
 });
 
@@ -114,6 +130,7 @@ assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Relations'));
 assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Monture'));
 assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Note du joueur'));
 assert.ok(formulaReferenceNames.has('Skills_Acrobaties_Green'));
+assert.ok(formulaReferenceNames.has('Skills_Acrobaties_Focus_Cost'));
 assert.ok(formulaReferenceNames.has('Specialisations_Fire_Magic_Potential_Bonus'));
 assert.ok(formulaReferenceNames.has('Currency_boreal'));
 assert.ok(formulaReferenceNames.has('Mana_Pools_Focus_Pool_value'));
@@ -124,6 +141,7 @@ assert.ok(formulaReferenceNames.has('Selected_Weapon_Quality'));
 assert.ok(formulaReferenceNames.has('Selected_Weapon_total_Flat_Bonus'));
 assert.ok(formulaReferenceNames.has('Selected_Skill_Name'));
 assert.ok(formulaReferenceNames.has('Selected_Skill_Green'));
+assert.ok(formulaReferenceNames.has('Selected_Skill_Focus_Cost'));
 assert.ok(formulaReferenceNames.has('Selected_Spell_Name'));
 assert.ok(formulaReferenceNames.has('Selected_Spell_Green'));
 const selectedValues = Object.fromEntries(formulaReferenceEntries.map(({ name, value }) => [name, value]));
@@ -131,6 +149,10 @@ assert.strictEqual(selectedValues.Selected_Weapon_Name, 'Selected Blade');
 assert.strictEqual(selectedValues.Selected_Weapon_Quality, '18');
 assert.strictEqual(selectedValues.Selected_Skill_Name, 'Selected Skill');
 assert.strictEqual(selectedValues.Selected_Spell_Name, 'Selected Spell');
+assert.strictEqual(selectedValues.Selected_Skill_Focus_Cost, '3');
+assert.strictEqual(getCustomRollVariableMap(formulaReferenceCharacter).focus_cost, '3');
+assert.strictEqual(getCustomRollVariableMap(formulaReferenceCharacter, null, 0).focus_cost, '--');
+assert.strictEqual(selectedValues.Skills_Acrobaties_Focus_Cost, '--');
 assert.strictEqual(selectedValues.Selected_Skill_Green, '1D6 + 30');
 assert.strictEqual(selectedValues.Selected_Spell_Green, '1D8 + 24');
 assert.strictEqual(translateFormula('Selected_Weapon_Dice', getCustomRollVariableMap(formulaReferenceCharacter)), '2D10');
@@ -138,9 +160,34 @@ assert.strictEqual(
   translateFormula('Skills_Acrobaties_Green', getCustomRollVariableMap(formulaReferenceCharacter)),
   '(3D6)'
 );
+assert.deepStrictEqual(getSkillFocusCostOptions(), ['--', 'Depend', ...Array.from({ length: 50 }, (_, index) => String(index + 1))]);
+
+const dependentFocusCostCharacter = {
+  data: {
+    stats: { Fighting: 30 },
+    quickAccessSkillSlot: 0,
+    tables: {
+      Skills: [['Dependent Skill', 'Combat', 'Fighting', '', 'Normal', 'Depend', '', '', '1D6 + Skills_Dependent_Skill_Focus_Cost']]
+    }
+  }
+};
+const dependentFocusVariables = getCustomRollVariableMap(dependentFocusCostCharacter, 7);
+assert.strictEqual(dependentFocusVariables.Selected_Skill_Focus_Cost, '7');
+assert.strictEqual(dependentFocusVariables.Skills_Dependent_Skill_Focus_Cost, '7');
+assert.strictEqual(dependentFocusVariables.focus_cost, 7);
+assert.strictEqual(
+  getFormulaVariableMapForPath(dependentFocusCostCharacter, 'tables.Skills.0.8').focus_cost,
+  7
+);
+assert.strictEqual(
+  translateFormula('1D6 + focus_cost', dependentFocusVariables),
+  '1D6 + 7'
+);
 assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /aria-controls="formula-reference-popover"/);
 assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /Toutes les valeurs appelables/);
 assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /formula-reference-search/);
+assert.match(dependentSkillRollModalHtml(), /id="dependent-skill-roll-stat"/);
+assert.match(dependentSkillRollModalHtml(), /id="dependent-skill-roll-focus-cost"/);
 
 const specialisationStats = getCharacterStatsMap({
   data: {
@@ -158,6 +205,8 @@ assert.strictEqual(specialisationStats['FireMagicPB'], 10);
 const formulaCellHtml = loadFunction('formulaCellHtml', 'editable', {
   translateFormula,
   getCustomRollVariableMap: () => specialisationStats,
+  getFormulaVariableMapForPath: () => specialisationStats,
+  quickAccessDependentFocusCost: null,
   esc: (value) => String(value ?? '')
 });
 assert.match(
