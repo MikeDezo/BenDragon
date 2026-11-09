@@ -1133,56 +1133,118 @@ function getCharacterStatsMap(character) {
 
 function getCustomRollVariableMap(character) {
   const variables = { ...getCharacterStatsMap(character) };
-  const rawStats = character?.data?.stats || {};
-  Object.entries(rawStats).forEach(([name, value]) => {
-    const text = String(value ?? '').trim();
-    if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) variables[name] = text;
+  const numericValue = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+  [character?.data?.stats || {}, character?.data?.info || {}].forEach((source) => {
+    Object.entries(source).forEach(([name, value]) => {
+      const text = String(value ?? '').trim();
+      if (name && numericValue.test(text)) variables[name] = text;
+    });
   });
-  const info = character?.data?.info || {};
-  Object.entries(info).forEach(([name, value]) => {
-    const text = String(value ?? '').trim();
-    if (name && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) variables[name] = text;
-  });
+  const formulaReferences = [];
+  const formulaSources = [];
+  const usedNames = new Set(Object.keys(variables));
+  const toIdentifier = (value) => String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'Value';
+  const displayValue = (value) => {
+    if (Array.isArray(value)) return value.map((item) => String(item ?? '').trim()).filter(Boolean).join(', ');
+    if (value && typeof value === 'object') return JSON.stringify(value);
+    return String(value ?? '').trim();
+  };
+  const isFormulaCandidate = (value) => numericValue.test(value) || /\d+\s*[dD]\s*\d+|[()+*/-]/.test(value);
+  const addReference = (group, prefix, label, value, legacyName = '') => {
+    const raw = displayValue(value);
+    if (!raw) return;
+    const baseName = `${toIdentifier(prefix)}_${toIdentifier(label)}`;
+    let variableName = baseName;
+    let duplicate = 2;
+    while (usedNames.has(variableName)) variableName = `${baseName}_${duplicate++}`;
+    usedNames.add(variableName);
+    formulaReferences.push({ group, variableName, label, raw });
+    if (legacyName && (isFormulaCandidate(raw) || variables[raw] !== undefined)) {
+      formulaSources.push({ variableName: legacyName, raw });
+    }
+  };
+  const addObjectFields = (group, prefix, object, ignored = []) => {
+    if (!object || typeof object !== 'object') return;
+    Object.entries(object).forEach(([key, value]) => {
+      if (ignored.includes(key) || key.startsWith('_')) return;
+      addReference(group, prefix, key, value);
+    });
+  };
 
-  const sources = [];
-  Object.entries(tables).forEach(([tableName, headers]) => {
-    const storedRows = character?.data?.tables?.[tableName];
+  addObjectFields('Infos', 'Infos', character?.data?.info);
+  if (character?.name) addReference('Infos', 'Infos', 'Character Name', character.name);
+  addObjectFields('Stats', 'Stats', character?.data?.stats);
+  addObjectFields('Currency', 'Currency', character?.data?.currency);
+
+  const storedTables = character?.data?.tables || {};
+  const tableNames = new Set([...Object.keys(tables), ...Object.keys(storedTables)]);
+  tableNames.forEach((tableName) => {
+    const headers = tables[tableName] || [];
+    const storedRows = tableName === 'Action Types'
+      ? ACTION_TYPES_ROWS
+      : storedTables[tableName];
     const rows = Array.isArray(storedRows)
       ? storedRows
       : storedRows && typeof storedRows === 'object'
         ? Object.keys(storedRows).sort((a, b) => Number(a) - Number(b)).map((key) => storedRows[key])
         : [];
-    const weaponColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13];
-    rows.forEach((row) => {
-      if (!row) return;
-      const rowName = String(Array.isArray(row) ? row[0] : (row.Name ?? row.name ?? row[0] ?? '')).trim();
-      if (!rowName) return;
-      headers.forEach((header, columnIndex) => {
-        const storageIndex = tableName === 'Weapons' ? weaponColumns[columnIndex] : columnIndex;
-        const value = Array.isArray(row) ? row[storageIndex] : (row[header] ?? row[String(storageIndex)]);
-        const raw = String(value ?? '').trim();
-        if (!raw) return;
-        sources.push({ variableName: `${rowName} ${header}`, raw });
+    const weaponStorageColumns = [0, 12, 9, 1, 11, 2, 3, 4, 5, 6, 10, 8, 13];
+    rows.forEach((row, rowIndex) => {
+      if (!row || typeof row !== 'object') return;
+      const rowName = String(Array.isArray(row) ? row[0] : (row.Name ?? row.name ?? row[0] ?? '')).trim() || `Row ${rowIndex + 1}`;
+      const cells = Array.isArray(row)
+        ? Object.entries(row).map(([storageIndex, value]) => {
+          const index = Number(storageIndex);
+          const headerIndex = tableName === 'Weapons' ? weaponStorageColumns.indexOf(index) : index;
+          return [headers[headerIndex] || `Column ${index + 1}`, value];
+        })
+        : Object.entries(row)
+          .filter(([key]) => !key.startsWith('_'))
+          .map(([key, value]) => [headers[Number(key)] || key, value]);
+      cells.forEach(([header, value]) => {
+        addReference(tableName, tableName, `${rowName} ${header}`, value, `${rowName} ${header}`);
       });
     });
   });
-  (Array.isArray(character?.data?.powerThemes) ? character.data.powerThemes : []).forEach((theme) => {
-    const themeName = String(theme?.title ?? '').trim();
-    (theme?.powers || []).forEach((power) => {
-      const powerName = String(power?.name ?? '').trim();
-      const cost = String(power?.cost ?? '').trim();
-      const charges = String(power?.charges ?? '').trim();
-      if (!powerName) return;
-      if (cost) {
-        sources.push({ variableName: `${powerName} Cost`, raw: cost });
-        if (themeName) sources.push({ variableName: `${themeName} ${powerName} Cost`, raw: cost });
-      }
-      if (charges) {
-        sources.push({ variableName: `${powerName} Charges`, raw: charges });
-        if (themeName) sources.push({ variableName: `${themeName} ${powerName} Charges`, raw: charges });
+
+  (Array.isArray(character?.data?.powerThemes) ? character.data.powerThemes : []).forEach((theme, themeIndex) => {
+    const themeName = String(theme?.title ?? '').trim() || `Theme ${themeIndex + 1}`;
+    addObjectFields('Unique Power', `Unique Power ${themeName}`, theme, ['powers', 'image', 'imageSettings']);
+    (Array.isArray(theme?.powers) ? theme.powers : []).forEach((power, powerIndex) => {
+      const powerName = String(power?.name ?? '').trim() || `Power ${powerIndex + 1}`;
+      addObjectFields('Unique Power', `Unique Power ${themeName} ${powerName}`, power);
+      if (power?.name) {
+        ['damage', 'cost', 'charges'].forEach((field) => {
+          const value = power[field];
+          if (value !== undefined && value !== null && String(value).trim()) {
+            formulaSources.push({ variableName: `${powerName} ${field === 'damage' ? 'Damage' : field === 'cost' ? 'Cost' : 'Charges'}`, raw: displayValue(value) });
+          }
+        });
       }
     });
   });
+  (Array.isArray(character?.data?.customManaPools) ? character.data.customManaPools : []).forEach((pool, index) => {
+    const poolName = String(pool?.name ?? '').trim() || `Pool ${index + 1}`;
+    addObjectFields('Stats', `Mana Pools ${poolName}`, pool, ['id', 'color']);
+  });
+  (Array.isArray(character?.data?.customRolls) ? character.data.customRolls : []).forEach((roll, index) => {
+    const rollName = String(roll?.name ?? '').trim() || `Roll ${index + 1}`;
+    addObjectFields('Custom Roll', `Custom Roll ${rollName}`, roll);
+  });
+  if (typeof state !== 'undefined') {
+    const characterId = Object.entries(state.characters || {}).find(([id, entry]) =>
+      entry === character || (character?.id && id === character.id) || (character?.name && entry?.name === character.name)
+    )?.[0];
+    (Array.isArray(state.rollHistory) ? state.rollHistory : [])
+      .filter((roll) => (characterId && roll.characterId === characterId) || (character?.name && roll.charName === character.name))
+      .forEach((roll, index) => addObjectFields('Rolls & Ini', `Rolls & Ini Roll ${index + 1}`, roll, ['id']));
+    const initiative = characterId ? state.initiativeTracker?.[characterId] : null;
+    if (initiative) addObjectFields('Rolls & Ini', 'Rolls & Ini Initiative', initiative, ['characterId']);
+  }
 
   const isFormulaValue = (value) => {
     const text = String(value ?? '').trim();
@@ -1190,10 +1252,9 @@ function getCustomRollVariableMap(character) {
     const parsed = parseDiceAndModifiers(text);
     return Boolean(parsed?.isNumeric || (parsed?.hasDice && parsed.totalDiceCount > 0));
   };
-
-  for (let pass = 0; pass < sources.length; pass++) {
+  for (let pass = 0; pass < formulaSources.length; pass++) {
     let addedVariable = false;
-    sources.forEach(({ variableName, raw }) => {
+    formulaSources.forEach(({ variableName, raw }) => {
       if (variables[variableName] !== undefined) return;
       const resolved = translateFormula(raw, variables);
       if (!isFormulaValue(resolved)) return;
@@ -1202,8 +1263,73 @@ function getCustomRollVariableMap(character) {
     });
     if (!addedVariable) break;
   }
-
+  formulaReferences.forEach(({ variableName, raw }) => {
+    if (variables[raw] !== undefined) {
+      variables[variableName] = variables[raw];
+    } else if (isFormulaCandidate(raw)) {
+      const resolved = translateFormula(raw, variables);
+      variables[variableName] = isFormulaValue(resolved) ? resolved : raw;
+    } else {
+      variables[variableName] = raw;
+    }
+  });
+  Object.defineProperty(variables, '_formulaReferences', { value: formulaReferences });
   return variables;
+}
+
+function getFormulaReferenceGroups(character) {
+  const variables = getCustomRollVariableMap(character);
+  const groups = new Map();
+  [
+    'Infos',
+    'Stats',
+    ...Object.keys(tables),
+    'Rolls & Ini',
+    'Currency',
+    'Unique Power',
+    'Custom Roll',
+    'Mana Pools'
+  ].forEach((group) => groups.set(group, []));
+  (variables._formulaReferences || []).forEach(({ group, variableName, label, raw }) => {
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push({ name: variableName, label, value: String(variables[variableName] ?? raw) });
+  });
+  const formulaNames = new Set((variables._formulaReferences || []).map(({ name }) => name));
+  const calculatedEntries = Object.entries(variables)
+    .filter(([name, value]) => !name.startsWith('_') && !formulaNames.has(name) && (typeof value === 'number' || typeof value === 'string'))
+    .sort(([nameA], [nameB]) => nameA.localeCompare(nameB, undefined, { sensitivity: 'base' }));
+  if (calculatedEntries.length) {
+    groups.set('Valeurs calculées & alias', calculatedEntries.map(([name, value]) => ({
+      name,
+      label: name,
+      value: String(value)
+    })));
+  }
+  return Array.from(groups, ([title, entries]) => ({ title, entries }));
+}
+
+function formulaReferencePopoverHtml(character) {
+  const groups = getFormulaReferenceGroups(character);
+  const entryCount = groups.reduce((count, group) => count + group.entries.length, 0);
+  return `<div class="formula-reference" id="formula-reference">
+    <button type="button" class="formula-reference-button" aria-expanded="false" aria-controls="formula-reference-popover" aria-label="Afficher les variables utilisables dans les formules">ƒ Toutes les formules</button>
+    <section class="formula-reference-popover" id="formula-reference-popover" role="region" aria-label="Variables utilisables dans les formules">
+      <div class="formula-reference-heading">
+        <h2>Toutes les valeurs appelables</h2>
+        <p>${entryCount} valeur${entryCount === 1 ? '' : 's'} référencée${entryCount === 1 ? '' : 's'} dans les onglets du dossier. Copiez le nom de formule affiché.</p>
+      </div>
+      <label class="formula-reference-search-label">Rechercher
+        <input type="search" class="formula-reference-search" placeholder="Onglet, valeur ou variable…" aria-label="Rechercher une variable de formule" />
+      </label>
+      ${groups.length ? groups.map((group) => `<section class="formula-reference-group">
+        <h3>${esc(group.title)} <span>${group.entries.length}</span></h3>
+        ${group.entries.length
+          ? `<ul>${group.entries.map(({ name, label, value }) => `<li data-formula-reference-item><div><strong>${esc(label)}</strong><code>${esc(name)}</code></div><span>${esc(value || '—')}</span></li>`).join('')}</ul>`
+          : '<p class="formula-reference-empty">Aucune valeur renseignée dans cet onglet.</p>'}
+      </section>`).join('') : '<p class="formula-reference-empty">Aucune variable disponible. Sélectionnez ou complétez un dossier de personnage.</p>'}
+      <p class="formula-reference-no-results" hidden>Aucune valeur ne correspond à cette recherche.</p>
+    </section>
+  </div>`;
 }
 
 function translateFormula(formula, stats) {
@@ -5263,7 +5389,10 @@ function render(focusPath = null, selectAll = false) {
             <span class="sheet-workspace-role">${user.role === 'GM' ? 'Commandement MJ' : 'Registre Citoyen'}</span>
             <span class="sheet-workspace-user">${esc(user.name)}</span>
           </div>
-          <span class="cloud-status" id="cloud-status"><span class="cloud-status-pulse"></span>Registre synchronisé</span>
+          <div class="sheet-meta-status-row">
+            ${formulaReferencePopoverHtml(character)}
+            <span class="cloud-status" id="cloud-status"><span class="cloud-status-pulse"></span>Registre synchronisé</span>
+          </div>
         </div>
       </header>
       ${controls(character)}
@@ -6256,6 +6385,51 @@ async function initialise() {
 }
 
 function bindEvents() {
+  const formulaReference = app.querySelector('#formula-reference');
+  const formulaReferenceButton = formulaReference?.querySelector('.formula-reference-button');
+  const setFormulaReferenceOpen = (open) => {
+    formulaReference?.classList.toggle('is-open', open);
+    formulaReferenceButton?.setAttribute('aria-expanded', String(open));
+  };
+  formulaReference?.addEventListener('mouseenter', () => setFormulaReferenceOpen(true));
+  formulaReference?.addEventListener('mouseleave', () => {
+    if (!formulaReference.classList.contains('is-pinned')) setFormulaReferenceOpen(false);
+  });
+  formulaReference?.addEventListener('focusin', () => setFormulaReferenceOpen(true));
+  formulaReference?.addEventListener('focusout', (event) => {
+    if (!formulaReference.contains(event.relatedTarget) && !formulaReference.classList.contains('is-pinned')) {
+      setFormulaReferenceOpen(false);
+    }
+  });
+  formulaReference?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      formulaReference.classList.remove('is-pinned');
+      setFormulaReferenceOpen(false);
+      formulaReferenceButton?.focus();
+    }
+  });
+  formulaReference?.querySelector('.formula-reference-search')?.addEventListener('input', (event) => {
+    const query = event.currentTarget.value.trim().toLocaleLowerCase();
+    let visibleItems = 0;
+    formulaReference.querySelectorAll('.formula-reference-group').forEach((group) => {
+      const items = group.querySelectorAll('[data-formula-reference-item]');
+      let groupHasVisibleItem = !query && items.length === 0;
+      items.forEach((item) => {
+        const matches = !query || item.textContent.toLocaleLowerCase().includes(query);
+        item.hidden = !matches;
+        groupHasVisibleItem ||= matches;
+        if (matches) visibleItems++;
+      });
+      group.hidden = !groupHasVisibleItem;
+    });
+    const noResults = formulaReference.querySelector('.formula-reference-no-results');
+    if (noResults) noResults.hidden = visibleItems > 0;
+  });
+  formulaReferenceButton?.addEventListener('click', () => {
+    const pinned = formulaReference.classList.toggle('is-pinned');
+    setFormulaReferenceOpen(pinned || formulaReference.matches(':hover'));
+  });
+
   app.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => {
     const tabName = button.dataset.tab;
     if (getAvailableTabs().includes(tabName)) {

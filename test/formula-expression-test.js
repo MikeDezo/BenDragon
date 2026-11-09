@@ -38,6 +38,77 @@ const getCharacterStatsMap = loadFunction('getCharacterStatsMap', 'getCustomRoll
   },
   getSelectedWeaponDamageInfo
 });
+const formulaTables = {
+  'Action Types': ['Name', 'Action Type', 'Description', 'Critical 1', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical 100'],
+  Skills: ['Name', 'Skill Type', 'Stat', 'CS Level', 'Action Type', 'Focus Cost', 'Description', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Specialisation'],
+  Spell: ['Name', 'Scell Value', 'Action Type', 'Mana Cost', 'Scells', 'Description', 'Intention', 'White', 'Green', 'Yellow', 'Red', 'Natural Red', 'Critical Red', 'Roll Stat', 'Specialisation'],
+  Specialisations: ['Name', 'Actual LVL', 'Touch Bonus', 'Potential Bonus', 'Special Effect', 'Ini Bonus'],
+  Weapons: ['Name', 'Description', 'Specialisation', 'Touch Stat', 'Touch Bonus', 'Damage Bonus Stat', 'Effective Range', 'Yellow Range', 'Red Range', 'Dice', 'Two handed?', 'Quality', 'Critical Multiplier'],
+  Armor: ['Name', 'Physical Protection', 'Energy Protection', 'Quality', 'Rune Slots', 'Runes', 'Description'],
+  Inventory: ['Qte', 'Name', 'Description', 'Localisation'],
+  Relations: ['Name', 'Race', 'Genre', 'Age', 'Link', 'Relation Type', 'Description'],
+  Monture: ['Name', 'Type', 'Speed', 'Armor', 'Notes'],
+  'Note du joueur': ['Note'],
+  'Unique Power': ['Name', 'Description', 'Cost']
+};
+const getCustomRollVariableMap = loadFunction('getCustomRollVariableMap', 'getFormulaReferenceGroups', {
+  getCharacterStatsMap,
+  tables: formulaTables,
+  ACTION_TYPES_ROWS: [['Normal', 'Full']],
+  parseDiceAndModifiers,
+  translateFormula
+});
+const getFormulaReferenceGroups = loadFunction('getFormulaReferenceGroups', 'formulaReferencePopoverHtml', {
+  getCustomRollVariableMap,
+  tables: formulaTables
+});
+const formulaReferencePopoverHtml = loadFunction('formulaReferencePopoverHtml', 'translateFormula', {
+  getFormulaReferenceGroups,
+  esc: (value) => String(value ?? '')
+});
+
+const formulaReferenceCharacter = {
+  data: {
+    stats: { Fighting: 30 },
+    info: { Biography: 7 },
+    tables: {
+      ...Object.fromEntries(Object.entries(formulaTables)
+        .filter(([tableName]) => tableName !== 'Action Types')
+        .map(([tableName, headers]) => [tableName, [headers.map((header, index) => index === 0 ? `${tableName} Item` : `${tableName} ${header} value`)]])),
+      Skills: [['Acrobaties', 'Hors-Combat', 'Agility', '', '', '', 'Balance', '', '(Fgt/10)D6']],
+      Specialisations: [['Fire Magic', 'Novice', '+5', '+10', '', '+1']],
+      Weapons: [{ Name: 'Longsword', Quality: '12' }]
+    },
+    currency: { boreal: '4' },
+    customManaPools: [{ name: 'Focus Pool', value: '5' }],
+    customRolls: [{ name: 'Fireball', formula: '1D6 + Fighting' }],
+    powerThemes: [{ title: 'Flame', description: 'Fire powers', powers: [{ name: 'Flame Burst', description: 'Burn', damage: '1D6 + Fighting', cost: '2', charges: '3' }] }]
+  }
+};
+const formulaReferenceGroups = getFormulaReferenceGroups(formulaReferenceCharacter);
+const formulaReferenceEntries = formulaReferenceGroups.flatMap(({ entries }) => entries);
+const formulaReferenceNames = new Set(formulaReferenceEntries.map(({ name }) => name));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Skills'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Spell'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Action Types'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Armor'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Inventory'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Relations'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Monture'));
+assert.ok(formulaReferenceGroups.some(({ title }) => title === 'Note du joueur'));
+assert.ok(formulaReferenceNames.has('Skills_Acrobaties_Green'));
+assert.ok(formulaReferenceNames.has('Specialisations_Fire_Magic_Potential_Bonus'));
+assert.ok(formulaReferenceNames.has('Currency_boreal'));
+assert.ok(formulaReferenceNames.has('Mana_Pools_Focus_Pool_value'));
+assert.ok(formulaReferenceNames.has('Custom_Roll_Fireball_formula'));
+assert.ok(formulaReferenceNames.has('Unique_Power_Flame_Flame_Burst_damage'));
+assert.strictEqual(
+  translateFormula('Skills_Acrobaties_Green', getCustomRollVariableMap(formulaReferenceCharacter)),
+  '(3D6)'
+);
+assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /aria-controls="formula-reference-popover"/);
+assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /Toutes les valeurs appelables/);
+assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /formula-reference-search/);
 
 const specialisationStats = getCharacterStatsMap({
   data: {
