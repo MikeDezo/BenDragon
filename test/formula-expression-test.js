@@ -205,6 +205,18 @@ assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /Toutes les
 assert.match(formulaReferencePopoverHtml(formulaReferenceCharacter), /formula-reference-search/);
 assert.match(dependentSkillRollModalHtml(), /id="dependent-skill-roll-stat"/);
 assert.match(dependentSkillRollModalHtml(), /id="dependent-skill-roll-focus-cost"/);
+const quickAccessRollHandler = source.slice(
+  source.indexOf("app.querySelectorAll('[data-qa-universal-roll]')"),
+  source.indexOf("app.querySelector('.qa-vs-intensity')?.addEventListener('input'")
+);
+assert.match(quickAccessRollHandler, /targetTier === 'standard'/);
+const quickAccessSkillEffectHandler = source.slice(
+  source.indexOf("app.querySelectorAll('.rollable-qa-effect')"),
+  source.indexOf("app.querySelector('#font-decrease-btn')")
+);
+assert.doesNotMatch(quickAccessSkillEffectHandler, /pendingDependentSkillRoll\s*=/);
+assert.match(quickAccessSkillEffectHandler, /await rollFormulaEffect/);
+assert.match(quickAccessSkillEffectHandler, /quickAccessDependentFocusCost = null/);
 
 const specialisationStats = getCharacterStatsMap({
   data: {

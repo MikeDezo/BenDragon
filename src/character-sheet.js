@@ -6628,7 +6628,7 @@ function bindEvents() {
       }
       if (name) {
         const statIsDependent = btn.dataset.statName?.trim().toLowerCase() === 'depend';
-        const focusCostIsDependent = btn.dataset.focusCostDependent === 'true';
+        const focusCostIsDependent = btn.dataset.focusCostDependent === 'true' && targetTier === 'standard';
         if (statIsDependent || focusCostIsDependent) {
           pendingDependentSkillRoll = {
             kind: 'universal',
@@ -6785,28 +6785,20 @@ function bindEvents() {
     });
   });
   app.querySelectorAll('.rollable-qa-effect').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();
       const actionName = btn.dataset.qaEffectName || 'Action';
       const tierLabel = btn.dataset.qaTierLabel || 'Effect';
       const rawExpression = btn.dataset.qaEffectExpr || '';
       if (!rawExpression || rawExpression === '—') return;
-      if (btn.dataset.qaSkillEffect === 'true') {
-        pendingDependentSkillRoll = {
-          kind: 'effect',
-          name: actionName,
-          tierLabel,
-          expression: rawExpression,
-          statIsDependent: false,
-          focusCostIsDependent: true,
-          vsIntensity: null
-        };
-        render();
-      } else {
-        const expr = translateFormula(rawExpression, getCustomRollVariableMap(currentCharacter())) || rawExpression;
-        if (expr && expr !== '—') {
-          rollFormulaEffect(actionName, tierLabel, expr);
+      const hasDependentFocusCost = btn.dataset.qaSkillEffect === 'true';
+      const expr = translateFormula(rawExpression, getCustomRollVariableMap(currentCharacter())) || rawExpression;
+      if (expr && expr !== '—') {
+        await rollFormulaEffect(actionName, tierLabel, expr);
+        if (hasDependentFocusCost) {
+          quickAccessDependentFocusCost = null;
+          render();
         }
       }
     });
