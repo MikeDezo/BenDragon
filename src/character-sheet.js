@@ -67,6 +67,7 @@ const DEFAULT_SKILLS_ROWS = [
   ['Acrobaties', 'Hors-Combat', 'Agility', '', '', '', "Garder l'équilibre, faire une roulade, franchir un obstacle difficile, marcher sur une surface étroite", '', '', '', '', '', ''],
   ['Arcanes', 'Hors-Combat', 'Intelligence', '', '', '', "Comprendre la magie, identifier un phénomène magique, reconnaître un sort ou une théorie magique", '', '', '', '', '', ''],
   ['Athlétisme', 'Hors-Combat', 'Depend', '', '', '', "Grimper, sauter, nager, pousser, tirer, accomplir un effort physique", '', '', '', '', '', ''],
+  ['Concentration', 'Hors-Combat', 'Depend', '', '', '', '', '', '', '', '', '', ''],
   ['Crochetage', 'Hors-Combat', 'Agility', '', '', '', "Ouvrir une serrure, désamorcer un mécanisme simple, manipuler un verrou", '', '', '', '', '', ''],
   ['Discrétion', 'Hors-Combat', 'Agility', '', '', '', "Se cacher, avancer silencieusement, éviter d'être repéré", '', '', '', '', '', ''],
   ['Étiquette', 'Hors-Combat', 'Wisdom', '', '', '', "Connaître les règles de politesse, les usages sociaux, les bonnes manières et le comportement attendu selon le milieu, le rang ou la culture.", '', '', '', '', '', ''],
@@ -80,6 +81,7 @@ const DEFAULT_SKILLS_ROWS = [
   ['Persuasion', 'Hors-Combat', 'Depend', '', '', '', "Convaincre quelqu'un par des arguments sincères ou une négociation", '', '', '', '', '', ''],
   ['Pistage', 'Hors-Combat', 'Intuition', '', '', '', "Suivre des traces, reconnaître le passage d'une créature, déterminer une direction ou l'âge approximatif d'une piste", '', '', '', '', '', ''],
   ['Premier Soins', 'Hors-Combat', 'Depend', '', '', '', "Examiner une blessure, identifier une maladie, stabiliser quelqu'un, déterminer une cause de mort", '', '', '', '', '', ''],
+  ['Saving Throw', 'Hors-Combat', 'Depend', '', '', '', '', '', '', '', '', '', ''],
   ['Survie', 'Hors-Combat', 'Endurance', '', '', '', "Trouver de la nourriture, installer un camp, éviter les dangers naturels, survivre dans un environnement hostile", '', '', '', '', '', ''],
   ['Tromperie', 'Hors-Combat', 'Depend', '', '', '', "Mentir, cacher ses intentions, inventer une histoire crédible, maintenir une fausse identité", '', '', '', '', '', ''],
   ['Protocole', 'Hors-Combat', 'Depend', '', '', '', "Connaître et appliquer les procédures officielles, militaires, diplomatiques, administratives ou cérémonielles propres à une institution ou à une autorité.", '', '', '', '', '', '']
