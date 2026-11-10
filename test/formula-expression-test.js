@@ -214,8 +214,12 @@ const quickAccessSkillMarkup = source.slice(
   source.indexOf('const skillsTableHtml = `'),
   source.indexOf('let selectedSpellIdx', source.indexOf('const skillsTableHtml = `'))
 );
-assert.match(quickAccessSkillMarkup, /data-focus-cost-dependent="\$\{isDependentFocusCost\}"[^>]+data-target-tier="standard"/);
-assert.doesNotMatch(quickAccessSkillMarkup, /data-focus-cost-dependent="\$\{isDependentFocusCost\}"[^>]+data-target-tier="(?:green|yellow|red)"/);
+assert.equal(
+  (quickAccessSkillMarkup.match(/data-focus-cost-dependent="\$\{isDependentFocusCost\}"[^>]+data-target-tier="(?:standard|green|yellow|red)"/g) || []).length,
+  4,
+  'All four skill check buttons should request dependent focus cost'
+);
+assert.doesNotMatch(quickAccessSkillMarkup, /rollable-qa-effect[^>]*data-focus-cost-dependent/);
 const quickAccessSkillEffectHandler = source.slice(
   source.indexOf("app.querySelectorAll('.rollable-qa-effect')"),
   source.indexOf("app.querySelector('#font-decrease-btn')")
